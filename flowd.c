@@ -521,7 +521,9 @@ main(int argc, char **argv)
 	};
 	int monitor_fd;
 
+#ifndef HAVE_SETPROCTITLE
 	compat_init_setproctitle(argc, &argv);
+#endif
 
 	while ((ch = getopt(argc, argv, "dhD:f:")) != -1) {
 		switch (ch) {
