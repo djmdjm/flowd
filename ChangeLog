@@ -1,3 +1,6 @@
+20040906
+ - (djm) Actually check for strlcpy and strlcat in configure
+
 20040908
  - (djm) Fix parsing bug that could suppress errors for invalid addresses in
    filter rules
