@@ -1,4 +1,4 @@
-%define ver 0.2
+%define ver 0.3
 %define rel 1fc2
 
 Summary: The flowd NetFlow collector daemon
