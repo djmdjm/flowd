@@ -1,6 +1,7 @@
 20040803
  - (djm) Tidy flowd.conf to the point where it can be installed by default
  - (djm) Tidy Flowd.pm and perl reader application a little
+ - (djm) Don't allow port in filter rules for !(tcp|udp)
 
 20040730
  - (djm) Release flowd 0.1

@@ -321,6 +321,16 @@ filterrule	: action tag quick match_agent match_src match_dst match_proto match_
 			r->match.tos = $8.tos;
 			r->match.match_what |= $8.match_what;
 
+			if ((r->match.match_what & 
+			    (FF_MATCH_SRC_PORT|FF_MATCH_DST_PORT)) && 
+			    (r->match.proto != IPPROTO_TCP &&
+			    r->match.proto != IPPROTO_UDP)) {
+				yyerror("port matching is only allowed for "
+				    "tcp or udp protocols");
+				free(r);
+				YYERROR;
+			}
+
 			TAILQ_INSERT_TAIL(&conf->filter_list, r, entry);
 		}
 		;
@@ -347,7 +357,7 @@ quick		: /* empty */	{ $$ = 0; }
 		;
 
 match_agent	: /* empty */			{ bzero(&$$, sizeof($$)); }
-		| AGENT prefix			{
+		| AGENT prefix_or_any			{
 			bzero(&$$, sizeof($$));
 			memcpy(&$$.agent_addr, &$2.addr, sizeof($$.agent_addr));
 			$$.agent_masklen = $2.len;
