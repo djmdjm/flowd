@@ -525,6 +525,9 @@ main(int argc, char **argv)
 	umask(0077);
 	closefrom(STDERR_FILENO + 1);
 
+#ifdef HAVE_TZSET
+	tzset();
+#endif
 	loginit(PROGNAME, 1, 0);
 
 	bzero(&conf, sizeof(conf));

@@ -96,7 +96,7 @@ AC_CHECK_MEMBER([struct sockaddr.sa_len],
 AC_SEARCH_LIBS(daemon, bsd)
 AC_SEARCH_LIBS(socket, socket)
 
-AC_CHECK_FUNCS(closefrom betoh64 htobe64 daemon setresuid setreuid setresgid setregid sysconf setproctitle dirfd sendmsg recvmsg)
+AC_CHECK_FUNCS(closefrom betoh64 htobe64 daemon setresuid setreuid setresgid setregid sysconf setproctitle dirfd sendmsg recvmsg tzset)
 
 AC_CHECK_TYPES([u_int64_t, int64_t, uint64_t, u_int32_t, int32_t, uint32_t])
 AC_CHECK_TYPES([u_int16_t, int16_t, uint16_t, u_int8_t, int8_t, uint8_t])
