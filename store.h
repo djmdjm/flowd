@@ -33,7 +33,7 @@ struct store_addr4 {
 } __packed;
 
 #define STORE_MAGIC			0x012cf047
-#define STORE_VERSION			0x00000001
+#define STORE_VERSION			0x00000002
 /* Start of flow log file */
 struct store_header {
 	u_int32_t		magic;
@@ -46,47 +46,66 @@ struct store_header {
  * Optional flow fields, specify what is stored for the flow
  * NB - the flow records appear in this order on disk
  */
-#define STORE_FIELD_PROTO_FLAGS_TOS	(1U)
-#define STORE_FIELD_AGENT_ADDR4		(1U<<1)
-#define STORE_FIELD_AGENT_ADDR6		(1U<<2)
-#define STORE_FIELD_SRCDST_ADDR4	(1U<<3)
-#define STORE_FIELD_SRCDST_ADDR6	(1U<<4)
-#define STORE_FIELD_GATEWAY_ADDR4	(1U<<5)
-#define STORE_FIELD_GATEWAY_ADDR6	(1U<<6)
-#define STORE_FIELD_SRCDST_PORT		(1U<<7)
-#define STORE_FIELD_PACKETS_OCTETS	(1U<<8)
-#define STORE_FIELD_IF_INDICES		(1U<<9)
-#define STORE_FIELD_AGENT_INFO		(1U<<10)
-#define STORE_FIELD_FLOW_TIMES		(1U<<11)
-#define STORE_FIELD_AS_INFO		(1U<<12)
-#define STORE_FIELD_FLOW_ENGINE_INFO	(1U<<13)
+#define STORE_FIELD_TAG			(1U)
+#define STORE_FIELD_RECV_TIME		(1U<<1)
+#define STORE_FIELD_PROTO_FLAGS_TOS	(1U<<2)
+#define STORE_FIELD_AGENT_ADDR4		(1U<<3)
+#define STORE_FIELD_AGENT_ADDR6		(1U<<4)
+#define STORE_FIELD_SRC_ADDR4		(1U<<5)
+#define STORE_FIELD_SRC_ADDR6		(1U<<6)
+#define STORE_FIELD_DST_ADDR4		(1U<<7)
+#define STORE_FIELD_DST_ADDR6		(1U<<8)
+#define STORE_FIELD_GATEWAY_ADDR4	(1U<<9)
+#define STORE_FIELD_GATEWAY_ADDR6	(1U<<10)
+#define STORE_FIELD_SRCDST_PORT		(1U<<11)
+#define STORE_FIELD_PACKETS		(1U<<12)
+#define STORE_FIELD_OCTETS		(1U<<13)
+#define STORE_FIELD_IF_INDICES		(1U<<14)
+#define STORE_FIELD_AGENT_INFO		(1U<<15)
+#define STORE_FIELD_FLOW_TIMES		(1U<<16)
+#define STORE_FIELD_AS_INFO		(1U<<17)
+#define STORE_FIELD_FLOW_ENGINE_INFO	(1U<<18)
 /* ... more one day */
 
 #define STORE_FIELD_CRC32		(1U<<30)
 #define STORE_FIELD_RESERVED		(1U<<31) /* For extension header */
-#define STORE_FIELD_ALL			(((1U<<14)-1)|STORE_FIELD_CRC32)
+#define STORE_FIELD_ALL			(((1U<<19)-1)|STORE_FIELD_CRC32)
 
 /* Useful combinations */
 #define STORE_FIELD_AGENT_ADDR		(STORE_FIELD_AGENT_ADDR4|\
 					 STORE_FIELD_AGENT_ADDR6)
-#define STORE_FIELD_SRCDST_ADDR		(STORE_FIELD_SRCDST_ADDR4|\
-					 STORE_FIELD_SRCDST_ADDR6)
+#define STORE_FIELD_SRC_ADDR		(STORE_FIELD_SRC_ADDR4|\
+					 STORE_FIELD_SRC_ADDR6)
+#define STORE_FIELD_DST_ADDR		(STORE_FIELD_DST_ADDR4|\
+					 STORE_FIELD_DST_ADDR6)
+#define STORE_FIELD_SRCDST_ADDR		(STORE_FIELD_SRC_ADDR|\
+					 STORE_FIELD_DST_ADDR)
 #define STORE_FIELD_GATEWAY_ADDR	(STORE_FIELD_GATEWAY_ADDR4|\
 					 STORE_FIELD_GATEWAY_ADDR6)
 
 #define STORE_DISPLAY_ALL		STORE_FIELD_ALL
-#define STORE_DISPLAY_BRIEF		(STORE_FIELD_PROTO_FLAGS_TOS|\
+#define STORE_DISPLAY_BRIEF		(STORE_FIELD_TAG|\
+					 STORE_FIELD_RECV_TIME|\
+					 STORE_FIELD_PROTO_FLAGS_TOS|\
 					 STORE_FIELD_SRCDST_PORT|\
-					 STORE_FIELD_PACKETS_OCTETS|\
-					 STORE_FIELD_SRCDST_ADDR4|\
-					 STORE_FIELD_SRCDST_ADDR6|\
+					 STORE_FIELD_PACKETS|\
+					 STORE_FIELD_OCTETS|\
+					 STORE_FIELD_SRCDST_ADDR|\
 					 STORE_FIELD_AGENT_ADDR4|\
 					 STORE_FIELD_AGENT_ADDR6)
 
 /* Start of flow record - present for every flow */
 struct store_flow {
 	u_int32_t		fields;
+} __packed;
+
+/* Optional flow field - present if STORE_FIELD_TAG */
+struct store_flow_TAG {
 	u_int32_t		tag; /* set by filter */
+} __packed;
+
+/* Optional flow field - present if STORE_FIELD_RECV_TIME */
+struct store_flow_RECV_TIME {
 	u_int32_t		recv_secs;
 } __packed;
 
@@ -106,13 +125,23 @@ struct store_flow_AGENT_ADDR_V6 {
 	struct store_addr6	flow_agent_addr;
 } __packed;
 
-/* Optional flow field - present if STORE_FIELD_SRCDST_ADDR */
-struct store_flow_SRCDST_ADDR_V4 {
+/* Optional flow field - present if STORE_FIELD_SRC_ADDR_V4 */
+struct store_flow_SRC_ADDR_V4 {
 	struct store_addr4	src_addr;
+} __packed;
+
+/* Optional flow field - present if STORE_FIELD_DST_ADDR_V4 */
+struct store_flow_DST_ADDR_V4 {
 	struct store_addr4	dst_addr;
 } __packed;
-struct store_flow_SRCDST_ADDR_V6 {
+
+/* Optional flow field - present if STORE_FIELD_SRC_ADDR_V6 */
+struct store_flow_SRC_ADDR_V6 {
 	struct store_addr6	src_addr;
+} __packed;
+
+/* Optional flow field - present if STORE_FIELD_DST_ADDR_V6 */
+struct store_flow_DST_ADDR_V6 {
 	struct store_addr6	dst_addr;
 } __packed;
 
@@ -130,9 +159,13 @@ struct store_flow_FLOW_SRCDST_PORT {
 	u_int16_t		dst_port;
 } __packed;
 
-/* Optional flow field - present if STORE_FIELD_PACKETS_OCTETS */
-struct store_flow_PACKETS_OCTETS {
+/* Optional flow field - present if STORE_FIELD_PACKETS */
+struct store_flow_PACKETS {
 	u_int64_t		flow_packets;
+} __packed;
+
+/* Optional flow field - present if STORE_FIELD_OCTETS */
+struct store_flow_OCTETS {
 	u_int64_t		flow_octets;
 } __packed;
 
@@ -182,13 +215,16 @@ struct store_flow_CRC32 {
 /* A abstract flow record (all fields included) */
 struct store_flow_complete {
 	struct store_flow			hdr;
+	struct store_flow_TAG			tag;
+	struct store_flow_RECV_TIME		recv_time;
 	struct store_flow_PROTO_FLAGS_TOS	pft;
 	struct xaddr				agent_addr;
 	struct xaddr				src_addr;
 	struct xaddr				dst_addr;
 	struct xaddr				gateway_addr;
 	struct store_flow_FLOW_SRCDST_PORT	ports;
-	struct store_flow_PACKETS_OCTETS	counters;
+	struct store_flow_PACKETS		packets;
+	struct store_flow_OCTETS		octets;
 	struct store_flow_IF_INDICES		ifndx;
 	struct store_flow_AGENT_INFO		ainfo;
 	struct store_flow_FLOW_TIMES		ftimes;

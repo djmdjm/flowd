@@ -158,9 +158,9 @@ process_flow(struct store_flow_complete *flow, struct flowd_config *conf,
 	}
 
 	/* Prepare for writing */
-	flow->hdr.tag = htonl(flow->hdr.tag);
-	flow->hdr.recv_secs = htonl(flow->hdr.recv_secs);
 	flow->hdr.fields = htonl(flow->hdr.fields);
+
+	flow->recv_time.recv_secs = htonl(flow->recv_time.recv_secs);
 
 	if (conf->opts & FLOWD_OPT_VERBOSE) {
 		char fbuf[1024];
@@ -219,12 +219,15 @@ process_netflow_v1(u_int8_t *pkt, size_t len, struct sockaddr *from,
 
 		/* NB. These are converted to network byte order later */
 		flow.hdr.fields = STORE_FIELD_ALL;
-		flow.hdr.fields &= ~STORE_FIELD_SRCDST_ADDR6;
+		/* flow.hdr.tag is set later */
+		flow.hdr.fields &= ~STORE_FIELD_TAG;
+		flow.hdr.fields &= ~STORE_FIELD_SRC_ADDR6;
+		flow.hdr.fields &= ~STORE_FIELD_DST_ADDR6;
 		flow.hdr.fields &= ~STORE_FIELD_GATEWAY_ADDR6;
 		flow.hdr.fields &= ~STORE_FIELD_AS_INFO;
 		flow.hdr.fields &= ~STORE_FIELD_FLOW_ENGINE_INFO;
-		/* flow.hdr.tag is set later */
-		flow.hdr.recv_secs = time(NULL);
+
+		flow.recv_time.recv_secs = time(NULL);
 
 		flow.pft.tcp_flags = nf1_flow->tcp_flags;
 		flow.pft.protocol = nf1_flow->protocol;
@@ -246,8 +249,8 @@ process_netflow_v1(u_int8_t *pkt, size_t len, struct sockaddr *from,
 		flow.ports.dst_port = nf1_flow->dest_port;
 
 #define NTO64(a) (store_htonll(ntohl(a)))
-		flow.counters.flow_packets = NTO64(nf1_flow->flow_packets);
-		flow.counters.flow_octets = NTO64(nf1_flow->flow_octets);
+		flow.octets.flow_octets = NTO64(nf1_flow->flow_octets);
+		flow.packets.flow_packets = NTO64(nf1_flow->flow_packets);
 #undef NTO64
 
 		flow.ifndx.if_index_in = nf1_flow->if_index_in;
@@ -303,10 +306,13 @@ process_netflow_v5(u_int8_t *pkt, size_t len, struct sockaddr *from,
 
 		/* NB. These are converted to network byte order later */
 		flow.hdr.fields = STORE_FIELD_ALL;
-		flow.hdr.fields &= ~STORE_FIELD_SRCDST_ADDR6;
-		flow.hdr.fields &= ~STORE_FIELD_GATEWAY_ADDR6;
 		/* flow.hdr.tag is set later */
-		flow.hdr.recv_secs = time(NULL);
+		flow.hdr.fields &= ~STORE_FIELD_TAG;
+		flow.hdr.fields &= ~STORE_FIELD_SRC_ADDR6;
+		flow.hdr.fields &= ~STORE_FIELD_DST_ADDR6;
+		flow.hdr.fields &= ~STORE_FIELD_GATEWAY_ADDR6;
+
+		flow.recv_time.recv_secs = time(NULL);
 
 		flow.pft.tcp_flags = nf5_flow->tcp_flags;
 		flow.pft.protocol = nf5_flow->protocol;
@@ -328,8 +334,8 @@ process_netflow_v5(u_int8_t *pkt, size_t len, struct sockaddr *from,
 		flow.ports.dst_port = nf5_flow->dest_port;
 
 #define NTO64(a) (store_htonll(ntohl(a)))
-		flow.counters.flow_packets = NTO64(nf5_flow->flow_packets);
-		flow.counters.flow_octets = NTO64(nf5_flow->flow_octets);
+		flow.octets.flow_octets = NTO64(nf5_flow->flow_octets);
+		flow.packets.flow_packets = NTO64(nf5_flow->flow_packets);
 #undef NTO64
 
 		flow.ifndx.if_index_in = nf5_flow->if_index_in;

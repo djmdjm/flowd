@@ -1,3 +1,8 @@
+20040804
+ - (djm) Don't clobber existing configuration file
+ - (djm) Rework the storage format a little, so we can be more compact when
+   storing a few fields - NB this is an incompatible format change
+
 20040803
  - (djm) Tidy flowd.conf to the point where it can be installed by default
  - (djm) Tidy Flowd.pm and perl reader application a little

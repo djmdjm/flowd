@@ -243,6 +243,10 @@ conf_main	: LISTEN ON address_port	{
 logspec		: STRING	{
 			if (strcasecmp($1, "ALL") == 0)
 				$$ = STORE_FIELD_ALL;
+			else if (strcasecmp($1, "TAG") == 0)
+				$$ = STORE_FIELD_TAG;
+			else if (strcasecmp($1, "RECV_TIME") == 0)
+				$$ = STORE_FIELD_RECV_TIME;
 			else if (strcasecmp($1, "PROTO_FLAGS_TOS") == 0)
 				$$ = STORE_FIELD_PROTO_FLAGS_TOS;
 			else if (strcasecmp($1, "AGENT_ADDR") == 0)
@@ -253,10 +257,14 @@ logspec		: STRING	{
 				$$ = STORE_FIELD_AGENT_ADDR6;
 			else if (strcasecmp($1, "SRCDST_ADDR") == 0)
 				$$ = STORE_FIELD_SRCDST_ADDR;
-			else if (strcasecmp($1, "SRCDST_ADDR4") == 0)
-				$$ = STORE_FIELD_SRCDST_ADDR4;
-			else if (strcasecmp($1, "SRCDST_ADDR6") == 0)
-				$$ = STORE_FIELD_SRCDST_ADDR6;
+			else if (strcasecmp($1, "SRC_ADDR4") == 0)
+				$$ = STORE_FIELD_SRC_ADDR4;
+			else if (strcasecmp($1, "DST_ADDR4") == 0)
+				$$ = STORE_FIELD_DST_ADDR4;
+			else if (strcasecmp($1, "SRC_ADDR6") == 0)
+				$$ = STORE_FIELD_SRC_ADDR6;
+			else if (strcasecmp($1, "DST_ADDR6") == 0)
+				$$ = STORE_FIELD_DST_ADDR6;
 			else if (strcasecmp($1, "GATEWAY_ADDR") == 0)
 				$$ = STORE_FIELD_GATEWAY_ADDR;
 			else if (strcasecmp($1, "GATEWAY_ADDR4") == 0)
@@ -265,8 +273,10 @@ logspec		: STRING	{
 				$$ = STORE_FIELD_GATEWAY_ADDR6;
 			else if (strcasecmp($1, "SRCDST_PORT") == 0)
 				$$ = STORE_FIELD_SRCDST_PORT;
-			else if (strcasecmp($1, "PACKETS_OCTETS") == 0)
-				$$ = STORE_FIELD_PACKETS_OCTETS;
+			else if (strcasecmp($1, "PACKETS") == 0)
+				$$ = STORE_FIELD_PACKETS;
+			else if (strcasecmp($1, "OCTETS") == 0)
+				$$ = STORE_FIELD_OCTETS;
 			else if (strcasecmp($1, "IF_INDICES") == 0)
 				$$ = STORE_FIELD_IF_INDICES;
 			else if (strcasecmp($1, "AGENT_INFO") == 0)

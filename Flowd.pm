@@ -19,17 +19,20 @@ use warnings;
 use Math::BigInt;
 use Socket;
 use Socket6;
+use Carp;
 
 package Flowd;
 
 use constant {
-	VERSION		=>	"0.2"
+	VERSION		=>	"0.3"
 };
 
 sub iso_time {
 	my $timet = shift;
 	my $utc = 0;
 	my @tm;
+
+	Carp::confess("missing argument") if not defined $timet;
 
 	@tm = localtime($timet) unless $utc;
 	@tm = gmtime($timet) if $utc;
@@ -45,6 +48,8 @@ sub interval_time {
 		[ "w", 7 ], [ "y", 52 ] 
 	);
 	my $ret = "s";
+
+	Carp::confess("missing argument") if not defined $t;
 
 	foreach my $iv (@ivs) {
 		$ret = sprintf "%u%s", $t % @$iv[1], $ret;
@@ -95,7 +100,7 @@ sub init {
 	 $self->{start_time}, $self->{flags}) = unpack("NNNN", $hdr);
 
 	die "bad magic" unless $self->{magic} == 0x012cf047;
-	die "unsupported version" unless $self->{version} == 0x00000001;
+	die "unsupported version" unless $self->{version} == 0x00000002;
 }
 
 sub readflow {
@@ -107,41 +112,53 @@ sub readflow {
 package Flowd::Flow;
 
 use constant {
-	PROTO_FLAGS_TOS		=> 0x00000001,
-	AGENT_ADDR4		=> 0x00000002,
-	AGENT_ADDR6		=> 0x00000004,
-	SRCDST_ADDR4		=> 0x00000008,
-	SRCDST_ADDR6		=> 0x00000010,
-	GATEWAY_ADDR4		=> 0x00000020,
-	GATEWAY_ADDR6		=> 0x00000040,
-	SRCDST_PORT		=> 0x00000080,
-	PACKETS_OCTETS		=> 0x00000100,
-	IF_INDICES		=> 0x00000200,
-	AGENT_INFO		=> 0x00000400,
-	FLOW_TIMES		=> 0x00000800,
-	AS_INFO			=> 0x00001000,
-	FLOW_ENGINE_INFO	=> 0x00002000,
+	TAG			=> 0x00000001,
+	RECV_TIME		=> 0x00000002,
+	PROTO_FLAGS_TOS		=> 0x00000004,
+	AGENT_ADDR4		=> 0x00000008,
+	AGENT_ADDR6		=> 0x00000010,
+	SRC_ADDR4		=> 0x00000020,
+	SRC_ADDR6		=> 0x00000040,
+	DST_ADDR4		=> 0x00000080,
+	DST_ADDR6		=> 0x00000100,
+	GATEWAY_ADDR4		=> 0x00000200,
+	GATEWAY_ADDR6		=> 0x00000400,
+	SRCDST_PORT		=> 0x00000800,
+	PACKETS			=> 0x00001000,
+	OCTETS			=> 0x00002000,
+	IF_INDICES		=> 0x00004000,
+	AGENT_INFO		=> 0x00008000,
+	FLOW_TIMES		=> 0x00010000,
+	AS_INFO			=> 0x00020000,
+	FLOW_ENGINE_INFO	=> 0x00040000,
 	CRC32			=> 0x40000000,
 
 # Some useful combinations
-	AGENT_ADDR		=> 0x00000006,
-	SRCDST_ADDR		=> 0x00000018,
-	GATEWAY_ADDR		=> 0x00000060,
-	BRIEF			=> 0x0000019f,
-	ALL			=> 0x40003fff
+	AGENT_ADDR		=> 0x00000018,
+	SRC_ADDR		=> 0x00000060,
+	DST_ADDR		=> 0x00000180,
+	SRCDST_ADDR		=> 0x000001e0,
+	GATEWAY_ADDR		=> 0x00000600,
+	BRIEF			=> 0x000039ff,
+	ALL			=> 0x4007ffff
 };
 
 my @fieldspec = (
 #	  Field Flag		Field Name		Length
+	[ TAG,			"TAG",			4	],
+	[ RECV_TIME,		"RECV_TIME",		4	],
 	[ PROTO_FLAGS_TOS,	"PROTO_FLAGS_TOS",	4	],
 	[ AGENT_ADDR4,		"AGENT_ADDR4",		4	],
 	[ AGENT_ADDR6,		"AGENT_ADDR6",		16	],
-	[ SRCDST_ADDR4,		"SRCDST_ADDR4",		8	],
-	[ SRCDST_ADDR6,		"SRCDST_ADDR6",		32	],
+	[ SRC_ADDR4,		"SRC_ADDR4",		4	],
+	[ SRC_ADDR6,		"SRC_ADDR6",		16	],
+	[ DST_ADDR4,		"DST_ADDR4",		4	],
+	[ DST_ADDR6,		"DST_ADDR6",		16	],
 	[ GATEWAY_ADDR4,	"GATEWAY_ADDR4",	4	],
 	[ GATEWAY_ADDR6,	"GATEWAY_ADDR6",	16	],
 	[ SRCDST_PORT,		"SRCDST_PORT",		4	],
-	[ PACKETS_OCTETS,	"PACKETS_OCTETS",	16	],
+	[ PACKETS,		"PACKETS",		8	],
+	[ OCTETS,		"OCTETS",		8	],
 	[ IF_INDICES,		"IF_INDICES",		4	],
 	[ AGENT_INFO,		"AGENT_INFO",		16	],
 	[ FLOW_TIMES,		"FLOW_TIMES",		8	],
@@ -172,19 +189,18 @@ sub init {
 	my $crc = Flowd::CRC32->new();
 
 	# Read initial flow header
-	$r = read($store->{handle}, $hdr, 12);
+	$r = read($store->{handle}, $hdr, 4);
 
 	die "read($store->{filename}): $!" if not defined $r;
 	return 0 if $r == 0;
-	die "early EOF on $store->{filename}" if $r < 12;
+	die "early EOF on $store->{filename}" if $r < 4;
 
-	$crc->update($hdr, 12);
+	$crc->update($hdr, 4);
 
 	$self->{fields} = \%fields;
 	$self->{rawfields} = \%rawfields;
 
-	($fields{fields}, $fields{tag}, $fields{recv_time})
-		= unpack("NNN", $hdr);
+	($fields{fields}) = unpack("N", $hdr);
 
 	# XXX - merge these two loops
 	foreach my $fspec (@fieldspec) {
@@ -198,28 +214,33 @@ sub init {
 	}
 
 	foreach my $field (keys %rawfields) {
-		if ($field eq "PROTO_FLAGS_TOS") {
+		if ($field eq "TAG") {
+			($fields{tag})
+				= unpack "N", $rawfields{$field};
+		} elsif ($field eq "RECV_TIME") {
+			($fields{recv_secs})
+				= unpack "N", $rawfields{$field};
+		} elsif ($field eq "PROTO_FLAGS_TOS") {
 			($fields{tcp_flags}, $fields{protocol},  $fields{tos})
 				= unpack "CCC", $rawfields{$field};
-			next;
 		} elsif ($field eq "AGENT_ADDR4") {
 			$fields{agent_addr} = Socket6::inet_ntop(
 			    Socket::PF_INET, $rawfields{$field});
 		} elsif ($field eq "AGENT_ADDR6") {
 			$fields{agent_addr} = Socket6::inet_ntop(
 			    Socket6::PF_INET6, $rawfields{$field});
-		} elsif ($field eq "SRCDST_ADDR4") {
+		} elsif ($field eq "SRC_ADDR4") {
 			$fields{src_addr} = Socket6::inet_ntop(
-			    Socket::PF_INET, substr($rawfields{$field}, 0, 4));
-			$fields{dst_addr} = Socket6::inet_ntop(
-			    Socket::PF_INET, substr($rawfields{$field}, 4, 4));
-		} elsif ($field eq "SRCDST_ADDR6") {
+			    Socket::PF_INET, $rawfields{$field});
+		} elsif ($field eq "SRC_ADDR6") {
 			$fields{src_addr} = Socket6::inet_ntop(
-			    Socket::PF_INET6,
-			    substr($rawfields{$field}, 0, 16));
+			    Socket::PF_INET6, $rawfields{$field});
+		} elsif ($field eq "DST_ADDR4") {
 			$fields{dst_addr} = Socket6::inet_ntop(
-			    Socket::PF_INET6,
-			    substr($rawfields{$field}, 16, 16));
+			    Socket::PF_INET, $rawfields{$field});
+		} elsif ($field eq "DST_ADDR6") {
+			$fields{dst_addr} = Socket6::inet_ntop(
+			    Socket::PF_INET6, $rawfields{$field});
 		} elsif ($field eq "GATEWAY_ADDR4") {
 			$fields{gateway_addr} = Socket6::inet_ntop(
 			    Socket::PF_INET, $rawfields{$field});
@@ -229,14 +250,16 @@ sub init {
 		} elsif ($field eq "SRCDST_PORT") {
 			($fields{src_port}, $fields{dst_port})
 				= unpack "nn", $rawfields{$field};
-			next;
-		} elsif ($field eq "PACKETS_OCTETS") {
-			(my $p1, my $p2, my $o1, my $o2)
-				= unpack "NNNN", $rawfields{$field};
+		} elsif ($field eq "PACKETS") {
+			(my $p1, my $p2)
+				= unpack "NN", $rawfields{$field};
 
 			$fields{flow_packets} = Math::BigInt->new($p1);
 			$fields{flow_packets}->blsft(32);
 			$fields{flow_packets}->badd($p2);
+		} elsif ($field eq "OCTETS") {
+			(my $o1, my $o2)
+				= unpack "NN", $rawfields{$field};
 
 			$fields{flow_octets} = Math::BigInt->new($o1);
 			$fields{flow_octets}->blsft(32);
@@ -244,29 +267,23 @@ sub init {
 		} elsif ($field eq "IF_INDICES") {
 			($fields{if_index_in}, $fields{if_index_out})
 				= unpack "nn", $rawfields{$field};
-			next;
 		} elsif ($field eq "AGENT_INFO") {
 			($fields{sys_uptime_ms}, $fields{time_sec},
 			 $fields{time_nanosec}, $fields{netflow_version}, 
 			 my $pad) = unpack "NNNn", $rawfields{$field};
-			next;
 		} elsif ($field eq "FLOW_TIMES") {
 			($fields{flow_start}, $fields{flow_finish})
 				= unpack "NN", $rawfields{$field};
-			next;
 		} elsif ($field eq "AS_INFO") {
 			($fields{src_as}, $fields{dst_as},
 			 $fields{src_masklen}, $fields{dst_masklen}, my $pad)
 				= unpack "nnCCn", $rawfields{$field};
-			next;
 		} elsif ($field eq "FLOW_ENGINE_INFO") {
 			($fields{engine_type}, $fields{engine_id},
 			 my $pad, $fields{flow_sequence})
 			 	= unpack "CCnN", $rawfields{$field};
-			next;
 		} elsif ($field eq "CRC32") {
 			($fields{crc}) = unpack "N", $rawfields{$field};
-			next;
 		}
 	}
 
@@ -285,9 +302,15 @@ sub format
 
 	my $ret = "";
 
-	$ret .= sprintf "FLOW tag %u %s ", $self->{fields}->{tag},
-	    Flowd::iso_time($self->{fields}->{recv_time}, $utc_flag);
+	$ret .= "FLOW ";
 
+	if ($fields & TAG) {
+		$ret .= sprintf "tag %u ", $self->{fields}->{tag};
+	}
+	if ($fields & RECV_TIME) {
+		$ret .= sprintf "recv_time %s ", 
+		    Flowd::iso_time($self->{fields}->{recv_secs}, $utc_flag);
+	}
 	if ($fields & PROTO_FLAGS_TOS) {
 		$ret .= sprintf "proto %u ", $self->{fields}->{protocol};
 		$ret .= sprintf "tcpflags %02x ", $self->{fields}->{tcp_flags};
@@ -296,12 +319,14 @@ sub format
 	if ($fields & AGENT_ADDR) {
 		$ret .= sprintf "agent %s ", $self->{fields}->{agent_addr};
 	}
-	if ($fields & SRCDST_ADDR) {
+	if ($fields & SRC_ADDR) {
 		$ret .= sprintf "src %s", $self->{fields}->{src_addr};
 		if ($fields & SRCDST_PORT) {
 			$ret .= sprintf ":%u", $self->{fields}->{src_port};
 		}
 		$ret .= " ";
+	}
+	if ($fields & DST_ADDR) {
 		$ret .= sprintf "dst %s", $self->{fields}->{dst_addr};
 		if ($fields & SRCDST_PORT) {
 			$ret .= sprintf ":%u", $self->{fields}->{dst_port};
@@ -311,8 +336,10 @@ sub format
 	if ($fields & GATEWAY_ADDR) {
 		$ret .= sprintf "gateway %s ", $self->{fields}->{gateway_addr};
 	}
-	if ($fields & PACKETS_OCTETS) {
+	if ($fields & PACKETS) {
 		$ret .= sprintf "packets %s ", $self->{fields}->{flow_packets};
+	}
+	if ($fields & OCTETS) {
 		$ret .= sprintf "octets %s ", $self->{fields}->{flow_octets};
 	}
 	if ($fields & IF_INDICES) {

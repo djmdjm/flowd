@@ -198,7 +198,10 @@ filter_flow(struct store_flow_complete *flow, struct filter_list *filter)
 		last_rule->wins++;
 		action = last_rule->action.action_what;
 		if (action == FF_ACTION_TAG) {
-			flow->hdr.tag = htonl(last_rule->action.tag);
+			flow->hdr.fields = ntohl(flow->hdr.fields);
+			flow->hdr.fields |= STORE_FIELD_TAG;
+			flow->hdr.fields = htonl(flow->hdr.fields);
+			flow->tag.tag = htonl(last_rule->action.tag);
 			action = FF_ACTION_ACCEPT;
 		}
 	}

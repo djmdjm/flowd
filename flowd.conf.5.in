@@ -127,6 +127,12 @@ directive are:
 .Bl -tag -width xxxxxxxx
 .It Ar ALL
 Store all available fields.
+.It Ar TAG
+Stores the tag set by the flow filter.
+This field must be present for the tags to be recorded.
+.It Ar RECV_TIME
+Stores the time that the flow was received by
+.Xr flowd 8 .
 .It Ar PROTO_FLAGS_TOS
 Store the protocol, TCP flags and type-of-service (ToS) fields from the 
 NetFlow packet.
@@ -136,8 +142,10 @@ Like several other storage fields,
 actually contains several small NetFlow fields together for convenience.
 .It Ar AGENT_ADDR
 Store the address of the agent that sent the flow to the collector.
-.It Ar SRCDST_ADDR
-Store the source and destination addresses from the NetFlow packet.
+.It Ar SRC_ADDR
+Store the source address from the NetFlow packet.
+.It Ar DST_ADDR
+Store the destination address from the NetFlow packet.
 .It Ar GATEWAY_ADDR
 Store the gateway address from the NetFlow packet.
 .It Ar SRCDST_PORT

@@ -104,8 +104,10 @@ store_get_flow(int fd, struct store_flow_complete *f, const char **errptr)
 	int r;
 	struct store_flow_AGENT_ADDR_V4 aa4;
 	struct store_flow_AGENT_ADDR_V6 aa6;
-	struct store_flow_SRCDST_ADDR_V4 sda4;
-	struct store_flow_SRCDST_ADDR_V6 sda6;
+	struct store_flow_SRC_ADDR_V4 sa4;
+	struct store_flow_SRC_ADDR_V6 sa6;
+	struct store_flow_DST_ADDR_V4 da4;
+	struct store_flow_DST_ADDR_V6 da6;
 	struct store_flow_GATEWAY_ADDR_V4 ga4;
 	struct store_flow_GATEWAY_ADDR_V6 ga6;
 	u_int32_t fields, crc;
@@ -130,23 +132,27 @@ store_get_flow(int fd, struct store_flow_complete *f, const char **errptr)
 	 		if (read_field(fd, &dest, sizeof(dest), errptr, \
 			    desc) <= 0) \
 				return (-1); \
-			if (SHASFIELD(CRC32) && \
-			    STORE_FIELD_##flag != STORE_FIELD_CRC32) { \
+			if (STORE_FIELD_##flag != STORE_FIELD_CRC32) { \
 				crc32_update((u_char *)&dest, sizeof(dest), \
 				    &crc); \
 			} \
 		} \
 	} while (0)
 
+	RFIELD(TAG, f->tag, "tag");
+	RFIELD(RECV_TIME, f->recv_time, "receive time");
 	RFIELD(PROTO_FLAGS_TOS, f->pft, "proto/flags/tos");
 	RFIELD(AGENT_ADDR4, aa4, "IPv4 agent addr");
 	RFIELD(AGENT_ADDR6, aa6, "IPv6 agent addr");
-	RFIELD(SRCDST_ADDR4, sda4, "IPv4 source/dest addrs");
-	RFIELD(SRCDST_ADDR6, sda6, "IPv6 source/dest addrs");
+	RFIELD(SRC_ADDR4, sa4, "IPv4 source addrs");
+	RFIELD(SRC_ADDR6, sa6, "IPv6 source addrs");
+	RFIELD(DST_ADDR4, da4, "IPv4 dest addrs");
+	RFIELD(DST_ADDR6, da6, "IPv6 dest addrs");
 	RFIELD(GATEWAY_ADDR4, ga4, "IPv4 gateway addr");
 	RFIELD(GATEWAY_ADDR6, ga6, "IPv6 gateway addr");
 	RFIELD(SRCDST_PORT, f->ports, "ports");
-	RFIELD(PACKETS_OCTETS, f->counters, "counters");
+	RFIELD(PACKETS, f->packets, "packets");
+	RFIELD(OCTETS, f->octets, "octets");
 	RFIELD(IF_INDICES, f->ifndx, "interface indicies");
 	RFIELD(AGENT_INFO, f->ainfo, "agent info");
 	RFIELD(FLOW_TIMES, f->ftimes, "info");
@@ -157,8 +163,10 @@ store_get_flow(int fd, struct store_flow_complete *f, const char **errptr)
 	/* Sanity check and convert addresses */
 	if (SHASFIELD(AGENT_ADDR4) && SHASFIELD(AGENT_ADDR6))
 		SFAILX(-1, "Flow has both v4/v6 agent addrs", 0);
-	if (SHASFIELD(SRCDST_ADDR4) && SHASFIELD(SRCDST_ADDR6))
-		SFAILX(-1, "Flow has both v4/v6 src/dst addrs", 0);
+	if (SHASFIELD(SRC_ADDR4) && SHASFIELD(SRC_ADDR6))
+		SFAILX(-1, "Flow has both v4/v6 src addrs", 0);
+	if (SHASFIELD(DST_ADDR4) && SHASFIELD(DST_ADDR6))
+		SFAILX(-1, "Flow has both v4/v6 dst addrs", 0);
 	if (SHASFIELD(GATEWAY_ADDR4) && SHASFIELD(GATEWAY_ADDR6))
 		SFAILX(-1, "Flow has both v4/v6 gateway addrs", 0);
 
@@ -171,14 +179,14 @@ store_get_flow(int fd, struct store_flow_complete *f, const char **errptr)
 		S_CPYADDR(f->agent_addr, aa4.flow_agent_addr, 4);
 	if (SHASFIELD(AGENT_ADDR6))
 		S_CPYADDR(f->agent_addr, aa6.flow_agent_addr, 6);
-	if (SHASFIELD(SRCDST_ADDR4)) {
-		S_CPYADDR(f->src_addr, sda4.src_addr, 4);
-		S_CPYADDR(f->dst_addr, sda4.dst_addr, 4);
-	}
-	if (SHASFIELD(SRCDST_ADDR6)) {
-		S_CPYADDR(f->src_addr, sda6.src_addr, 6);
-		S_CPYADDR(f->dst_addr, sda6.dst_addr, 6);
-	}
+	if (SHASFIELD(SRC_ADDR4))
+		S_CPYADDR(f->src_addr, sa4.src_addr, 4);
+	if (SHASFIELD(SRC_ADDR6))
+		S_CPYADDR(f->src_addr, sa6.src_addr, 6);
+	if (SHASFIELD(DST_ADDR4))
+		S_CPYADDR(f->dst_addr, da4.dst_addr, 4);
+	if (SHASFIELD(DST_ADDR6))
+		S_CPYADDR(f->dst_addr, da6.dst_addr, 6);
 	if (SHASFIELD(GATEWAY_ADDR4))
 		S_CPYADDR(f->gateway_addr, ga4.gateway_addr, 4);
 	if (SHASFIELD(GATEWAY_ADDR6))
@@ -222,8 +230,10 @@ write_flow(int fd, const char **errptr,
     struct store_flow_complete *flow, 
     struct store_flow_AGENT_ADDR_V4 *aa4,
     struct store_flow_AGENT_ADDR_V6 *aa6, 
-    struct store_flow_SRCDST_ADDR_V4 *sda4,
-    struct store_flow_SRCDST_ADDR_V6 *sda6,
+    struct store_flow_SRC_ADDR_V4 *sa4,
+    struct store_flow_SRC_ADDR_V6 *sa6,
+    struct store_flow_DST_ADDR_V4 *da4,
+    struct store_flow_DST_ADDR_V6 *da6,
     struct store_flow_GATEWAY_ADDR_V4 *gwa4,
     struct store_flow_GATEWAY_ADDR_V6 *gwa6)
 {
@@ -246,22 +256,26 @@ write_flow(int fd, const char **errptr,
 			SFAIL(-1, "write " #spec, 0);			\
 		if (r < (ssize_t)sizeof(what))				\
 			SFAILX(-1, "EOF writing " #spec, 0);		\
-		if ((fields & (STORE_FIELD_CRC32)) && 			\
-		    (STORE_FIELD_##spec != STORE_FIELD_CRC32)) {	\
+		if ((STORE_FIELD_##spec != STORE_FIELD_CRC32)) {	\
 			crc32_update((u_char *)(what), sizeof(*(what)),	\
 			    &crc);					\
 		}							\
 	}  } while (0)
 
+	WRITEOUT(TAG, &flow->tag);
+	WRITEOUT(RECV_TIME, &flow->recv_time);
 	WRITEOUT(PROTO_FLAGS_TOS, &flow->pft);
 	WRITEOUT(AGENT_ADDR4, aa4);
 	WRITEOUT(AGENT_ADDR6, aa6);
-	WRITEOUT(SRCDST_ADDR4, sda4);
-	WRITEOUT(SRCDST_ADDR6, sda6);
+	WRITEOUT(SRC_ADDR4, sa4);
+	WRITEOUT(SRC_ADDR6, sa6);
+	WRITEOUT(DST_ADDR4, da4);
+	WRITEOUT(DST_ADDR6, da6);
 	WRITEOUT(GATEWAY_ADDR4, gwa4);
 	WRITEOUT(GATEWAY_ADDR6, gwa6);
 	WRITEOUT(SRCDST_PORT, &flow->ports);
-	WRITEOUT(PACKETS_OCTETS, &flow->counters);
+	WRITEOUT(PACKETS, &flow->packets);
+	WRITEOUT(OCTETS, &flow->octets);
 	WRITEOUT(IF_INDICES, &flow->ifndx);
 	WRITEOUT(AGENT_INFO, &flow->ainfo);
 	WRITEOUT(FLOW_TIMES, &flow->ftimes);
@@ -284,8 +298,10 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 {
 	struct store_flow_AGENT_ADDR_V4 aa4;
 	struct store_flow_AGENT_ADDR_V6 aa6;
-	struct store_flow_SRCDST_ADDR_V4 sda4;
-	struct store_flow_SRCDST_ADDR_V6 sda6;
+	struct store_flow_SRC_ADDR_V4 sa4;
+	struct store_flow_SRC_ADDR_V6 sa6;
+	struct store_flow_DST_ADDR_V4 da4;
+	struct store_flow_DST_ADDR_V6 da6;
 	struct store_flow_GATEWAY_ADDR_V4 gwa4;
 	struct store_flow_GATEWAY_ADDR_V6 gwa6;
 	u_int32_t fields, origfields;
@@ -321,30 +337,46 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 		SFAILX(-1, "silly agent addr af", 1);
 	}
 
-	/* NB. Assume that this is the same as dst_addr.af */
 	switch(flow->src_addr.af) {
 	case AF_INET:
-		if ((fields & STORE_FIELD_SRCDST_ADDR4) == 0)
+		if ((fields & STORE_FIELD_SRC_ADDR4) == 0)
 			break;
-		memcpy(&sda4.src_addr, &flow->src_addr.v4,
-		    sizeof(sda4.src_addr));
-		memcpy(&sda4.dst_addr, &flow->dst_addr.v4,
-		    sizeof(sda4.dst_addr));
-		fields |= STORE_FIELD_SRCDST_ADDR4;
-		fields &= ~STORE_FIELD_SRCDST_ADDR6;
+		memcpy(&sa4.src_addr, &flow->src_addr.v4,
+		    sizeof(sa4.src_addr));
+		fields |= STORE_FIELD_SRC_ADDR4;
+		fields &= ~STORE_FIELD_SRC_ADDR6;
 		break;
 	case AF_INET6:
-		if ((fields & STORE_FIELD_SRCDST_ADDR6) == 0)
+		if ((fields & STORE_FIELD_SRC_ADDR6) == 0)
 			break;
-		memcpy(&sda6.src_addr, &flow->src_addr.v6,
-		    sizeof(sda6.src_addr));
-		memcpy(&sda6.dst_addr, &flow->dst_addr.v6,
-		    sizeof(sda6.dst_addr));
-		fields |= STORE_FIELD_SRCDST_ADDR6;
-		fields &= ~STORE_FIELD_SRCDST_ADDR4;
+		memcpy(&sa6.src_addr, &flow->src_addr.v6,
+		    sizeof(sa6.src_addr));
+		fields |= STORE_FIELD_SRC_ADDR6;
+		fields &= ~STORE_FIELD_SRC_ADDR4;
 		break;
 	default:
-		SFAILX(-1, "silly src/dst addrs af", 1);
+		SFAILX(-1, "silly src addrs af", 1);
+	}
+	
+	switch(flow->dst_addr.af) {
+	case AF_INET:
+		if ((fields & STORE_FIELD_DST_ADDR4) == 0)
+			break;
+		memcpy(&da4.dst_addr, &flow->dst_addr.v4,
+		    sizeof(da4.dst_addr));
+		fields |= STORE_FIELD_DST_ADDR4;
+		fields &= ~STORE_FIELD_DST_ADDR6;
+		break;
+	case AF_INET6:
+		if ((fields & STORE_FIELD_DST_ADDR6) == 0)
+			break;
+		memcpy(&da6.dst_addr, &flow->dst_addr.v6,
+		    sizeof(da6.dst_addr));
+		fields |= STORE_FIELD_DST_ADDR6;
+		fields &= ~STORE_FIELD_DST_ADDR4;
+		break;
+	default:
+		SFAILX(-1, "silly dst addrs af", 1);
 	}
 	
 	switch(flow->gateway_addr.af) {
@@ -370,8 +402,8 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 
 	flow->hdr.fields = htonl(fields);
 
-	if (write_flow(fd, errptr, fields, flow, &aa4, &aa6, &sda4, &sda6,
-	    &gwa4, &gwa6) == 0) {
+	if (write_flow(fd, errptr, fields, flow, &aa4, &aa6, 
+	    &sa4, &sa6, &da4, &da6, &gwa4, &gwa6) == 0) {
 		flow->hdr.fields = htonl(origfields);
 		return (0);
 	}
@@ -442,11 +474,19 @@ store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
 
 	fields = ntohl(flow->hdr.fields) & display_mask;
 
-	printf("FLOW tag %u %s ", ntohl(flow->hdr.tag),
-	    iso_time(ntohl(flow->hdr.recv_secs), utc_flag));
+	strlcat(buf, "FLOW ", len);
 
 #define HASFIELD(flag)	(fields & STORE_FIELD_##flag)
 
+	if (HASFIELD(TAG)) {
+		snprintf(tmp, sizeof(tmp), "tag %u ", ntohl(flow->tag.tag));
+		strlcat(buf, tmp, len);
+	}
+	if (HASFIELD(RECV_TIME)) {
+		snprintf(tmp, sizeof(tmp), "recv_time %s ", 
+		    iso_time(ntohl(flow->recv_time.recv_secs), utc_flag));
+		strlcat(buf, tmp, len);
+	}
 	if (HASFIELD(PROTO_FLAGS_TOS)) {
 		snprintf(tmp, sizeof(tmp), "proto %d ", flow->pft.protocol);
 		strlcat(buf, tmp, len);
@@ -460,7 +500,7 @@ store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
 		    addr_ntop_buf(&flow->agent_addr));
 		strlcat(buf, tmp, len);
 	}
-	if (HASFIELD(SRCDST_ADDR4) || HASFIELD(SRCDST_ADDR6)) {
+	if (HASFIELD(SRC_ADDR4) || HASFIELD(SRC_ADDR6)) {
 		snprintf(tmp, sizeof(tmp), "src %s",
 		    addr_ntop_buf(&flow->src_addr));
 		strlcat(buf, tmp, len);
@@ -470,6 +510,8 @@ store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
 			strlcat(buf, tmp, len);
 		}
 		strlcat(buf, " ", len);
+	}
+	if (HASFIELD(DST_ADDR4) || HASFIELD(DST_ADDR6)) {
 		snprintf(tmp, sizeof(tmp), "dst %s",
 		    addr_ntop_buf(&flow->dst_addr));
 		strlcat(buf, tmp, len);
@@ -480,16 +522,19 @@ store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
 		}
 		strlcat(buf, " ", len);
 	}
-	if (HASFIELD(GATEWAY_ADDR4) ||
-	    HASFIELD(GATEWAY_ADDR6)) {
+	if (HASFIELD(GATEWAY_ADDR4) || HASFIELD(GATEWAY_ADDR6)) {
 		snprintf(tmp, sizeof(tmp), "gateway %s ",
 		    addr_ntop_buf(&flow->gateway_addr));
 		strlcat(buf, tmp, len);
 	}
-	if (HASFIELD(PACKETS_OCTETS)) {
-		snprintf(tmp, sizeof(tmp), "packets %llu octets %llu ", 
-		    store_ntohll(flow->counters.flow_packets),
-		    store_ntohll(flow->counters.flow_octets));
+	if (HASFIELD(PACKETS)) {
+		snprintf(tmp, sizeof(tmp), "packets %llu ",
+		    store_ntohll(flow->packets.flow_packets));
+		strlcat(buf, tmp, len);
+	}
+	if (HASFIELD(OCTETS)) {
+		snprintf(tmp, sizeof(tmp), "octets %llu ", 
+		    store_ntohll(flow->octets.flow_octets));
 		strlcat(buf, tmp, len);
 	}
 	if (HASFIELD(IF_INDICES)) {
