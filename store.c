@@ -116,7 +116,7 @@ store_calc_flow_len(struct store_flow *hdr)
 		return (-1);
 
 	return (ret);
-}	
+}
 
 int
 store_flow_deserialise(u_int8_t *buf, int len, struct store_flow_complete *f,
@@ -138,11 +138,15 @@ store_flow_deserialise(u_int8_t *buf, int len, struct store_flow_complete *f,
 
 	memcpy(&f->hdr.fields, buf, sizeof(f->hdr.fields));
 
+	if (len < sizeof(f->hdr))
+		SFAILX(STORE_ERR_BUFFER_SIZE,
+		    "supplied length is too small", 1);
+
 	if ((r = store_calc_flow_len((struct store_flow *)buf)) == -1)
 		SFAILX(STORE_ERR_FLOW_INVALID,
 		    "unsupported flow fields specified", 0);
-	
-	if (r > len - sizeof(f->hdr))
+
+	if (len - sizeof(f->hdr) < r)
 		SFAILX(STORE_ERR_BUFFER_SIZE,
 		    "calulated flow length is less than supplied len", 1);
 
@@ -289,7 +293,7 @@ store_put_header(int fd, char *ebuf, int elen)
 }
 
 int
-store_flow_serialise(struct store_flow_complete *f, u_int8_t *buf, int buflen, 
+store_flow_serialise(struct store_flow_complete *f, u_int8_t *buf, int buflen,
     int *flowlen, char *ebuf, int elen)
 {
 	struct store_flow_AGENT_ADDR4 aa4;

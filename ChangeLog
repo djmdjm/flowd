@@ -3,6 +3,7 @@
    error when we encounter unsupported fields
  - (djm) Implement most of the Python API in native code, using the C API
  - (djm) Kill whitespace at EOL
+ - (djm) More length checking in deserialise function
 
 20041030
  - (djm) Rework flow reading C API to be more friendly to wrapping into Perl
