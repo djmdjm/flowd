@@ -69,7 +69,7 @@ struct store_header {
 
 /* Start of flow record - present for every flow */
 struct store_flow {
-	u_int32_t		fieldspec_flags;
+	u_int32_t		fields;
 	u_int32_t		tag; /* set by filter */
 	u_int32_t		recv_secs;
 } __packed;

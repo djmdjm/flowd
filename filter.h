@@ -25,8 +25,8 @@
 #include "store.h"
 
 #define FF_ACTION_ACCEPT	1
-#define FF_ACTION_DISCARD	1
-#define FF_ACTION_TAG		2
+#define FF_ACTION_DISCARD	2
+#define FF_ACTION_TAG		3
 struct filter_action {
 	int		action_what;
 	u_int32_t	tag;
@@ -62,5 +62,6 @@ struct filter_rule {
 TAILQ_HEAD(filter_list, filter_rule);
 
 u_int filter_flow(struct store_flow_complete *flow, struct filter_list *filter);
+const char *format_rule(struct filter_rule *rule);
 
 #endif /* _FILTER_H */

@@ -68,17 +68,6 @@ usage(void)
 }
 
 static const char *
-host_ntop(struct xaddr *a)
-{
-	static char hbuf[64];
-
-	if (addr_ntop(a, hbuf, sizeof(hbuf)) == -1)
-		return ("error");
-
-	return (hbuf);
-}
-
-static const char *
 from_ntop(struct sockaddr *s)
 {
 	static char hbuf[64], sbuf[32], ret[128];
@@ -101,54 +90,11 @@ dump_config(struct flowd_config *c)
 	fprintf(stderr, "logfile \"%s\"\n", c->log_file);
 	TAILQ_FOREACH(la, &c->listen_addrs, entry) {
 		fprintf(stderr, "listen on [%s]:%d\n",
-		    host_ntop(&la->addr), la->port);
+		    addr_ntop_buf(&la->addr), la->port);
 	}
 
-	TAILQ_FOREACH(fr, &c->filter_list, entry) {
-		if (fr->action.action_what == FF_ACTION_ACCEPT)
-			fprintf(stderr, "accept ");
-		else if (fr->action.action_what == FF_ACTION_DISCARD)
-			fprintf(stderr, "discard ");
-		else if (fr->action.action_what == FF_ACTION_TAG)
-			fprintf(stderr, "tag %lu ", (u_long)fr->action.tag);
-		else
-			fprintf(stderr, "UNKNOWN ");
-
-		if (fr->quick)
-			fprintf(stderr, "quick ");
-
-		if (fr->match.match_what & FF_MATCH_AGENT_ADDR) {
-			fprintf(stderr, "agent %s/%d ",
-			    host_ntop(&fr->match.agent_addr), 
-			    fr->match.agent_masklen);
-		}
-
-		if (fr->match.match_what & 
-		    (FF_MATCH_SRC_ADDR|FF_MATCH_SRC_PORT)) {
-			fprintf(stderr, "src %s/%d ",
-			    host_ntop(&fr->match.src_addr), 
-			    fr->match.src_masklen);
-		}
-		if (fr->match.match_what & FF_MATCH_SRC_PORT)
-			fprintf(stderr, "port %d ", fr->match.src_port);
-
-		if (fr->match.match_what & 
-		    (FF_MATCH_DST_ADDR|FF_MATCH_DST_PORT)) {
-			fprintf(stderr, "dst %s/%d ",
-			    host_ntop(&fr->match.dst_addr), 
-			    fr->match.dst_masklen);
-		}
-		if (fr->match.match_what & FF_MATCH_DST_PORT)
-			fprintf(stderr, "port %d ", fr->match.dst_port);
-
-		if (fr->match.match_what & FF_MATCH_PROTOCOL)
-			fprintf(stderr, "proto %d ", fr->match.proto);
-
-		if (fr->match.match_what & FF_MATCH_TOS)
-			fprintf(stderr, "tos 0x%x ", fr->match.tos);
-
-		fprintf(stderr, "\n");
-	}
+	TAILQ_FOREACH(fr, &c->filter_list, entry)
+		fprintf(stderr, "%s\n", format_rule(fr));
 }
 
 static int
@@ -222,12 +168,12 @@ store_flow(int fd, struct store_flow_complete *flow)
 	case AF_INET:
 		memcpy(&aa4.flow_agent_addr, &flow->agent_addr.v4,
 		    sizeof(aa4.flow_agent_addr));
-		flow->hdr.fieldspec_flags |= STORE_FIELD_AGENT_ADDR4;
+		flow->hdr.fields |= STORE_FIELD_AGENT_ADDR4;
 		break;
 	case AF_INET6:
 		memcpy(&aa6.flow_agent_addr, &flow->agent_addr.v6,
 		    sizeof(aa6.flow_agent_addr));
-		flow->hdr.fieldspec_flags |= STORE_FIELD_AGENT_ADDR6;
+		flow->hdr.fields |= STORE_FIELD_AGENT_ADDR6;
 		break;
 	default:
 		syslog(LOG_WARNING, "%s: silly agent addr af", __func__);
@@ -241,14 +187,14 @@ store_flow(int fd, struct store_flow_complete *flow)
 		    sizeof(sda4.src_addr));
 		memcpy(&sda4.dst_addr, &flow->dst_addr.v4,
 		    sizeof(sda4.dst_addr));
-		flow->hdr.fieldspec_flags |= STORE_FIELD_SRCDST_ADDR4;
+		flow->hdr.fields |= STORE_FIELD_SRCDST_ADDR4;
 		break;
 	case AF_INET6:
 		memcpy(&sda6.src_addr, &flow->src_addr.v6,
 		    sizeof(sda6.src_addr));
 		memcpy(&sda6.dst_addr, &flow->dst_addr.v6,
 		    sizeof(sda6.dst_addr));
-		flow->hdr.fieldspec_flags |= STORE_FIELD_SRCDST_ADDR6;
+		flow->hdr.fields |= STORE_FIELD_SRCDST_ADDR6;
 		break;
 	default:
 		syslog(LOG_WARNING, "%s: silly src/dst addr af", __func__);
@@ -259,23 +205,23 @@ store_flow(int fd, struct store_flow_complete *flow)
 	case AF_INET:
 		memcpy(&gwa4.gateway_addr, &flow->gateway_addr.v4,
 		    sizeof(gwa4.gateway_addr));
-		flow->hdr.fieldspec_flags |= STORE_FIELD_GATEWAY_ADDR4;
+		flow->hdr.fields |= STORE_FIELD_GATEWAY_ADDR4;
 		break;
 	case AF_INET6:
 		memcpy(&gwa6.gateway_addr, &flow->gateway_addr.v6,
 		    sizeof(gwa6.gateway_addr));
-		flow->hdr.fieldspec_flags |= STORE_FIELD_GATEWAY_ADDR6;
+		flow->hdr.fields |= STORE_FIELD_GATEWAY_ADDR6;
 		break;
 	default:
 		syslog(LOG_WARNING, "%s: silly gateway addr af", __func__);
 		return (-1);
 	}
 
-	fieldspec = flow->hdr.fieldspec_flags;
+	fieldspec = flow->hdr.fields;
 
 	flow->hdr.tag = htonl(flow->hdr.tag);
 	flow->hdr.recv_secs = htonl(flow->hdr.recv_secs);
-	flow->hdr.fieldspec_flags = htonl(flow->hdr.fieldspec_flags);
+	flow->hdr.fields = htonl(flow->hdr.fields);
 
 	/* Now write out the flow */
 	if (atomicio(vwrite, fd, &flow->hdr, sizeof(flow->hdr)) !=
@@ -284,26 +230,28 @@ store_flow(int fd, struct store_flow_complete *flow)
 
 	syslog(LOG_DEBUG, "%s: write fields %x", __func__, fieldspec);
 
-#define WRITEOUT(spec, what, len) do {  \
-		syslog(LOG_DEBUG, "writing %s len %d", #spec, len); \
-		if ((fieldspec & (spec)) && atomicio(vwrite, fd, (what), \
-		    (len)) != len)  \
+#define WRITEOUT(spec, what) do {  \
+	if ((fieldspec & (spec))) { \
+		syslog(LOG_DEBUG, "writing %s len %d", #spec, sizeof(what)); \
+		if (atomicio(vwrite, fd, &(what), sizeof(what)) \
+		    != sizeof(what))  \
 			goto fail; \
-		} while (0)
+	}  } while (0)
 
-	WRITEOUT(STORE_FIELD_AGENT_ADDR4, &aa4, sizeof(aa4));
-	WRITEOUT(STORE_FIELD_AGENT_ADDR6, &aa6, sizeof(aa6));
-	WRITEOUT(STORE_FIELD_SRCDST_ADDR4, &sda4, sizeof(sda4));
-	WRITEOUT(STORE_FIELD_SRCDST_ADDR6, &sda6, sizeof(sda6));
-	WRITEOUT(STORE_FIELD_GATEWAY_ADDR4, &gwa4, sizeof(gwa4));
-	WRITEOUT(STORE_FIELD_GATEWAY_ADDR6, &gwa6, sizeof(gwa6));
-	WRITEOUT(STORE_FIELD_SRCDST_PORT, &flow->ports, sizeof(flow->ports));
-	WRITEOUT(STORE_FIELD_PACKETS_OCTETS, &flow->counters, sizeof(flow->counters));
-	WRITEOUT(STORE_FIELD_IF_INDICES, &flow->ifndx, sizeof(flow->ifndx));
-	WRITEOUT(STORE_FIELD_AGENT_INFO, &flow->ainfo, sizeof(flow->ainfo));
-	WRITEOUT(STORE_FIELD_FLOW_TIMES, &flow->ftimes, sizeof(flow->ftimes));
-	WRITEOUT(STORE_FIELD_AS_INFO, &flow->asinf, sizeof(flow->asinf));
-	WRITEOUT(STORE_FIELD_FLOW_ENGINE_INFO, &flow->finf, sizeof(flow->finf));
+	WRITEOUT(STORE_FIELD_PROTO_FLAGS_TOS, flow->pft);
+	WRITEOUT(STORE_FIELD_AGENT_ADDR4, aa4);
+	WRITEOUT(STORE_FIELD_AGENT_ADDR6, aa6);
+	WRITEOUT(STORE_FIELD_SRCDST_ADDR4, sda4);
+	WRITEOUT(STORE_FIELD_SRCDST_ADDR6, sda6);
+	WRITEOUT(STORE_FIELD_GATEWAY_ADDR4, gwa4);
+	WRITEOUT(STORE_FIELD_GATEWAY_ADDR6, gwa6);
+	WRITEOUT(STORE_FIELD_SRCDST_PORT, flow->ports);
+	WRITEOUT(STORE_FIELD_PACKETS_OCTETS, flow->counters);
+	WRITEOUT(STORE_FIELD_IF_INDICES, flow->ifndx);
+	WRITEOUT(STORE_FIELD_AGENT_INFO, flow->ainfo);
+	WRITEOUT(STORE_FIELD_FLOW_TIMES, flow->ftimes);
+	WRITEOUT(STORE_FIELD_AS_INFO, flow->asinf);
+	WRITEOUT(STORE_FIELD_FLOW_ENGINE_INFO, flow->finf);
 #undef WRITEOUT
 
 	return (0);
@@ -386,9 +334,9 @@ process_netflow_v1(u_int8_t *pkt, size_t len, struct sockaddr *from,
 		bzero(&flow, sizeof(flow));
 
 		/* NB. These are converted to network byte order later */
-		flow.hdr.fieldspec_flags = STORE_FIELD_ALL;
-		flow.hdr.fieldspec_flags &= ~STORE_FIELD_AS_INFO;
-		flow.hdr.fieldspec_flags &= ~STORE_FIELD_FLOW_ENGINE_INFO;
+		flow.hdr.fields = STORE_FIELD_ALL;
+		flow.hdr.fields &= ~STORE_FIELD_AS_INFO;
+		flow.hdr.fields &= ~STORE_FIELD_FLOW_ENGINE_INFO;
 		/* flow.hdr.tag is set later */
 		flow.hdr.recv_secs = time(NULL);
 
@@ -466,7 +414,7 @@ process_netflow_v5(u_int8_t *pkt, size_t len, struct sockaddr *from,
 		bzero(&flow, sizeof(flow));
 
 		/* NB. These are converted to network byte order later */
-		flow.hdr.fieldspec_flags = STORE_FIELD_ALL;
+		flow.hdr.fields = STORE_FIELD_ALL;
 		/* flow.hdr.tag is set later */
 		flow.hdr.recv_secs = time(NULL);
 
@@ -673,11 +621,11 @@ listen_init(struct flowd_config *conf)
 		la->fd = setup_listener(&la->addr, la->port);
 		if (la->fd == -1) {
 			errx(1, "Listener setup of [%s]:%d failed", 
-			    host_ntop(&la->addr), la->port);
+			    addr_ntop_buf(&la->addr), la->port);
 		}
 		if (conf->opts & FLOWD_OPT_VERBOSE) {
 			fprintf(stderr, "Listener for [%s]:%d fd = %d\n",
-			    host_ntop(&la->addr), la->port, la->fd);
+			    addr_ntop_buf(&la->addr), la->port, la->fd);
 		}
 	}
 }

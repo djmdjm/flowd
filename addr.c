@@ -439,3 +439,15 @@ addr_netmatch(const struct xaddr *host, const struct xaddr *net, u_int masklen)
 		return (-1);
 	return (addr_cmp(&tmp_result, net));
 }
+
+const char *
+addr_ntop_buf(struct xaddr *a)
+{
+	static char hbuf[64];
+
+	if (addr_ntop(a, hbuf, sizeof(hbuf)) == -1)
+		return NULL;
+
+	return (hbuf);
+}
+
