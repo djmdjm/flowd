@@ -42,8 +42,8 @@ for (my $i = 0; $i < scalar(@ARGV); $i++) {
 
 #	print "$flow_log\n";
 
-	while (my $flow = $flow_handle->readflow()) {
-		my $tag = $flow->{fields}->{tag};
+	while (my $flow = $flow_handle->read_flow()) {
+		my $tag = $flow->{tag};
 		$tag = 0 unless defined $tag;
 
 #		print $flow->format(Flowd::Flow::BRIEF, 0) . "\n";
@@ -53,15 +53,15 @@ for (my $i = 0; $i < scalar(@ARGV); $i++) {
 		    " src_port, dst_port, octets, packets, protocol) VALUES ".
 		    "(%u, %s, %s, %s, %s, %u, %u, %u, %u, %u)" ,
 		    $tag, 
-		    $db->quote(Flowd::iso_time($flow->{fields}->{recv_secs})),
-		    $db->quote($flow->{fields}->{agent_addr}), 
-		    $db->quote($flow->{fields}->{src_addr}), 
-		    $db->quote($flow->{fields}->{dst_addr}),
-		    $flow->{fields}->{src_port},
-		    $flow->{fields}->{dst_port},
-		    $flow->{fields}->{flow_octets},
-		    $flow->{fields}->{flow_packets},
-		    $flow->{fields}->{protocol} );
+		    $db->quote(Flowd::iso_time($flow->{recv_secs})),
+		    $db->quote($flow->{agent_addr}), 
+		    $db->quote($flow->{src_addr}), 
+		    $db->quote($flow->{dst_addr}),
+		    $flow->{src_port},
+		    $flow->{dst_port},
+		    $flow->{flow_octets},
+		    $flow->{flow_packets},
+		    $flow->{protocol} );
 
 #		print "$query\n";
 		$db->do($query) or die "db->do failed: " . $DBI::errstr;

@@ -14,3 +14,6 @@ flowd-reader
 flowd-reader.8
 flowd.8
 flowd.conf.5
+setup.py
+flowd.py
+*.old

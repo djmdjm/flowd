@@ -13,16 +13,20 @@ To build flowd, follow the familiar incantation:
 make
 make install
 
-If you want to use the perl interface to the binary flow logs, then you will 
-need the Socket6 module, which is available from CPAN: 
+The Perl interface no longer requires extra modules. Built it after you have
+built flow, using these commands:
 
-http://search.cpan.org/~umemoto/Socket6-0.17/Socket6.pm
-
-For convenience, a RPM distribution of the Socket6 module is also available 
-from the flowd download site
+cd Flowd
+perl Makefile.PL
+make
+make install
 
 The Python module doesn't have any special dependencies beyond Python-2.3. 
-To install it, run "./setup.py install"
+To install it, run the following commands after you have built flowd:
+
+python setup.py build 
+python setup.py install
+
 
 Please report any problems to me.
 

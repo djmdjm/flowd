@@ -1,5 +1,7 @@
 This directory contains tools to manipulate flowd logfiles or demonstrate
-its API. They are:
+its API. To use these tools, you must have the Perl and/or Python modules 
+installed in a place that the intepreter knows about (e.g. by following the
+instructions in ../INSTALL).
 
 flowinsert.pl
 -------------

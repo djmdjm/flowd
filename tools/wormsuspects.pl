@@ -51,10 +51,10 @@ foreach my $ffile (@ARGV) {
 	printf STDERR "LOGFILE %s started at %s\n",
 	    $ffile, Flowd::iso_time($log->{start_time}, 0);
 	
-	while (my $flow = $log->readflow()) {
-		my $src = $flow->{fields}->{src_addr};
-		my $proto = $flow->{fields}->{protocol};
-		my $port = $flow->{fields}->{dst_port};
+	while (my $flow = $log->read_flow()) {
+		my $src = $flow->{src_addr};
+		my $proto = $flow->{protocol};
+		my $port = $flow->{dst_port};
 		my $src_id;
 
 		die "Need source address" unless defined $src;
