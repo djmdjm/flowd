@@ -5,6 +5,7 @@
    makes packaging easier, at the cost of a little more release-time editing
  - (djm) Allow building of Perl and Python modules without running configure
    first - useful if building against a system copy of libflowd
+ - (djm) Don't clobber perl or python modules in "make distclean"
 
 20041102
  - (djm) Crank versions to prepare for release
