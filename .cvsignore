@@ -1,2 +1,7 @@
 *.o
-obj
+config.h
+config.h.in
+configure
+config.status
+config.log
+
