@@ -24,6 +24,42 @@ use constant {
 	VERSION		=>	"0.01"
 };
 
+sub iso_time {
+	my $timet = shift;
+	my $utc = 0;
+	my @tm;
+
+	@tm = localtime($timet) unless $utc;
+	@tm = gmtime($timet) if $utc;
+
+	return sprintf("%04u-%02u-%02uT%02u:%02u:%02u", 
+	    1900 + $tm[5], 1 + $tm[4], $tm[3], $tm[2], $tm[1], $tm[0]);
+}
+
+sub interval_time {
+	my $t = shift;
+	my @ivs = (
+		[ "m", 60 ], [ "h", 60 ], [ "d", 24 ], 
+		[ "w", 7 ], [ "y", 52 ] 
+	);
+	my $ret = "s";
+
+	foreach my $iv (@ivs) {
+		$ret = sprintf "%u%s", $t % @$iv[1], $ret;
+		$t = int($t / @$iv[1]);
+		last if $t <= 0;
+		$ret = @$iv[0] . $ret;
+	}
+	return $ret;
+}
+
+sub interval_time_ms
+{
+	my $tms = shift;
+
+	return sprintf "%s.%03u", interval_time($tms / 1000), $tms % 1000,	
+}
+
 package Flowd::Store;
 
 sub new {
@@ -179,9 +215,11 @@ sub init {
 			    Socket::PF_INET, substr($rawfields{$field}, 4, 4));
 		} elsif ($field eq "SRCDST_ADDR6") {
 			$fields{src_addr} = Socket6::inet_ntop(
-			    Socket::PF_INET6, substr($rawfields{$field}, 0, 16));
+			    Socket::PF_INET6,
+			    substr($rawfields{$field}, 0, 16));
 			$fields{dst_addr} = Socket6::inet_ntop(
-			    Socket::PF_INET6, substr($rawfields{$field}, 16, 16));
+			    Socket::PF_INET6,
+			    substr($rawfields{$field}, 16, 16));
 		} elsif ($field eq "GATEWAY_ADDR4") {
 			$fields{gateway_addr} = Socket6::inet_ntop(
 			    Socket::PF_INET, $rawfields{$field});
@@ -238,42 +276,6 @@ sub init {
 	return 1;
 }
 
-sub iso_time {
-	my $timet = shift;
-	my $utc = 0;
-	my @tm;
-
-	@tm = localtime($timet) unless $utc;
-	@tm = gmtime($timet) if $utc;
-
-	return sprintf("%04u-%02u-%02uT%02u:%02u:%02u", 
-	    1900 + $tm[5], 1 + $tm[4], $tm[3], $tm[2], $tm[1], $tm[0]);
-}
-
-sub interval_time {
-	my $t = shift;
-	my @ivs = (
-		[ "m", 60 ], [ "h", 60 ], [ "d", 24 ], 
-		[ "w", 7 ], [ "y", 52 ] 
-	);
-	my $ret = "s";
-
-	foreach my $iv (@ivs) {
-		$ret = sprintf "%u%s", $t % @$iv[1], $ret;
-		$t = int($t / @$iv[1]);
-		last if $t <= 0;
-		$ret = @$iv[0] . $ret;
-	}
-	return $ret;
-}
-
-sub interval_time_ms
-{
-	my $tms = shift;
-
-	return sprintf "%s.%03u", interval_time($tms / 1000), $tms % 1000,	
-}
-
 sub format
 {
 	my $self = shift;
@@ -284,7 +286,7 @@ sub format
 	my $ret = "";
 
 	$ret .= sprintf "FLOW tag %u %s ", $self->{fields}->{tag},
-	    iso_time($self->{fields}->{recv_time}, $utc_flag);
+	    Flowd::iso_time($self->{fields}->{recv_time}, $utc_flag);
 
 	if ($fields & PROTO_FLAGS_TOS) {
 		$ret .= sprintf "proto %u ", $self->{fields}->{protocol};
@@ -319,9 +321,9 @@ sub format
 	}
 	if ($fields & AGENT_INFO) {
 		$ret .= sprintf "sys_uptime_ms %s ",
-		    interval_time_ms($self->{fields}->{sys_uptime_ms});
+		    Flowd::interval_time_ms($self->{fields}->{sys_uptime_ms});
 		$ret .= sprintf "time_sec %s ",
-		    iso_time($self->{fields}->{time_sec}, $utc_flag);
+		    Flowd::iso_time($self->{fields}->{time_sec}, $utc_flag);
 		$ret .= sprintf "time_nanosec %u ",
 		    $self->{fields}->{time_nanosec};
 		$ret .= sprintf "netflow ver %u ",
@@ -329,9 +331,9 @@ sub format
 	}
 	if ($fields & FLOW_TIMES) {
 		$ret .= sprintf "flow_start %s ",
-		    interval_time_ms($self->{fields}->{flow_start});
+		    Flowd::interval_time_ms($self->{fields}->{flow_start});
 		$ret .= sprintf "flow_finish %s ",
-		    interval_time_ms($self->{fields}->{flow_finish});
+		    Flowd::interval_time_ms($self->{fields}->{flow_finish});
 	}
 	if ($fields & AS_INFO) {
 		$ret .= sprintf "src_AS %u ", $self->{fields}->{src_as};
