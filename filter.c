@@ -178,11 +178,7 @@ filter_flow(struct store_flow_complete *flow, struct filter_list *filter)
 	i = 0;
 	last_rule = NULL;
 	TAILQ_FOREACH(fr, filter, entry) {
-		/* XXX - check necessary fields are present */
-		/* XXX - count matches */
-
 		m = flow_match(fr, flow);
-
 		fr->evaluations++;
 
 #ifdef FILTER_DEBUG
