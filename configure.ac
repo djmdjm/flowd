@@ -162,13 +162,9 @@ else
 	AC_MSG_ERROR([No 64-bit signed int type found])
 fi
 
-# Normalise paths to be used in man pages
-# XXX Ugly hack
-CONFPATH=`eval echo ${sysconfdir}` ; CONFPATH=`eval echo ${CONFPATH}`
-PIDPATH=`eval echo ${localstatedir}/run` ; PIDPATH=`eval echo ${PIDPATH}`
-
-AC_SUBST(CONFPATH)
-AC_SUBST(PIDPATH)
+piddir="${localstatedir}/run"
+AC_DEFINE_DIR(PIDPATH, piddir, [Directory to store pidfile in])
+AC_DEFINE_DIR(CONFPATH, sysconfdir, [Full path to configuration file])
 
 AC_EXEEXT
 AC_CONFIG_FILES([Makefile flowd.8 flowd-reader.8 flowd.conf.5])
