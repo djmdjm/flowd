@@ -27,6 +27,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <pwd.h>
+#include <grp.h>
 #include <syslog.h>
 #include <paths.h>
 

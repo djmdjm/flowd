@@ -25,6 +25,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <syslog.h>
+#include <time.h>
 #include <err.h>
 #include <poll.h>
 
@@ -236,7 +237,7 @@ process_netflow_v1(u_int8_t *pkt, size_t len, struct sockaddr *from,
 		flow.ports.src_port = nf1_flow->src_port;
 		flow.ports.dst_port = nf1_flow->dest_port;
 
-#define NTO64(a) (htobe64(ntohl(a)))
+#define NTO64(a) (store_htonll(ntohl(a)))
 		flow.counters.flow_packets = NTO64(nf1_flow->flow_packets);
 		flow.counters.flow_octets = NTO64(nf1_flow->flow_octets);
 #undef NTO64
@@ -318,7 +319,7 @@ process_netflow_v5(u_int8_t *pkt, size_t len, struct sockaddr *from,
 		flow.ports.src_port = nf5_flow->src_port;
 		flow.ports.dst_port = nf5_flow->dest_port;
 
-#define NTO64(a) (htobe64(ntohl(a)))
+#define NTO64(a) (store_htonll(ntohl(a)))
 		flow.counters.flow_packets = NTO64(nf5_flow->flow_packets);
 		flow.counters.flow_octets = NTO64(nf5_flow->flow_octets);
 #undef NTO64
@@ -519,6 +520,8 @@ main(int argc, char **argv)
 		TAILQ_HEAD_INITIALIZER(conf.filter_list)
 	};
 	int monitor_fd;
+
+	compat_init_setproctitle(argc, &argv);
 
 	while ((ch = getopt(argc, argv, "dhD:f:")) != -1) {
 		switch (ch) {

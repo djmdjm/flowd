@@ -18,19 +18,28 @@ CPPFLAGS=-I$(srcdir) @CPPFLAGS@
 LIBS=@LIBS@
 EXEEXT=@EXEEXT@
 INSTALL=@INSTALL@
-YACC=@YACC@
+RANLIB=@RANLIB@
+
+# Bison doesn't work
+YACC=yacc
 
 TARGETS=flowd flowd-reader
 
 all: $(TARGETS)
 
-LIBFLOWD_OBJS=		atomicio.o addr.o store.o crc32.o
+LIBFLOWD_OBJS=		atomicio.o addr.o store.o crc32.o closefrom.o \
+			strlcpy.o strlcat.o
 FLOWD_OBJS=		flowd.o privsep_fdpass.o privsep.o filter.o parse.o
 FLOWD_READER_OBJS=	flowd-reader.o
 
 libflowd.a: $(LIBFLOWD_OBJS)
 	$(AR) rv $@ $(LIBFLOWD_OBJS)
 	$(RANLIB) $@
+
+parse.c: $(top_srcdir)/parse.y
+	$(YACC) $(top_srcdir)/parse.y
+	mv y.tab.c parse.c
+	rm -f y.tab.h
 
 flowd: $(FLOWD_OBJS) libflowd.a
 	$(CC) $(LDFLAGS) -L. -o $@ $(FLOWD_OBJS) -lflowd $(LIBS)
@@ -39,7 +48,7 @@ flowd-reader: $(FLOWD_READER_OBJS) libflowd.a
 	$(CC) $(LDFLAGS) -L. -o $@ $(FLOWD_READER_OBJS) libflowd.a $(LIBS)
 
 clean:
-	rm -f $(TARGETS) *.o core *.core y.tab.*
+	rm -f $(TARGETS) *.o core *.core y.tab.* parse.c
 
 realclean: clean
 	rm -rf autom4te.cache Makefile config.log config.status

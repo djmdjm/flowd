@@ -74,7 +74,9 @@ addr_xaddr_to_sa(struct xaddr *xa, struct sockaddr *sa, socklen_t *len,
 			return (-1);
 		memset(sa, '\0', sizeof(*in4));
 		*len = sizeof(*in4);
+#ifdef SOCK_HAS_LEN
 		in4->sin_len = sizeof(*in4);
+#endif
 		in4->sin_family = AF_INET;
 		in4->sin_port = htons(port);
 		memcpy(&in4->sin_addr, &xa->v4, sizeof(in4->sin_addr));
@@ -84,8 +86,9 @@ addr_xaddr_to_sa(struct xaddr *xa, struct sockaddr *sa, socklen_t *len,
 			return (-1);
 		memset(sa, '\0', sizeof(*in6));
 		*len = sizeof(*in6);
-		in4->sin_len = sizeof(*in4);
+#ifdef SOCK_HAS_LEN
 		in6->sin6_len = sizeof(*in6);
+#endif
 		in6->sin6_family = AF_INET6;
 		in6->sin6_port = htons(port);
 		memcpy(&in6->sin6_addr, &xa->v6, sizeof(in6->sin6_addr));

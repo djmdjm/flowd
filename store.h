@@ -205,5 +205,7 @@ const char *iso_time(time_t t, int utc_flag);
 const char *interval_time(time_t t);
 void store_format_flow(struct store_flow_complete *flow, char *buf,
     size_t len, int utc_flag, u_int32_t display_mask);
+u_int64_t store_ntohll(u_int64_t v);
+u_int64_t store_htonll(u_int64_t v);
 
 #endif /* _STORE_H */

@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "config.h"
+#include "common.h"
 
 #ifndef HAVE_CLOSEFROM
 
@@ -22,14 +22,9 @@
 #include <sys/param.h>
 #include <unistd.h>
 #include <stdio.h>
-#ifdef STDC_HEADERS
-# include <stdlib.h>
-# include <stddef.h>
-#else
-# ifdef HAVE_STDLIB_H
-#  include <stdlib.h>
-# endif
-#endif /* STDC_HEADERS */
+#include <limits.h>
+#include <stdlib.h>
+#include <stddef.h>
 #ifdef HAVE_DIRENT_H
 # include <dirent.h>
 # define NAMLEN(dirent) strlen((dirent)->d_name)
@@ -47,6 +42,10 @@
 # endif
 #endif
 
+#ifndef OPEN_MAX
+# define OPEN_MAX	256
+#endif
+
 #ifndef lint
 static const char rcsid[] = "$Sudo: closefrom.c,v 1.6 2004/06/01 20:51:56 millert Exp $";
 #endif /* lint */
@@ -55,8 +54,7 @@ static const char rcsid[] = "$Sudo: closefrom.c,v 1.6 2004/06/01 20:51:56 miller
  * Close all file descriptors greater than or equal to lowfd.
  */
 void
-closefrom(lowfd)
-    int lowfd;
+closefrom(int lowfd)
 {
     long fd, maxfd;
 #ifdef HAVE_DIRFD

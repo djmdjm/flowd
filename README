@@ -1,6 +1,4 @@
-This is flowd, a NetFlow collector daemon.
-
-It is intended to be small, fast and secure.
+This is flowd, a NetFlow collector daemon intended to be small, fast and secure.
 
 It features some basic filtering to limit or tag the flows that are recorded
 and is privilege separated, to limit security exposure from bugs in flowd 
@@ -26,8 +24,14 @@ Building flowd requires yacc. The perl interface to the on-disk format requires
 the Socket6 module, which is available at:
 http://search.cpan.org/~umemoto/Socket6-0.17/Socket6.pm
 
+flowd is tested on OpenBSD and Linux. It may work on other platforms, but
+will likely need some adjusting.
+
 Large parts of this code have been shamelessly taken from OpenBSD, in 
 particular bgpd (the configuration parser) and OpenSSH (the privsep fd passing 
-and CRC23 code). All of this code is under BSD-like licenses, but read the 
-LICENSE file for details.
+and CRC23 code), sudo and libc. All of this code is under BSD-like licenses, 
+but read the LICENSE file for details.
 
+Damien Miller <djm@mindrot.org>
+
+$Id$ 

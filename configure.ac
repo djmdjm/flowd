@@ -18,9 +18,22 @@ AC_INIT
 AC_CONFIG_SRCDIR([flowd.c])
 
 AC_CONFIG_HEADER(config.h)
+AC_CANONICAL_HOST
 AC_PROG_CC
 AC_PROG_INSTALL
-AC_PROG_YACC
+AC_PROG_RANLIB
+AC_SYS_LARGEFILE
+AC_C_BIGENDIAN
+
+# This detects bison, which doesn't work
+#AC_PROG_YACC
+
+# Check for some target-specific stuff
+case "$host" in
+*-*-linux*)
+	AC_DEFINE(SPT_TYPE, SPT_REUSEARGV, [setproctitle replacement type])
+	;;
+esac
 
 # Optional verbose warnings for gcc, see below
 WFLAGS="-Wall -Waggregate-return -Wcast-align -Wcast-qual"
@@ -51,7 +64,7 @@ AC_ARG_WITH(libs,
 	[ if test "x$withval" != "xno" ; then LIBS="$LIBS $withval"; fi ]	
 )
 
-#AC_CHECK_HEADERS()
+AC_CHECK_HEADERS(dirent.h sys/ndir.h sys/dir.h ndir.h sys/pstat.h endian.h)
 
 AC_CHECK_MEMBER([struct sockaddr.sa_len], 
 	[AC_DEFINE([SOCK_HAS_LEN], 1, [struct sockaddr contains length])], ,
@@ -61,7 +74,7 @@ AC_CHECK_MEMBER([struct sockaddr.sa_len],
 AC_SEARCH_LIBS(daemon, bsd)
 AC_SEARCH_LIBS(socket, socket)
 
-AC_CHECK_FUNCS(daemon setresuid setreuid setresgid setgid)
+AC_CHECK_FUNCS(closefrom betoh64 htobe64 daemon setresuid setreuid setresgid setgid sysconf setproctitle)
 
 AC_CHECK_TYPES([u_int64_t, int64_t, uint64_t, u_int32_t, int32_t, uint32_t])
 AC_CHECK_TYPES([u_int16_t, int16_t, uint16_t, u_int8_t, int8_t, uint8_t])
@@ -70,6 +83,14 @@ AC_CHECK_SIZEOF(short int, 2)
 AC_CHECK_SIZEOF(int, 4)
 AC_CHECK_SIZEOF(long int, 4)
 AC_CHECK_SIZEOF(long long int, 8)
+
+AC_MSG_CHECKING([for /proc/pid/fd directory])
+if test -d "/proc/$$/fd" ; then
+	AC_DEFINE([HAVE_DIRFD], [1], [Has /proc/pid/fd directory])
+	AC_MSG_RESULT(yes)
+else
+	AC_MSG_RESULT(yes)
+fi
 
 if test "x$ac_cv_type_uint8_t" = "xyes" ; then
 	AC_DEFINE([OUR_CFG_U_INT8_T], [uint8_t], [8-bit unsigned int])

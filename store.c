@@ -23,6 +23,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <err.h>
+#include <time.h>
 #include <poll.h>
 
 #include "store.h"
@@ -30,16 +31,20 @@
 #include "crc32.h"
 
 /* Stash error message and return */
-#define SFAILX(i, m) do {							\
-		if (errptr != NULL)					\
-			*errptr = (m);					\
+#define SFAILX(i, m, f) do {						\
+		if (errptr != NULL) {					\
+			snprintf(ebuf, sizeof(ebuf), "%s%s%s",		\
+			    (f) ? __func__ : "", (f) ? ": " : "", m);	\
+			*errptr = ebuf;					\
+		}							\
 		return (i);						\
 	} while (0)
 
 /* Stash error message, appending strerror into local "ebuf" and return */
-#define SFAIL(i, m) do {						\
+#define SFAIL(i, m, f) do {						\
 		if (errptr != NULL) {					\
-			snprintf(ebuf, sizeof(ebuf), "%s: %s", m, 	\
+			snprintf(ebuf, sizeof(ebuf), "%s%s%s: %s", 	\
+			    (f) ? __func__ : "", (f) ? ": " : "", m, 	\
 			    strerror(errno));				\
 			*errptr = ebuf;					\
 		}							\
@@ -54,14 +59,14 @@ store_get_header(int fd, struct store_header *hdr, const char **errptr)
 	static char ebuf[512];
 
 	if ((r = atomicio(read, fd, hdr, sizeof(*hdr))) == -1)
-		SFAIL(-1, "read error");
+		SFAIL(-1, "read error", 0);
 	if (r < (ssize_t)sizeof(*hdr))
-		SFAILX(-1, "premature EOF");
+		SFAILX(-1, "premature EOF", 0);
 
 	if (ntohl(hdr->magic) != STORE_MAGIC)
-		SFAILX(-1, "Bad magic");
+		SFAILX(-1, "Bad magic", 0);
 	if (ntohl(hdr->version) != STORE_VERSION)	
-		SFAILX(-1, "Unsupported version");
+		SFAILX(-1, "Unsupported version", 0);
 
 	return (0);
 }
@@ -102,6 +107,7 @@ store_get_flow(int fd, struct store_flow_complete *f, const char **errptr)
 	struct store_flow_GATEWAY_ADDR_V4 ga4;
 	struct store_flow_GATEWAY_ADDR_V6 ga6;
 	u_int32_t fields, crc;
+	static char ebuf[256];
 
 	bzero(f, sizeof(*f));
 	crc32_start(&crc);
@@ -148,11 +154,11 @@ store_get_flow(int fd, struct store_flow_complete *f, const char **errptr)
 
 	/* Sanity check and convert addresses */
 	if (SHASFIELD(AGENT_ADDR4) && SHASFIELD(AGENT_ADDR6))
-		SFAILX(-1, "Flow has both v4/v6 agent addrs");
+		SFAILX(-1, "Flow has both v4/v6 agent addrs", 0);
 	if (SHASFIELD(SRCDST_ADDR4) && SHASFIELD(SRCDST_ADDR6))
-		SFAILX(-1, "Flow has both v4/v6 src/dst addrs");
+		SFAILX(-1, "Flow has both v4/v6 src/dst addrs", 0);
 	if (SHASFIELD(GATEWAY_ADDR4) && SHASFIELD(GATEWAY_ADDR6))
-		SFAILX(-1, "Flow has both v4/v6 gateway addrs");
+		SFAILX(-1, "Flow has both v4/v6 gateway addrs", 0);
 
 #define S_CPYADDR(d, s, fam) do {					\
 		(d).af = (fam == 4) ? AF_INET : AF_INET6;		\
@@ -177,7 +183,7 @@ store_get_flow(int fd, struct store_flow_complete *f, const char **errptr)
 		S_CPYADDR(f->gateway_addr, ga6.gateway_addr, 6);
 
 	if (SHASFIELD(CRC32) && crc != ntohl(f->crc32.crc32))
-		SFAILX(-1, "Flow checksum mismatch");
+		SFAILX(-1, "Flow checksum mismatch", 0);
 
 #undef S_CPYADDR
 #undef SHASFIELD
@@ -201,9 +207,9 @@ store_put_header(int fd, const char **errptr)
 
 	r = atomicio(vwrite, fd, &hdr, sizeof(hdr));
 	if (r == -1)
-		SFAIL(-1, "write error on header");
+		SFAIL(-1, "write error on header", 0);
 	if (r < (ssize_t)sizeof(hdr))
-		SFAILX(-1, "EOF while writing header");
+		SFAILX(-1, "EOF while writing header", 0);
 
 	return (0);
 }
@@ -227,17 +233,17 @@ write_flow(int fd, const char **errptr,
 	crc32_update((u_char *)&flow->hdr, sizeof(flow->hdr), &crc);
 
 	if ((r = atomicio(vwrite, fd, &flow->hdr, sizeof(flow->hdr))) == -1)
-		SFAIL(-1, "write flow header");
+		SFAIL(-1, "write flow header", 0);
 	else if (r < (ssize_t)sizeof(flow->hdr))
-		SFAILX(-1, "EOF writing flow header");
+		SFAILX(-1, "EOF writing flow header", 0);
 
 #define WRITEOUT(spec, what) do {					\
 	if ((fields & (STORE_FIELD_##spec))) {				\
 		r = atomicio(vwrite, fd, (what), sizeof(*(what)));	\
 		if (r == -1)						\
-			SFAIL(-1, "write " #spec);			\
+			SFAIL(-1, "write " #spec, 0);			\
 		if (r < (ssize_t)sizeof(what))				\
-			SFAILX(-1, "EOF writing " #spec);		\
+			SFAILX(-1, "EOF writing " #spec, 0);		\
 		if ((fields & (STORE_FIELD_CRC32)) && 			\
 		    (STORE_FIELD_##spec != STORE_FIELD_CRC32)) {	\
 			crc32_update((u_char *)(what), sizeof(*(what)),	\
@@ -286,7 +292,7 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 
 	/* Remember where we started, so we can back errors out */	
 	if ((startpos = lseek(fd, 0, SEEK_CUR)) == -1)
-		SFAIL(-1, __func__ ":lseek");
+		SFAIL(-1, "lseek", 1);
 
 	origfields = ntohl(flow->hdr.fields);
 	fields = origfields & fieldmask;
@@ -310,7 +316,7 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 		fields &= ~STORE_FIELD_AGENT_ADDR4;
 		break;
 	default:
-		SFAILX(-1, __func__ "silly agent addr af");
+		SFAILX(-1, "silly agent addr af", 1);
 	}
 
 	/* NB. Assume that this is the same as dst_addr.af */
@@ -336,7 +342,7 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 		fields &= ~STORE_FIELD_SRCDST_ADDR4;
 		break;
 	default:
-		SFAILX(-1, __func__ "silly src/dst addrs af");
+		SFAILX(-1, "silly src/dst addrs af", 1);
 	}
 	
 	switch(flow->gateway_addr.af) {
@@ -357,7 +363,7 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 		fields &= ~STORE_FIELD_GATEWAY_ADDR4;
 		break;
 	default:
-		SFAILX(-1, __func__ "silly gateway addr af");
+		SFAILX(-1, "silly gateway addr af", 1);
 	}
 
 	flow->hdr.fields = htonl(fields);
@@ -372,9 +378,9 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 
 	/* Try to rewind to starting position, so we don't corrupt flow store */	
 	if (lseek(fd, startpos, SEEK_SET) == -1)
-		SFAIL(-2, __func__ ": corrupting failure on lseek");
+		SFAIL(-2, "corrupting failure on lseek", 1);
 	if (ftruncate(fd, startpos) == -1)
-		SFAIL(-2, __func__ ": corrupting failure on ftruncate");
+		SFAIL(-2, "corrupting failure on ftruncate", 1);
 
 	/* Partial flow record has been removed */
 	return (-1);
@@ -480,8 +486,8 @@ store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
 	}
 	if (HASFIELD(PACKETS_OCTETS)) {
 		snprintf(tmp, sizeof(tmp), "packets %llu octets %llu ", 
-		    (u_int64_t)betoh64(flow->counters.flow_packets),
-		    (u_int64_t)betoh64(flow->counters.flow_octets));
+		    store_ntohll(flow->counters.flow_packets),
+		    store_ntohll(flow->counters.flow_octets));
 		strlcat(buf, tmp, len);
 	}
 	if (HASFIELD(IF_INDICES)) {
@@ -535,3 +541,40 @@ store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
 	}
 }
 
+u_int64_t
+store_ntohll(u_int64_t v)
+{
+#if defined(HAVE_BETOH64)
+	v = betoh64(v);
+#elif !defined(WORDS_BIGENDIAN)
+        v = (v & 0xff) << 56 |
+	    (v & 0xff00ULL) << 40 |
+	    (v & 0xff0000ULL) << 24 |
+	    (v & 0xff000000ULL) << 8 |
+	    (v & 0xff00000000ULL) >> 8 |
+	    (v & 0xff0000000000ULL) >> 24 |
+	    (v & 0xff000000000000ULL) >> 40 |
+	    (v & 0xff00000000000000ULL) >> 56;
+#endif
+
+	return (v);
+}
+
+u_int64_t
+store_htonll(u_int64_t v)
+{
+#if defined(HAVE_BETOH64)
+	v = htobe64(v);
+#elif !defined(WORDS_BIGENDIAN)
+        v = (v & 0xff) << 56 |
+	    (v & 0xff00ULL) << 40 |
+	    (v & 0xff0000ULL) << 24 |
+	    (v & 0xff000000ULL) << 8 |
+	    (v & 0xff00000000ULL) >> 8 |
+	    (v & 0xff0000000000ULL) >> 24 |
+	    (v & 0xff000000000000ULL) >> 40 |
+	    (v & 0xff00000000000000ULL) >> 56;
+#endif
+
+	return (v);
+}
