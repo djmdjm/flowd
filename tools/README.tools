@@ -1,0 +1,35 @@
+This directory contains tools to manipulate flowd logfiles or demonstrate
+its API. They are:
+
+flowinsert.pl
+-------------
+
+This script demonstrates the use of the flowd Perl API to store flow data in
+a SQL database. It is set up to use SQLite[1] by default, but it is written 
+using (and requires) the DBI[2] module, so it can easily be customised to work
+with other databases. 
+
+An example SQLite schema for the presumed database is in flows.sql. You can
+use it to create the database using the following command:
+
+   sqlite -init flows.sql flows.sqlite
+
+flowinsert.pl assumes that the database file (flows.sqlite) is in the current
+directory. You can load flows into the database using:
+
+  flowinsert.pl /path/to/flowd.log
+
+wormsuspects.pl
+---------------
+
+A very simple analysis script to churn through a flowd logfile and produce a 
+list of the src_addr/protocol/dst_port tuples that generated the most flow 
+records. These are often indicative of worm infections or other network 
+scanning behaviour.
+
+This is a very quick and dirty implementation that assumes that the working 
+set will fit into RAM. It should probable use the Cache module from CPAN to
+do this properly (patches welcome).
+
+Despite this limiation, this is surprising useful.
+
