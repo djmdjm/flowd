@@ -2,7 +2,7 @@
  - (djm) Add finish() method to perl API, to close flow log
  - (djm) Fix filter format_rule for rules that match ports but not addrs
  - (djm) Set IPV6_V6ONLY on AF_INET6 sockets - avoids stupid mapped address crap
- - (djm) Don't lead fd on logfile reopen
+ - (djm) Don't leak fd on logfile reopen
 
 20040804
  - (djm) Don't clobber existing configuration file
