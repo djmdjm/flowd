@@ -3,6 +3,7 @@
    and side effects.
  - (djm) Activate runtime reconfigure
  - (djm) Store address families for each address in flow
+ - (djm) Add start of a python interface to the flow log format
 
 20040810
  - (djm) Add finish() method to perl API, to close flow log
