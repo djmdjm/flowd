@@ -103,10 +103,9 @@ flow source [4000:1::]/32
 This option is optional, if it is not specified then
 .Nm
 will accept flow records from any address.
-.\" xxx notyet
-.\" The use of this option is strongly recommended when flow export protocols 
-.\" are used that require the collector to retain state information (e.g. 
-.\" NetFlow v.9 flow templates) in order to avoid flooding attacks.
+The use of this option is strongly recommended when flow export protocols 
+are used that require the collector to retain state information (e.g. 
+NetFlow v.9 flow templates) in order to avoid flooding attacks.
 .It Ar listen on
 Specifies an address and port on which
 .Nm
