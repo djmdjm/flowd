@@ -2,6 +2,8 @@
  - (djm) Move Perl library from Flowd to Flowd-perl because Mac OS X's 
    filesystem is (idiotically) case independant, resulting in breakage when 
    trying to build the 'flowd' binary; reported by Jakob Schlyter
+- (djm) Extend Python API to suppor writing of flows. Written between Melbourne
+  and Tokyo
 
 20050204
  - (djm) Support writing flow records to pipes and sockets in store.c

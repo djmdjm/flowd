@@ -20,7 +20,6 @@ import struct
 import time
 import socket
 import sys
-import zlib
 import flowd_serialiser
 
 def iso_time(secs, utc = 0):
@@ -50,21 +49,43 @@ def interval_time_ms(tms):
 	return "%s.%03u" % ( interval_time(int(tms / 1000)), tms % 1000 )
 
 class log:
-	def __init__(self, path):
+	def __init__(self, path, mode = "r", start_time = None):
 		self.path = path
-		self.flow_file = open(path, "r")
+		self.mode = mode
+		if mode == "r":
+			self.flow_file = open(path, "rb")
+			# Read header
+			hdr = self.flow_file.read(16)
+			if len(hdr) != 16:
+				raise ValueError, "Short read on flow header"
+			(self.magic, self.version, self.start_time, \
+			 self.flags) = struct.unpack(">IIII", hdr)
 
-		# Read header
-		hdr = self.flow_file.read(16)
-		if len(hdr) != 16:
-			raise ValueError, "Short read on flow header"
-		(self.magic, self.version, self.start_time, self.flags) = \
-		    struct.unpack(">IIII", hdr)
+			if self.magic != 0x012cf047:
+				raise ValueError, "Bad magic"
+			if self.version != 0x00000002:
+				raise ValueError, "Unsupported version"
+		elif mode == "w" or mode == "a":
+			self.flow_file = open(path, mode + "b")
+			self.flow_file.seek(0, 2)
+			if self.flow_file.tell() > 0:
+				return
 
-		if self.magic != 0x012cf047:
-			raise ValueError, "Bad magic"
-		if self.version != 0x00000002:
-			raise ValueError, "Unsupported version"
+			# Write header
+			self.magic = 0x012cf047
+			self.version = 0x02
+			self.flags = 0x00
+			self.start_time = start_time
+			if start_time is None:
+				self.start_time = int(time.time())
+			hdr = struct.pack(">IIII", self.magic, self.version, \
+			    self.start_time, self.flags)
+			if len(hdr) != 16:
+				raise ValueError, "Internal error: bad header"
+			self.flow_file.write(hdr)
+			self.flow_file.flush()
+		else:
+			raise ValueError, "Invalid mode value";
 
 	def finish(self):
 		self.flow_file.close()
@@ -72,10 +93,14 @@ class log:
 
 	def readflow(self):
 		try:
-			f = flow(self.flow_file)
+			f = flow()
+			f.from_file(self.flow_file)
 		except EOFError:
 			f = None
 		return f
+
+	def writeflow(self, flow):
+		flow.to_file(self.flow_file)
 
 class flow:
 	TAG			= 0x00000001
@@ -108,7 +133,10 @@ class flow:
 	BRIEF			= 0x000039ff
 	ALL			= 0x4007ffff
 
-	def __init__(self, flow_file):
+	def __init__(self):
+		self.fields = { "fields" : 0 }
+
+	def from_file(self, flow_file):
 		# Read flow header
 		needlen = flowd_serialiser.header_len()
 		hdr = flow_file.read(needlen)
@@ -125,6 +153,11 @@ class flow:
 			raise ValueError, "Short read on flow data"
 
 		self.fields = flowd_serialiser.deserialise(hdr + flow)
+
+	def to_file(self, flow_file, field_mask = 0xffffffffL):
+		flow = flowd_serialiser.serialise(self.fields, field_mask)
+		flow_file.write(flow)
+		flow_file.flush()
 
 	def format(self, field_mask = BRIEF, utc = 0):
 		fields = self.fields["fields"] & field_mask
