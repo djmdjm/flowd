@@ -9,9 +9,10 @@ There is also a Bugzilla at http://bugzilla.mindrot.org/ where bugs may be
 reported.
 
 flowd stores records on disk in a compact binary format, see store.h for a 
-specification in the form of a C header file. Flowd.pm is a PERL module that
-understands this format too. See the flowd-reader and reader.pl applications
-for examples of the C and PERL APIs respectively.
+specification in the form of a C header file. Perl, Python and C APIs are 
+provided to managing the log files that flowd creates. Refer to Flowd.pm, 
+store.c, and flowd.py respectively. Example applications are flowd-reader.c,
+reader.pl and reader.py.
 
 This on-disk format is a parametised format capable of storing a superset of 
 NetFlow v.5. Exactly which components of the NetFlow records actually get 
@@ -22,7 +23,8 @@ per-record CRC32 checksum is provided to detect log corruption.
 At present, flowd supports NetFlow v.1 and NetFlow v.5 packet formats over both 
 IPv4 and IPv6 transports. This will be extended to include an IPv6 flowd export
 format, either using sflow, the IPFIX standard or an extension to NetFlow v.5 
-in the near future.
+in the near future. The internals and the storage format are all IPv6 ready, so
+upgrading will not break the API.
 
 flowd is tested on OpenBSD and Linux. It may work on other platforms, but
 will likely need some adjusting.
