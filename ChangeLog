@@ -2,6 +2,7 @@
  - (djm) Tidy README and mention v.7 and v.9 support
  - (djm) Recommend use of "flow source" in flowd.conf for NetFlow 9
  - (djm) Add tree code for recent changes
+ - (djm) Store agent address for v.9 flows
 
 20040921
  - (djm) Implement NetFlow v.9 support. Some more work to do yet, but it is 

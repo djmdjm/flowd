@@ -668,7 +668,8 @@ nf9_flowset_to_store(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
 
 	bzero(flow, sizeof(*flow));
 
-	flow->hdr.fields = STORE_FIELD_RECV_TIME|STORE_FIELD_AGENT_INFO;
+	flow->hdr.fields = STORE_FIELD_RECV_TIME | STORE_FIELD_AGENT_INFO |
+	    STORE_FIELD_AGENT_ADDR;
 	flow->ainfo.sys_uptime_ms = nf9_hdr->uptime_ms;
 	flow->ainfo.time_sec = nf9_hdr->time_sec;
 	flow->ainfo.netflow_version = nf9_hdr->c.version;
