@@ -4,20 +4,23 @@
 
 - Improve log handling
  - E.g. multiple log files, based on tag?
- - support relaying of pre/post-filter packets to another agent (via UDP)
+ - support relaying of pre/post-filter packets to another agent
+   - UDP
+   - Unix domain socket (more important)
 
 - Instead of reading/writing flow logs, store.c functions should format them
  to memory buffers (e.g. so they can be sent over the network) *
 
 - Add python docs and help *
 
-- Write "flow-filter", a small program to filter and/or re-tag on-disk flows 
-  (reuse or share parse.y filtering code)
+- Tools collection:
+  - "flow-filter", a small program to filter and/or re-tag on-disk flows 
+    (reuse or share parse.y filtering code)
+  - "flow-send", a small program to take on-disk flows and send them as 
+    NetFlow packets to a chosen host
+  - (or, patch flow-tools)
 
-- Write "flow-send", a small program to take on-disk flows and send them as 
-  NetFlow packets to a chosen host
-
-- NetFlow sflow, IPFIX
+- More protocols: sflow, IPFIX
 
 - Speed up perl and python modules
   - CRC is especially slow
@@ -39,3 +42,10 @@
   - source_id (important!)
 
 - src/dst AS should be increased in size to 4 bytes
+
+- Discard protocol-specific state when we receive a packet in a different
+  protocol
+
+- Don't record any nf9 flows unless the entire packet is valid (right now,
+  we only validate to the flowset level)
+  - Could at least iterate over packet and check for truncation?
