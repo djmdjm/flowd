@@ -7,6 +7,7 @@
  - (djm) Install flowd.conf by default
  - (djm) Track filter rule evaluations, matches and wins
  - (djm) Install SIGINFO (and USR1) handler to display filter counters
+ - (djm) Simplify perl module and add a little POD 
 
 20040730
  - (djm) Release flowd 0.1

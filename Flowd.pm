@@ -60,8 +60,6 @@ sub interval_time_ms
 	return sprintf "%s.%03u", interval_time($tms / 1000), $tms % 1000,	
 }
 
-package Flowd::Store;
-
 sub new {
 	my $class = shift;
 	my @args = (@_);
@@ -463,3 +461,29 @@ sub final {
 }
 
 return 1;
+__END__
+=head1 NAME
+
+Flowd -- interface to flowd binary NetFlow logs
+
+=head1 SYNOPSIS
+
+  use Flowd;
+
+  my $fh = Flowd->new($flowlog_filename);
+  while (my $flow = $log->readflow()) {
+          print $flow->format(Flowd::Flow::BRIEF, 0) . "\n";
+  }
+
+=head1 DESCRIPTION
+
+The Flowd package provides an interface to the flowd binary NetFlow storage
+format.
+
+=head1 BUGS
+
+This documentation is very incomplete.
+
+=head1 AUTHOR
+
+Damien Miller <djm@mindrot.org>

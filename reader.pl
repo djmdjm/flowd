@@ -15,7 +15,7 @@ sub usage
 usage() unless (defined $ARGV[0]);
 
 foreach my $ffile (@ARGV) {
-	my $log = Flowd::Store->new($ffile);
+	my $log = Flowd->new($ffile);
 	
 	printf "LOGFILE %s started at %s\n",
 	    $ffile, Flowd::iso_time($log->{start_time}, 0);
