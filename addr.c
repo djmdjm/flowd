@@ -62,7 +62,7 @@ masklen_valid(int af, u_int masklen)
 
 
 int
-addr_xaddr_to_sa(struct xaddr *xa, struct sockaddr *sa, socklen_t *len,
+addr_xaddr_to_sa(const struct xaddr *xa, struct sockaddr *sa, socklen_t *len,
     u_int16_t port)
 {
 	struct sockaddr_in *in4 = (struct sockaddr_in *)sa;
@@ -385,7 +385,7 @@ addr_sa_pton(const char *h, const char *s, struct sockaddr *sa, socklen_t slen)
 }
 
 int
-addr_ntop(struct xaddr *n, char *p, size_t len)
+addr_ntop(const struct xaddr *n, char *p, size_t len)
 {
 	struct sockaddr_storage ss;
 	socklen_t slen = sizeof(ss);
@@ -402,7 +402,7 @@ addr_ntop(struct xaddr *n, char *p, size_t len)
 }
 
 int
-addr_sa_ntop(struct sockaddr *sa, socklen_t slen, char *h, size_t hlen,
+addr_sa_ntop(const struct sockaddr *sa, socklen_t slen, char *h, size_t hlen,
     char *p, size_t plen)
 {
 	if (sa == NULL)
@@ -464,7 +464,7 @@ addr_netmatch(const struct xaddr *host, const struct xaddr *net, u_int masklen)
 }
 
 const char *
-addr_ntop_buf(struct xaddr *a)
+addr_ntop_buf(const struct xaddr *a)
 {
 	static char hbuf[64];
 

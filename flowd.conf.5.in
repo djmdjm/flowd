@@ -286,12 +286,23 @@ If an flow record matches a rule which has the
 .Ar quick
 option set, this rule is considered the last matching rule, and evaluation
 of subsequent rules is skipped.
-.It Ar agent <address>/<len>
+.It Ar agent Xo
+.Oo !\& Oc
+.Ar <address>/<len>
+.Xc
 This rule applies to incoming flow packets that are received from an agent
 with an address in the specified network range.
 NB. this applies to the device sending the NetFlow packet, not the addresses
 within the packet itself.
-.It Ar src <address>/<len> Op port Ar <port>
+.It Xo
+.Oo Ar !\& Oc Ar <inet|inet6>
+.Xc
+This rule applies to flows whose source or destination address family matches
+that specified.
+.It Ar src Xo
+.Oo !\& Oc
+.Ar <address>/<len> Oo port Oo !\& Oc <port> Oc
+.Xc
 This rule applies only to flows whose source address (as recorded in the
 NetFlow packet) is in the specified address range.
 .Pp
@@ -300,7 +311,10 @@ If the
 option is specified, then the rule is further restricted to flows whose
 source port number matches that specified.
 NB. the port checks are only valid for rules matching TCP or UDP flows.
-.It Ar dst <address>/<len> Op port Ar <port>
+.It Ar dst Xo
+.Oo !\& Oc
+.Ar <address>/<len> Oo port Oo !\& Oc <port> Oc
+.Xc
 This rule applies only to flows whose destination address (as recorded in the
 NetFlow packet) is in the specified address range.
 .Pp
@@ -309,9 +323,44 @@ If the
 option is specified, then the rule is further restricted to flows whose
 destination port number matches that specified.
 NB. the port checks are only valid for rules matching TCP or UDP flows.
-.It Ar proto <protocol>
+.It Ar proto Xo
+.Oo !\& Oc
+.Ar <protocol>
+.Xc
 This rule only applies for flows whose protocol matches that specified.
 Protocols may be specified by name (tcp, udp, icmp, etc) or by number.
+.It Ar tos Xo
+.Oo !\& Oc
+.Ar <tos>
+.Xc
+This rule only applies for flows whose type-of-service (ToS) matches that
+specified.
+The
+.It Ar tos Xo
+.Oo !\& Oc
+.Ar <tos>
+.Xc
+may be specified as a decimal or hexidecimal number.
+.It Ar tcp_flags Xo
+.Op Ar mask <mask>
+.Oo !\& Oc
+.Ar equals <flags>
+.Xc
+This rule only applies for TCP flows where the accumulated TCP flags seen over
+the lifetime of the flow match
+the
+.Ar flags
+specified.
+If a
+.Ar mask
+is specified, the flags checked are the logical AND of the accumulated TCP flags
+and the mask.
+The
+.Ar mask
+and
+.Ar flags
+may be specified as decimal or hexidecimal numbers.
+NB. This clause may only be applied to rules matching TCP flows.
 .El
 .Pp
 This is an example of the filtering language in action:
@@ -329,6 +378,8 @@ accept tag 0x100 dst any port 80 proto tcp
 accept tag 0x100 src any port 80 proto tcp
 # Ignore all but one hosts' traffic to a specific port
 discard src ! 192.2.0.33 dst any port 12345 proto tcp
+# Ignore unestablished TCP flows (ACK = 0x10, SYN = 0x02)
+discard proto tcp tcp_flags mask 0x12 !equals 0x12
 .Ed
 .Pp
 .Sh AUTHORS

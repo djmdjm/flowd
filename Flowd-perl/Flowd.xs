@@ -67,7 +67,7 @@ void deserialise(...)
 		u_int64_t tmp;
 	PPCODE:
 		if (items != 1)
-			croak("Usage: flow_length(buffer)");
+			croak("Usage: desearialise(buffer)");
 		buf = (char *)SvPV(ST(0), len);
 		r = store_flow_deserialise(buf, len, &flow, ebuf, sizeof(ebuf));
 		if (r != STORE_ERR_OK)
@@ -195,3 +195,4 @@ void deserialise(...)
 		}
 
 		XPUSHs(sv_2mortal(ret));
+

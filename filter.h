@@ -41,11 +41,14 @@ struct filter_action {
 #define FF_MATCH_PROTOCOL	(1<<4)
 #define FF_MATCH_TOS		(1<<5)
 #define FF_MATCH_AGENT_ADDR	(1<<6)
+#define FF_MATCH_TCP_FLAGS	(1<<7)
+#define FF_MATCH_AF		(1<<8)
 struct filter_match {
 	u_int32_t	match_what;
 	u_int32_t	match_negate;
 	int		agent_masklen;
 	struct xaddr	agent_addr;
+	int		af;
 	int		src_masklen;
 	struct xaddr	src_addr;
 	int		dst_masklen;
@@ -54,6 +57,8 @@ struct filter_match {
 	int		dst_port;
 	int		proto;
 	int		tos;
+	int		tcp_flags_mask;
+	int		tcp_flags_equals;
 };
 
 struct filter_rule {
@@ -68,6 +73,6 @@ struct filter_rule {
 TAILQ_HEAD(filter_list, filter_rule);
 
 u_int filter_flow(struct store_flow_complete *flow, struct filter_list *filter);
-const char *format_rule(struct filter_rule *rule);
+const char *format_rule(const struct filter_rule *rule);
 
 #endif /* _FILTER_H */

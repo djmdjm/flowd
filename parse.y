@@ -95,14 +95,15 @@ typedef struct {
 
 %token	LISTEN ON JOIN GROUP LOGFILE STORE PIDFILE FLOW SOURCE
 %token	ALL TAG ACCEPT DISCARD QUICK AGENT SRC DST PORT PROTO TOS ANY
+%token	TCP_FLAGS EQUALS MASK INET INET6
 %token	ERROR
 %token	<v.string>		STRING
-%type	<v.number>		number quick logspec not
+%type	<v.number>		number quick logspec not octet tcp_flags tcp_mask af
 %type	<v.string>		string
 %type	<v.addr>		address
 %type	<v.addrport>		address_port
 %type	<v.prefix>		prefix prefix_or_any
-%type	<v.filter_match>	match_agent match_src match_dst match_proto match_tos
+%type	<v.filter_match>	match_agent match_src match_dst match_proto match_tos match_tcp_flags match_af
 %type	<v.filter_action>	action tag
 %%
 
@@ -125,6 +126,15 @@ number		: STRING			{
 				$$ = ulval;
 
 			free($1);
+		}
+		;
+
+octet		: number			{
+			$$ = $1;
+			if ($$ > 0xff) {
+				yyerror("octet value exceeds 0xff");
+				YYERROR;
+			}
 		}
 		;
 
@@ -371,7 +381,7 @@ logspec		: STRING	{
 			free($1);
 		}
 
-filterrule	: action tag quick match_agent match_src match_dst match_proto match_tos
+filterrule	: action tag quick match_agent match_af match_src match_dst match_proto match_tos match_tcp_flags
 		{
 			struct filter_rule	*r;
 
@@ -394,25 +404,34 @@ filterrule	: action tag quick match_agent match_src match_dst match_proto match_
 			r->match.match_what |= $4.match_what;
 			r->match.match_negate |= $4.match_negate;
 
-			r->match.src_addr = $5.src_addr;
-			r->match.src_masklen = $5.src_masklen;
-			r->match.src_port = $5.src_port;
+			r->match.af = $5.af;
 			r->match.match_what |= $5.match_what;
 			r->match.match_negate |= $5.match_negate;
 
-			r->match.dst_addr = $6.dst_addr;
-			r->match.dst_masklen = $6.dst_masklen;
-			r->match.dst_port = $6.dst_port;
+			r->match.src_addr = $6.src_addr;
+			r->match.src_masklen = $6.src_masklen;
+			r->match.src_port = $6.src_port;
 			r->match.match_what |= $6.match_what;
 			r->match.match_negate |= $6.match_negate;
 
-			r->match.proto = $7.proto;
+			r->match.dst_addr = $7.dst_addr;
+			r->match.dst_masklen = $7.dst_masklen;
+			r->match.dst_port = $7.dst_port;
 			r->match.match_what |= $7.match_what;
 			r->match.match_negate |= $7.match_negate;
 
-			r->match.tos = $8.tos;
+			r->match.proto = $8.proto;
 			r->match.match_what |= $8.match_what;
 			r->match.match_negate |= $8.match_negate;
+
+			r->match.tos = $9.tos;
+			r->match.match_what |= $9.match_what;
+			r->match.match_negate |= $9.match_negate;
+
+			r->match.tcp_flags_mask = $10.tcp_flags_mask;
+			r->match.tcp_flags_equals = $10.tcp_flags_equals;
+			r->match.match_what |= $10.match_what;
+			r->match.match_negate |= $10.match_negate;
 
 			if ((r->match.match_what & 
 			    (FF_MATCH_SRC_PORT|FF_MATCH_DST_PORT)) && 
@@ -420,6 +439,40 @@ filterrule	: action tag quick match_agent match_src match_dst match_proto match_
 			    r->match.proto != IPPROTO_UDP)) {
 				yyerror("port matching is only allowed for "
 				    "tcp or udp protocols");
+				free(r);
+				YYERROR;
+			}
+
+			if ((r->match.match_what & FF_MATCH_SRC_ADDR) && 
+			    (r->match.match_what & FF_MATCH_DST_ADDR) &&
+			    (r->match.src_addr.af != r->match.dst_addr.af)) {
+				yyerror("src and dst address families do "
+				    "not match");
+				free(r);
+				YYERROR;
+			}
+
+			if ((r->match.match_what & FF_MATCH_AF)) {
+				if ((r->match.match_what & FF_MATCH_SRC_ADDR) &&
+				     (r->match.af != r->match.src_addr.af)) {
+					yyerror("Rule address family does not "
+					    "match src address family");
+					free(r);
+					YYERROR;
+				}
+				if ((r->match.match_what & FF_MATCH_DST_ADDR) &&
+				     (r->match.af != r->match.dst_addr.af)) {
+					yyerror("Rule address family does not "
+					    "match dst address family");
+					free(r);
+					YYERROR;
+				}
+			}
+				    
+			if ((r->match.match_what & FF_MATCH_TCP_FLAGS) &&
+			    (r->match.proto != IPPROTO_TCP)) {
+				yyerror("tcp_flags matching is only allowed "
+				    "for the tcp protocol");
 				free(r);
 				YYERROR;
 			}
@@ -476,6 +529,18 @@ match_agent	: /* empty */			{ bzero(&$$, sizeof($$)); }
 			$$.agent_masklen = $3.len;
 			$$.match_what |= FF_MATCH_AGENT_ADDR;
 			$$.match_negate |= $2 ? FF_MATCH_AGENT_ADDR : 0;
+		}
+		;
+
+af		: INET				{ $$ = AF_INET; }
+		| INET6				{ $$ = AF_INET6; }
+
+match_af	: /* empty */			{ bzero(&$$, sizeof($$)); }
+		| not af		{
+			bzero(&$$, sizeof($$));
+			$$.af = $2;
+			$$.match_what |= FF_MATCH_AF;
+			$$.match_negate |= $1 ? FF_MATCH_AF : 0;
 		}
 		;
 
@@ -553,18 +618,34 @@ match_proto	: /* empty */			{ bzero(&$$, sizeof($$)); }
 		;
 
 match_tos	: /* empty */			{ bzero(&$$, sizeof($$)); }
-		| TOS not number		{
+		| TOS not octet		{
 			bzero(&$$, sizeof($$));
-			if ($3 > 0xff) {
-				yyerror("Invalid ToS");
-				YYERROR;
-			}
 			$$.tos = $3;
 			$$.match_what |= FF_MATCH_TOS;
 			$$.match_negate |= $2 ? FF_MATCH_TOS : 0;
 		}
 		;
 
+tcp_flags	: octet 			{ $$ = $1; }
+		;
+
+tcp_mask	: /* empty */			{ $$ = 0xff; }
+		| MASK tcp_flags 		{ $$ = $2; }
+		;
+
+match_tcp_flags	: /* empty */			{ bzero(&$$, sizeof($$)); }
+		| TCP_FLAGS tcp_mask not EQUALS tcp_flags	{
+			bzero(&$$, sizeof($$));
+			if ($2 > 0xff) {
+				yyerror("Invalid ToS");
+				YYERROR;
+			}
+			$$.tcp_flags_mask = $2;
+			$$.tcp_flags_equals = $5;
+			$$.match_what |= FF_MATCH_TCP_FLAGS;
+			$$.match_negate |= $3 ? FF_MATCH_TCP_FLAGS : 0;
+		}
+		;
 %%
 
 struct keywords {
@@ -606,11 +687,15 @@ lookup(char *s)
 		{ "any",		ANY},
 		{ "discard",		DISCARD},
 		{ "dst",		DST},
+		{ "equals",		EQUALS},
 		{ "flow",		FLOW},
 		{ "group",		GROUP},
+		{ "inet",		INET},
+		{ "inet6",		INET6},
 		{ "join",		JOIN},
 		{ "listen",		LISTEN},
 		{ "logfile",		LOGFILE},
+		{ "mask",		MASK},
 		{ "on",			ON},
 		{ "pidfile",		PIDFILE},
 		{ "port",		PORT},
@@ -620,6 +705,7 @@ lookup(char *s)
 		{ "src",		SRC},
 		{ "store",		STORE},
 		{ "tag",		TAG},
+		{ "tcp_flags",		TCP_FLAGS},
 		{ "tos",		TOS},
 	};
 	const struct keywords	*p;

@@ -4,6 +4,8 @@
    trying to build the 'flowd' binary; reported by Jakob Schlyter
 - (djm) Extend Python API to suppor writing of flows. Written between Melbourne
   and Tokyo
+- (djm) Add support for filtering on TCP flags and flow address family. Written
+  over Siberia enroute to Paris
 
 20050204
  - (djm) Support writing flow records to pipes and sockets in store.c

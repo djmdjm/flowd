@@ -31,7 +31,7 @@ RCSID("$Id$");
 /* #define FILTER_DEBUG */
 
 const char *
-format_rule(struct filter_rule *rule)
+format_rule(const struct filter_rule *rule)
 {
 	char tmpbuf[128];
 	static char rulebuf[1024];
@@ -61,12 +61,24 @@ format_rule(struct filter_rule *rule)
 		    rule->match.agent_masklen);
 		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
 	}
+
+	if (rule->match.match_what & FF_MATCH_AF) {
+		strlcat(rulebuf, FRNEG(AF), sizeof(rulebuf));
+		if (rule->match.af == AF_INET)
+			strlcat(rulebuf, "inet ", sizeof(rulebuf));
+		else if (rule->match.af == AF_INET6)
+			strlcat(rulebuf, "inet6 ", sizeof(rulebuf));
+		else
+			strlcat(rulebuf, "UNKNOWN", sizeof(rulebuf));
+	}
+
 	if (rule->match.match_what & FF_MATCH_SRC_ADDR) {
 		snprintf(tmpbuf, sizeof(tmpbuf), "src %s%s/%d ",
 		    FRNEG(SRC_ADDR), addr_ntop_buf(&rule->match.src_addr),
 		    rule->match.src_masklen);
 		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
 	}
+
 	if (rule->match.match_what & FF_MATCH_SRC_PORT) {
 		if (!(rule->match.match_what & FF_MATCH_SRC_ADDR))
 			strlcat(rulebuf, "src any ", sizeof(rulebuf));
@@ -94,13 +106,27 @@ format_rule(struct filter_rule *rule)
 	}
 	if (rule->match.match_what & FF_MATCH_TOS) {
 		snprintf(tmpbuf, sizeof(tmpbuf), "tos %s0x%x ",
-		FRNEG(TOS), rule->match.tos);
+		    FRNEG(TOS), rule->match.tos);
 		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
 	}
+	if (rule->match.match_what & FF_MATCH_TCP_FLAGS) {
+		snprintf(tmpbuf, sizeof(tmpbuf), "%stcp_flags",
+		    FRNEG(TCP_FLAGS));
+		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
+		if (rule->match.tcp_flags_mask != 0xff) {
+			snprintf(tmpbuf, sizeof(tmpbuf), " mask 0x%02x",
+			    rule->match.tcp_flags_mask);
+			strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
+		}
+		snprintf(tmpbuf, sizeof(tmpbuf), " equals 0x%02x",
+		    rule->match.tcp_flags_equals);
+		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
+	}
+
 #undef FRNEG
 
 	snprintf(tmpbuf, sizeof(tmpbuf),
-	    "# evaluations %llu matches %llu wins %llu",
+	    " # evaluations %llu matches %llu wins %llu",
 	    rule->evaluations, rule->matches, rule->wins);
 	strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
 
@@ -108,12 +134,15 @@ format_rule(struct filter_rule *rule)
 }
 
 static int
-flow_match(struct filter_rule *rule, struct store_flow_complete *flow)
+flow_match(const struct filter_rule *rule,
+    const struct store_flow_complete *flow)
 {
 	int m;
 
 #define FRNEG(what) (rule->match.match_negate & FF_MATCH_##what)
 #define FRMATCH(what) (rule->match.match_what & FF_MATCH_##what)
+#define FRRETVAL(what) ((FRNEG(what) && m) || (!FRNEG(what) && !m))
+#define FRRET(what) do { if (FRRETVAL(what)) return (0); } while (0)
 
 	if (FRMATCH(AGENT_ADDR)) {
 		m = (addr_netmatch(&flow->agent_addr, &rule->match.agent_addr,
@@ -122,45 +151,55 @@ flow_match(struct filter_rule *rule, struct store_flow_complete *flow)
 			return (0);
 	}
 
+	if (FRMATCH(AF)) {
+		m = ((FRMATCH(SRC_ADDR) &&
+		    rule->match.src_addr.af == rule->match.af) ||
+		    (FRMATCH(DST_ADDR) &&
+		    rule->match.dst_addr.af == rule->match.af));
+		FRRET(AF);
+	}
+
 	if (FRMATCH(SRC_ADDR)) {
 		m = (addr_netmatch(&flow->src_addr, &rule->match.src_addr,
 		    rule->match.src_masklen) == 0);
-		if ((FRNEG(SRC_ADDR) && m) || (!FRNEG(SRC_ADDR) && !m))
-			return (0);
+		FRRET(SRC_ADDR);
 	}
 
 	if (FRMATCH(DST_ADDR)) {
 		m = (addr_netmatch(&flow->dst_addr, &rule->match.dst_addr,
 		    rule->match.dst_masklen) == 0);
-		if ((FRNEG(DST_ADDR) && m) || (!FRNEG(DST_ADDR) && !m))
-			return (0);
+		FRRET(DST_ADDR);
 	}
 
 	if (FRMATCH(SRC_PORT)) {
 		m = (ntohs(flow->ports.src_port) == rule->match.src_port);
-		if ((FRNEG(SRC_PORT) && m) || (!FRNEG(SRC_PORT) && !m))
-			return (0);
+		FRRET(SRC_PORT);
 	}
 
 	if (FRMATCH(DST_PORT)) {
 		m = (ntohs(flow->ports.dst_port) == rule->match.dst_port);
-		if ((FRNEG(DST_PORT) && m) || (!FRNEG(DST_PORT) && !m))
-			return (0);
+		FRRET(DST_PORT);
 	}
 
 	if (FRMATCH(PROTOCOL)) {
 		m = (flow->pft.protocol == rule->match.proto);
-		if ((FRNEG(PROTOCOL) && m) || (!FRNEG(PROTOCOL) && !m))
-			return (0);
+		FRRET(PROTOCOL);
 	}
 
 	if (FRMATCH(TOS)) {
 		m = (flow->pft.tos == rule->match.tos);
-		if ((FRNEG(TOS) && m) || (!FRNEG(TOS) && !m))
-			return (0);
+		FRRET(TOS);
+	}
+
+	if (FRMATCH(TCP_FLAGS)) {
+		m = ((flow->pft.tcp_flags & rule->match.tcp_flags_mask) ==
+		    rule->match.tcp_flags_equals);
+		FRRET(TCP_FLAGS);
 	}
 #undef FRMATCH
 #undef FRNEG
+#undef FRRETVAL
+#undef FRRET
 
 	return (1);
 }
