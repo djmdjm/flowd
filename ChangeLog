@@ -1,3 +1,6 @@
+20041011
+ - (djm) Kill whitespace at EOL, improve nf9 debugging
+
 20040929
  - (djm) Don't refuse to write flows lacking gateway addr
 

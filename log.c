@@ -53,7 +53,7 @@ loginit(const char *ident, int to_stderr, int debug_flag)
 {
 	if (logstarted)
 		logclose();
-	
+
 	logstarted = 1;
 	logdebug = (debug_flag != 0);
 

@@ -230,7 +230,7 @@ recv_config(int fd, struct flowd_config *conf)
 		logit(LOG_ERR, "%s: Couldn't read conf.pid_file", __func__);
 		return (-1);
 	}
-		
+
 	if (atomicio(read, fd, &newconf.store_mask,
 	    sizeof(newconf.store_mask)) != sizeof(newconf.store_mask)) {
 		logitm(LOG_ERR, "%s: read(conf.store_mask)", __func__);
@@ -337,7 +337,7 @@ send_config(int fd, struct flowd_config *conf)
 		logit(LOG_ERR, "%s: Couldn't write conf.pid_file", __func__);
 		return (-1);
 	}
-		
+
 	if (atomicio(vwrite, fd, &conf->store_mask,
 	    sizeof(conf->store_mask)) != sizeof(conf->store_mask)) {
 		logitm(LOG_ERR, "%s: write(conf.store_mask)", __func__);
@@ -468,7 +468,7 @@ child_get_config(const char *path, struct flowd_config *conf)
 	FILE *cfg;
 	struct passwd *pw;
 	struct flowd_config newconf = {
-		NULL, NULL, 0, 0, 
+		NULL, NULL, 0, 0,
 		TAILQ_HEAD_INITIALIZER(newconf.listen_addrs),
 		TAILQ_HEAD_INITIALIZER(newconf.filter_list),
 		TAILQ_HEAD_INITIALIZER(newconf.allowed_devices)
@@ -535,8 +535,8 @@ child_get_config(const char *path, struct flowd_config *conf)
 	if (waitpid(ccpid, &status, 0) == -1) {
 		logitm(LOG_ERR, "%s: waitpid", __func__);
 		return (-1);
-	}	
-	if (!WIFEXITED(status)) { 
+	}
+	if (!WIFEXITED(status)) {
 		logit(LOG_ERR, "child exited abnormally");
 		return (-1);
 	}
@@ -668,7 +668,7 @@ answer_reconfigure(struct flowd_config *conf, int client_fd,
 
 	TAILQ_FOREACH(la, &newconf.listen_addrs, entry) {
 		if ((la->fd = open_listener(&la->addr, la->port)) == -1) {
-			logit(LOG_ERR, "Listener setup of [%s]:%d failed", 
+			logit(LOG_ERR, "Listener setup of [%s]:%d failed",
 			    addr_ntop_buf(&la->addr), la->port);
 			ok = 0;
 			break;
@@ -755,7 +755,7 @@ privsep_master(struct flowd_config *conf, const char *config_path)
 			}
 			break;
 		case C2M_MSG_RECONFIGURE:
-			if (answer_reconfigure(conf, monitor_to_child_sock, 
+			if (answer_reconfigure(conf, monitor_to_child_sock,
 			    config_path)) {
 				unlink(conf->pid_file);
 				exit(1);
@@ -772,7 +772,7 @@ privsep_master(struct flowd_config *conf, const char *config_path)
 		if (waitpid(child_pid, &status, 0) == -1) {
 			logitm(LOG_ERR, "%s: waitpid", __func__);
 			r = 1;
-		} else if (!WIFEXITED(status)) { 
+		} else if (!WIFEXITED(status)) {
 			logit(LOG_ERR, "child exited abnormally");
 			r = 1;
 		} else if (WEXITSTATUS(status) != 0) {
@@ -787,7 +787,7 @@ privsep_master(struct flowd_config *conf, const char *config_path)
 }
 
 void
-privsep_init(struct flowd_config *conf, int *child_to_monitor_sock, 
+privsep_init(struct flowd_config *conf, int *child_to_monitor_sock,
     const char *config_path)
 {
 	int s[2], devnull;
@@ -814,7 +814,7 @@ privsep_init(struct flowd_config *conf, int *child_to_monitor_sock,
 	if ((conf->opts & FLOWD_OPT_DONT_FORK) == 0 && daemon(0, 1) == -1)
 		logerr("daemon");
 
-	if (dup2(devnull, STDIN_FILENO) == -1 || 
+	if (dup2(devnull, STDIN_FILENO) == -1 ||
 	    dup2(devnull, STDOUT_FILENO) == -1)
 		logerr("dup2");
 
@@ -822,23 +822,23 @@ privsep_init(struct flowd_config *conf, int *child_to_monitor_sock,
 	case -1:
 		logerr("fork");
 	case 0: /* Child */
-		loginit(PROGNAME, (conf->opts & FLOWD_OPT_VERBOSE), 
+		loginit(PROGNAME, (conf->opts & FLOWD_OPT_VERBOSE),
 		    (conf->opts & FLOWD_OPT_DONT_FORK));
 		close(monitor_to_child_sock);
 
 		if (drop_privs(pw, 1) == -1)
 			exit(1);
 
-		if ((conf->opts & FLOWD_OPT_DONT_FORK) == 0 && 
+		if ((conf->opts & FLOWD_OPT_DONT_FORK) == 0 &&
 		    dup2(devnull, STDERR_FILENO) == -1)
 			logerr("dup2");
 		close(devnull);
 		setproctitle("net");
 		return;
 	default: /* Parent */
-		loginit(PROGNAME, (conf->opts & FLOWD_OPT_VERBOSE), 
+		loginit(PROGNAME, (conf->opts & FLOWD_OPT_VERBOSE),
 		    (conf->opts & FLOWD_OPT_DONT_FORK));
-		if ((conf->opts & FLOWD_OPT_DONT_FORK) == 0 && 
+		if ((conf->opts & FLOWD_OPT_DONT_FORK) == 0 &&
 		    dup2(devnull, STDERR_FILENO) == -1)
 			logerr("dup2");
 		close(devnull);

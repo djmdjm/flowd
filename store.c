@@ -66,7 +66,7 @@ store_get_header(int fd, struct store_header *hdr, const char **errptr)
 
 	if (ntohl(hdr->magic) != STORE_MAGIC)
 		SFAILX(-1, "Bad magic", 0);
-	if (ntohl(hdr->version) != STORE_VERSION)	
+	if (ntohl(hdr->version) != STORE_VERSION)
 		SFAILX(-1, "Unsupported version", 0);
 
 	return (0);
@@ -238,11 +238,11 @@ store_put_header(int fd, const char **errptr)
 }
 
 static int
-write_flow(int fd, const char **errptr, 
-    u_int32_t fields, 
-    struct store_flow_complete *flow, 
+write_flow(int fd, const char **errptr,
+    u_int32_t fields,
+    struct store_flow_complete *flow,
     struct store_flow_AGENT_ADDR_V4 *aa4,
-    struct store_flow_AGENT_ADDR_V6 *aa6, 
+    struct store_flow_AGENT_ADDR_V6 *aa6,
     struct store_flow_SRC_ADDR_V4 *sa4,
     struct store_flow_SRC_ADDR_V6 *sa6,
     struct store_flow_DST_ADDR_V4 *da4,
@@ -321,7 +321,7 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 	off_t startpos;
 	char ebuf[512];
 
-	/* Remember where we started, so we can back errors out */	
+	/* Remember where we started, so we can back errors out */
 	if ((startpos = lseek(fd, 0, SEEK_CUR)) == -1)
 		SFAIL(-1, "lseek", 1);
 
@@ -374,7 +374,7 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 			break;
 		SFAILX(-1, "silly src addrs af", 1);
 	}
-	
+
 	switch(flow->dst_addr.af) {
 	case AF_INET:
 		if ((fields & STORE_FIELD_DST_ADDR4) == 0)
@@ -397,7 +397,7 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 			break;
 		SFAILX(-1, "silly dst addrs af", 1);
 	}
-	
+
 	switch(flow->gateway_addr.af) {
 	case AF_INET:
 		if ((fields & STORE_FIELD_GATEWAY_ADDR4) == 0)
@@ -423,7 +423,7 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 
 	flow->hdr.fields = htonl(fields);
 
-	if (write_flow(fd, errptr, fields, flow, &aa4, &aa6, 
+	if (write_flow(fd, errptr, fields, flow, &aa4, &aa6,
 	    &sa4, &sa6, &da4, &da6, &gwa4, &gwa6) == 0) {
 		flow->hdr.fields = htonl(origfields);
 		return (0);
@@ -431,7 +431,7 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 
 	flow->hdr.fields = htonl(origfields);
 
-	/* Try to rewind to starting position, so we don't corrupt flow store */	
+	/* Try to rewind to starting position, so we don't corrupt flow store */
 	if (lseek(fd, startpos, SEEK_SET) == -1)
 		SFAIL(-2, "corrupting failure on lseek", 1);
 	if (ftruncate(fd, startpos) == -1)
@@ -485,7 +485,7 @@ interval_time(time_t t)
 }
 
 void
-store_format_flow(struct store_flow_complete *flow, char *buf, size_t len, 
+store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
     int utc_flag, u_int32_t display_mask)
 {
 	char tmp[256];
@@ -504,7 +504,7 @@ store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
 		strlcat(buf, tmp, len);
 	}
 	if (HASFIELD(RECV_TIME)) {
-		snprintf(tmp, sizeof(tmp), "recv_time %s ", 
+		snprintf(tmp, sizeof(tmp), "recv_time %s ",
 		    iso_time(ntohl(flow->recv_time.recv_secs), utc_flag));
 		strlcat(buf, tmp, len);
 	}
@@ -555,12 +555,12 @@ store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
 		strlcat(buf, tmp, len);
 	}
 	if (HASFIELD(OCTETS)) {
-		snprintf(tmp, sizeof(tmp), "octets %llu ", 
+		snprintf(tmp, sizeof(tmp), "octets %llu ",
 		    store_ntohll(flow->octets.flow_octets));
 		strlcat(buf, tmp, len);
 	}
 	if (HASFIELD(IF_INDICES)) {
-		snprintf(tmp, sizeof(tmp), "in_if %d out_if %d ", 
+		snprintf(tmp, sizeof(tmp), "in_if %d out_if %d ",
 			ntohs(flow->ifndx.if_index_in),
 			ntohs(flow->ifndx.if_index_out));
 		strlcat(buf, tmp, len);
@@ -579,26 +579,26 @@ store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
 		strlcat(buf, tmp, len);
 	}
 	if (HASFIELD(FLOW_TIMES)) {
-		snprintf(tmp, sizeof(tmp), "flow_start %s.%03u ", 
+		snprintf(tmp, sizeof(tmp), "flow_start %s.%03u ",
 		    interval_time(ntohl(flow->ftimes.flow_start) / 1000),
 		    ntohl(flow->ftimes.flow_start) % 1000);
 		strlcat(buf, tmp, len);
-		snprintf(tmp, sizeof(tmp), "flow_finish %s.%03u ", 
+		snprintf(tmp, sizeof(tmp), "flow_finish %s.%03u ",
 		    interval_time(ntohl(flow->ftimes.flow_finish) / 1000),
 		    ntohl(flow->ftimes.flow_finish) % 1000);
 		strlcat(buf, tmp, len);
 	}
 	if (HASFIELD(AS_INFO)) {
-		snprintf(tmp, sizeof(tmp), "src_AS %u src_masklen %u ", 
+		snprintf(tmp, sizeof(tmp), "src_AS %u src_masklen %u ",
 		    ntohs(flow->asinf.src_as), flow->asinf.src_mask);
 		strlcat(buf, tmp, len);
-		snprintf(tmp, sizeof(tmp), "dst_AS %u dst_masklen %u ", 
+		snprintf(tmp, sizeof(tmp), "dst_AS %u dst_masklen %u ",
 		    ntohs(flow->asinf.dst_as), flow->asinf.dst_mask);
 		strlcat(buf, tmp, len);
 	}
 	if (HASFIELD(FLOW_ENGINE_INFO)) {
 		snprintf(tmp, sizeof(tmp),
-		    "engine_type %u engine_id %u seq %lu ", 
+		    "engine_type %u engine_id %u seq %lu ",
 		    flow->finf.engine_type,  flow->finf.engine_id,
 		    (u_long)ntohl(flow->finf.flow_sequence));
 		strlcat(buf, tmp, len);

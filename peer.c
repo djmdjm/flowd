@@ -53,8 +53,8 @@ peer_nf9_template_delete(struct peer_nf9_source *nf9src,
 	nf9src->num_templates--;
 }
 
-static void peer_nf9_source_delete(struct peer_state *peer, 
-    struct peer_nf9_source *nf9src)    
+static void peer_nf9_source_delete(struct peer_state *peer,
+    struct peer_nf9_source *nf9src)
 {
 	struct peer_nf9_template *nf9tmpl;
 
@@ -113,8 +113,8 @@ struct peer_nf9_template *peer_nf9_find_template(struct peer_state *peer,
 	nf9src = peer_nf9_lookup_source(peer, source_id);
 
 #ifdef PEER_DEBUG_NF9
-	logit(LOG_DEBUG, "%s: Lookup source %08x for peer %s: %sFOUND", 
-	    __func__, source_id, addr_ntop_buf(&peer->from), 
+	logit(LOG_DEBUG, "%s: Lookup source %08x for peer %s: %sFOUND",
+	    __func__, source_id, addr_ntop_buf(&peer->from),
 	    nf9src == NULL ? "NOT " : "");
 #endif
 
@@ -124,7 +124,7 @@ struct peer_nf9_template *peer_nf9_find_template(struct peer_state *peer,
 	nf9tmpl = peer_nf9_lookup_template(nf9src, template_id);
 
 #ifdef PEER_DEBUG_NF9
-	logit(LOG_DEBUG, "%s: Lookup template %04x: %sFOUND", __func__, 
+	logit(LOG_DEBUG, "%s: Lookup template %04x: %sFOUND", __func__,
 	    template_id, nf9tmpl == NULL ? "NOT " : "");
 #endif
 
@@ -132,14 +132,14 @@ struct peer_nf9_template *peer_nf9_find_template(struct peer_state *peer,
 		return (NULL);
 
 #ifdef PEER_DEBUG_NF9
-	logit(LOG_DEBUG, "%s: Found template %s/%08x/%04x: %d records %p", 
+	logit(LOG_DEBUG, "%s: Found template %s/%08x/%04x: %d records %p",
 	    __func__, addr_ntop_buf(&peer->from), source_id, template_id,
 	    nf9tmpl->num_records, nf9tmpl->records);
 #endif
 	return (nf9tmpl);
 }
 
-void 
+void
 peer_nf9_template_update(struct peer_state *peer, u_int32_t source_id,
     u_int16_t template_id)
 {
@@ -147,7 +147,7 @@ peer_nf9_template_update(struct peer_state *peer, u_int32_t source_id,
 	struct peer_nf9_template *nf9tmpl;
 
 #ifdef PEER_DEBUG_NF9
-	logit(LOG_DEBUG, "%s: Lookup template %s/%08x/%04x", 
+	logit(LOG_DEBUG, "%s: Lookup template %s/%08x/%04x",
 	    __func__, addr_ntop_buf(&peer->from), template_id, source_id);
 #endif
 	nf9src = peer_nf9_lookup_source(peer, source_id);
@@ -178,7 +178,7 @@ peer_nf9_template_update(struct peer_state *peer, u_int32_t source_id,
 }
 
 static struct peer_nf9_source *
-peer_nf9_new_source(struct peer_state *peer, struct peers *peers, 
+peer_nf9_new_source(struct peer_state *peer, struct peers *peers,
     u_int32_t source_id)
 {
 	struct peer_nf9_source *nf9src;
@@ -187,7 +187,7 @@ peer_nf9_new_source(struct peer_state *peer, struct peers *peers,
 	peer->nf9_num_sources++;
 	if (peer->nf9_num_sources > peers->max_sources) {
 		nf9src = TAILQ_LAST(&peer->nf9, peer_nf9_list);
-		logit(LOG_WARNING, "forced deletion of source %08x of peer %s", 
+		logit(LOG_WARNING, "forced deletion of source %08x of peer %s",
 		    source_id, addr_ntop_buf(&peer->from));
 		/* XXX ratelimit errors */
 		peer_nf9_source_delete(peer, nf9src)    ;
@@ -208,7 +208,7 @@ peer_nf9_new_source(struct peer_state *peer, struct peers *peers,
 }
 
 struct peer_nf9_template *
-peer_nf9_new_template(struct peer_state *peer, struct peers *peers, 
+peer_nf9_new_template(struct peer_state *peer, struct peers *peers,
     u_int32_t source_id, u_int16_t template_id)
 {
 	struct peer_nf9_source *nf9src;
@@ -224,7 +224,7 @@ peer_nf9_new_template(struct peer_state *peer, struct peers *peers,
 		nf9tmpl = TAILQ_LAST(&nf9src->templates,
 		    peer_nf9_template_list);
 		logit(LOG_WARNING, "forced deletion of template %04x from "
-		    "peer %s/%08x", template_id, addr_ntop_buf(&peer->from), 
+		    "peer %s/%08x", template_id, addr_ntop_buf(&peer->from),
 		    source_id);
 		/* XXX ratelimit errors */
 		peer_nf9_template_delete(nf9src, nf9tmpl)    ;
@@ -291,7 +291,7 @@ new_peer(struct peers *peers, struct flowd_config *conf, struct xaddr *addr)
 	if (peers->num_peers > peers->max_peers) {
 		peers->num_forced++;
 		peer = TAILQ_LAST(&peers->peer_list, peer_list);
-		logit(LOG_WARNING, "forced deletion of peer %s", 
+		logit(LOG_WARNING, "forced deletion of peer %s",
 		    addr_ntop_buf(&peer->from));
 		/* XXX ratelimit errors */
 		delete_peer(peers, peer);
@@ -309,7 +309,7 @@ new_peer(struct peers *peers, struct flowd_config *conf, struct xaddr *addr)
 	TAILQ_INSERT_HEAD(&peers->peer_list, peer, lp);
 	SPLAY_INSERT(peer_tree, &peers->peer_tree, peer);
 	gettimeofday(&peer->firstseen, NULL);
-	
+
 	return (peer);
 }
 
@@ -341,7 +341,7 @@ scrub_peers(struct flowd_config *conf, struct peers *peers)
 }
 
 void
-update_peer(struct peers *peers, struct peer_state *peer, u_int nflows, 
+update_peer(struct peers *peers, struct peer_state *peer, u_int nflows,
     u_int netflow_version)
 {
 	/* Push peer to front of LRU queue, if it isn't there already */
@@ -387,17 +387,17 @@ dump_peers(struct peers *peers)
 	SPLAY_FOREACH(peer, peer_tree, &peers->peer_tree) {
 		logit(LOG_INFO, "peer %u - %s: "
 		    "packets:%llu flows:%llu invalid:%llu no_template:%llu",
-		    i, addr_ntop_buf(&peer->from), 
+		    i, addr_ntop_buf(&peer->from),
 		    peer->npackets, peer->nflows,
 		    peer->ninvalid, peer->no_template);
 		logit(LOG_INFO, "peer %u - %s: first seen:%s.%03u",
-		    i, addr_ntop_buf(&peer->from), 
-		    iso_time(peer->firstseen.tv_sec, 0), 
+		    i, addr_ntop_buf(&peer->from),
+		    iso_time(peer->firstseen.tv_sec, 0),
 		    (u_int)(peer->firstseen.tv_usec / 1000));
 		logit(LOG_INFO, "peer %u - %s: last valid:%s.%03u netflow v.%u",
-		    i, addr_ntop_buf(&peer->from), 
-		    iso_time(peer->lastvalid.tv_sec, 0), 
-		    (u_int)(peer->lastvalid.tv_usec / 1000), 
+		    i, addr_ntop_buf(&peer->from),
+		    iso_time(peer->lastvalid.tv_sec, 0),
+		    (u_int)(peer->lastvalid.tv_usec / 1000),
 		    peer->last_version);
 		i++;
 	}

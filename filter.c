@@ -57,13 +57,13 @@ format_rule(struct filter_rule *rule)
 
 	if (rule->match.match_what & FF_MATCH_AGENT_ADDR) {
 		snprintf(tmpbuf, sizeof(tmpbuf), "agent %s%s/%d ",
-		    FRNEG(AGENT_ADDR), addr_ntop_buf(&rule->match.agent_addr), 
+		    FRNEG(AGENT_ADDR), addr_ntop_buf(&rule->match.agent_addr),
 		    rule->match.agent_masklen);
 		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
 	}
 	if (rule->match.match_what & FF_MATCH_SRC_ADDR) {
 		snprintf(tmpbuf, sizeof(tmpbuf), "src %s%s/%d ",
-		    FRNEG(SRC_ADDR), addr_ntop_buf(&rule->match.src_addr), 
+		    FRNEG(SRC_ADDR), addr_ntop_buf(&rule->match.src_addr),
 		    rule->match.src_masklen);
 		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
 	}
@@ -76,7 +76,7 @@ format_rule(struct filter_rule *rule)
 	}
 	if (rule->match.match_what & FF_MATCH_DST_ADDR) {
 		snprintf(tmpbuf, sizeof(tmpbuf), "dst %s%s/%d ",
-		    FRNEG(DST_ADDR), addr_ntop_buf(&rule->match.dst_addr), 
+		    FRNEG(DST_ADDR), addr_ntop_buf(&rule->match.dst_addr),
 		    rule->match.dst_masklen);
 		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
 	}

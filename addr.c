@@ -251,7 +251,7 @@ addr_cmp(const struct xaddr *a, const struct xaddr *b)
 		return (ntohl(a->v4.s_addr) > ntohl(b->v4.s_addr) ? 1 : -1);
 	case AF_INET6:;
 		/*
-		 * Do this a byte at a time to avoid the above issue and 
+		 * Do this a byte at a time to avoid the above issue and
 		 * any endian problems
 		 */
 		for (i = 0; i < 16; i++)
@@ -315,7 +315,7 @@ int
 addr_host_to_all0s(struct xaddr *a, u_int masklen)
 {
 	struct xaddr tmp_mask;
-	
+
 	if (addr_netmask(a->af, masklen, &tmp_mask) == -1)
 		return (-1);
 	if (addr_and(a, a, &tmp_mask) == -1)
@@ -327,7 +327,7 @@ int
 addr_host_to_all1s(struct xaddr *a, u_int masklen)
 {
 	struct xaddr tmp_mask;
-	
+
 	if (addr_hostmask(a->af, masklen, &tmp_mask) == -1)
 		return (-1);
 	if (addr_or(a, a, &tmp_mask) == -1)
@@ -345,11 +345,11 @@ addr_pton(const char *p, struct xaddr *n)
 
 	if (p == NULL || getaddrinfo(p, NULL, &hints, &ai) != 0)
 		return (-1);
-	
+
 	if (ai == NULL || ai->ai_addr == NULL)
 		return (-1);
 
-	if (n != NULL && addr_sa_to_xaddr(ai->ai_addr, ai->ai_addrlen, 
+	if (n != NULL && addr_sa_to_xaddr(ai->ai_addr, ai->ai_addrlen,
 	    n) == -1) {
 		freeaddrinfo(ai);
 		return (-1);
@@ -393,7 +393,7 @@ addr_ntop(struct xaddr *n, char *p, size_t len)
 		return (-1);
 	if (n == NULL || p == NULL || len == 0)
 		return (-1);
-	if (getnameinfo(_SA(&ss), slen, p, len, NULL, 0, 
+	if (getnameinfo(_SA(&ss), slen, p, len, NULL, 0,
 	    NI_NUMERICHOST) == -1)
 		return (-1);
 

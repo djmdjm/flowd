@@ -88,7 +88,7 @@ main(int argc, char **argv)
 			fprintf(stderr, "%s\n", e);
 			exit(1);
 		}
-	
+
 		printf("LOGFILE %s started at %s\n", argv[i],
 		    iso_time(ntohl(hdr.start_time), utc));
 

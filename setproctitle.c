@@ -95,7 +95,7 @@ compat_init_setproctitle(int argc, char ***argvp)
 	}
 
 	/*
-	 * Find the last argv string or environment variable within 
+	 * Find the last argv string or environment variable within
 	 * our process memory area.
 	 */
 	for (i = 0; i < argc; i++) {
@@ -111,8 +111,8 @@ compat_init_setproctitle(int argc, char ***argvp)
 	argv_start = argv[0];
 	argv_env_len = lastargv - argv[0] - 1;
 
-	/* 
-	 * Copy environment 
+	/*
+	 * Copy environment
 	 */
 	for (i = 0; envp[i] != NULL; i++)
 		if ((environ[i] = strdup(envp[i])) == NULL)
@@ -153,7 +153,7 @@ setproctitle(const char *fmt, ...)
 	pst.pst_command = buf;
 	pstat(PSTAT_SETCMD, pst, strlen(buf), 0, 0);
 #elif SPT_TYPE == SPT_REUSEARGV
-/*	debug("setproctitle: copy \"%s\" into len %d", 
+/*	debug("setproctitle: copy \"%s\" into len %d",
 	    buf, argv_env_len); */
 	len = strlcpy(argv_start, buf, argv_env_len);
 	for(; len < argv_env_len; len++)
