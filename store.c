@@ -266,11 +266,13 @@ store_put_flow(int fd, struct store_flow_complete *flow, char **errptr)
 		memcpy(&aa4.flow_agent_addr, &flow->agent_addr.v4,
 		    sizeof(aa4.flow_agent_addr));
 		fields |= STORE_FIELD_AGENT_ADDR4;
+		fields &= ~STORE_FIELD_AGENT_ADDR6;
 		break;
 	case AF_INET6:
 		memcpy(&aa6.flow_agent_addr, &flow->agent_addr.v6,
 		    sizeof(aa6.flow_agent_addr));
 		fields |= STORE_FIELD_AGENT_ADDR6;
+		fields &= ~STORE_FIELD_AGENT_ADDR4;
 		break;
 	default:
 		SFAILX(-1, __func__ "silly agent addr af");
@@ -284,6 +286,7 @@ store_put_flow(int fd, struct store_flow_complete *flow, char **errptr)
 		memcpy(&sda4.dst_addr, &flow->dst_addr.v4,
 		    sizeof(sda4.dst_addr));
 		fields |= STORE_FIELD_SRCDST_ADDR4;
+		fields &= ~STORE_FIELD_SRCDST_ADDR6;
 		break;
 	case AF_INET6:
 		memcpy(&sda6.src_addr, &flow->src_addr.v6,
@@ -291,6 +294,7 @@ store_put_flow(int fd, struct store_flow_complete *flow, char **errptr)
 		memcpy(&sda6.dst_addr, &flow->dst_addr.v6,
 		    sizeof(sda6.dst_addr));
 		fields |= STORE_FIELD_SRCDST_ADDR6;
+		fields &= ~STORE_FIELD_SRCDST_ADDR4;
 		break;
 	default:
 		SFAILX(-1, __func__ "silly src/dst addrs af");
@@ -301,11 +305,13 @@ store_put_flow(int fd, struct store_flow_complete *flow, char **errptr)
 		memcpy(&gwa4.gateway_addr, &flow->gateway_addr.v4,
 		    sizeof(gwa4.gateway_addr));
 		fields |= STORE_FIELD_GATEWAY_ADDR4;
+		fields &= ~STORE_FIELD_GATEWAY_ADDR6;
 		break;
 	case AF_INET6:
 		memcpy(&gwa6.gateway_addr, &flow->gateway_addr.v6,
 		    sizeof(gwa6.gateway_addr));
 		fields |= STORE_FIELD_GATEWAY_ADDR6;
+		fields &= ~STORE_FIELD_GATEWAY_ADDR4;
 		break;
 	default:
 		SFAILX(-1, __func__ "silly gateway addr af");
@@ -408,7 +414,7 @@ store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
 			    ntohs(flow->ports.src_port));
 			strlcat(buf, tmp, len);
 		}
-		strlcat(buf, "", len);
+		strlcat(buf, " ", len);
 		snprintf(tmp, sizeof(tmp), "dst %s",
 		    addr_ntop_buf(&flow->dst_addr));
 		strlcat(buf, tmp, len);

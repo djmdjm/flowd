@@ -155,6 +155,14 @@ process_flow(struct store_flow_complete *flow, struct flowd_config *conf,
 	flow->hdr.recv_secs = htonl(flow->hdr.recv_secs);
 	flow->hdr.fields = htonl(flow->hdr.fields);
 
+	if (conf->opts & FLOWD_OPT_VERBOSE) {
+		char fbuf[1024];
+
+		store_format_flow(flow, fbuf, sizeof(fbuf), 0,
+		    STORE_DISPLAY_BRIEF);
+		syslog(LOG_WARNING, "%s: flow %s", __func__, fbuf);
+	}
+
 	if (filter_flow(flow, &conf->filter_list) == FF_ACTION_DISCARD)
 		return; /* XXX log? count (against rule?) */
 
@@ -204,6 +212,8 @@ process_netflow_v1(u_int8_t *pkt, size_t len, struct sockaddr *from,
 
 		/* NB. These are converted to network byte order later */
 		flow.hdr.fields = STORE_FIELD_ALL;
+		flow.hdr.fields &= ~STORE_FIELD_SRCDST_ADDR6;
+		flow.hdr.fields &= ~STORE_FIELD_GATEWAY_ADDR6;
 		flow.hdr.fields &= ~STORE_FIELD_AS_INFO;
 		flow.hdr.fields &= ~STORE_FIELD_FLOW_ENGINE_INFO;
 		/* flow.hdr.tag is set later */
@@ -285,6 +295,8 @@ process_netflow_v5(u_int8_t *pkt, size_t len, struct sockaddr *from,
 
 		/* NB. These are converted to network byte order later */
 		flow.hdr.fields = STORE_FIELD_ALL;
+		flow.hdr.fields &= ~STORE_FIELD_SRCDST_ADDR6;
+		flow.hdr.fields &= ~STORE_FIELD_GATEWAY_ADDR6;
 		/* flow.hdr.tag is set later */
 		flow.hdr.recv_secs = time(NULL);
 
