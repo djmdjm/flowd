@@ -181,6 +181,8 @@ static void
 process_flow(struct store_flow_complete *flow, struct flowd_config *conf,
     int log_fd)
 {
+	if (filter_flow(flow, &conf->filter_list) == FF_ACTION_DISCARD)
+		return; /* XXX log? count (against rule?) */
 }
 
 static void 
@@ -219,10 +221,10 @@ process_netflow_v1(u_int8_t *pkt, size_t len, struct sockaddr *from,
 
 		bzero(&flow, sizeof(flow));
 
+		/* NB. These are converted to network byte order later */
 		flow.hdr.fieldspec_flags = STORE_FIELD_ALL;
 		flow.hdr.fieldspec_flags &= ~STORE_FIELD_AS_INFO;
 		flow.hdr.fieldspec_flags &= ~STORE_FIELD_FLOW_ENGINE_INFO;
-
 		/* flow.hdr.tag is set later */
 		flow.hdr.recv_secs = time(NULL);
 
@@ -244,7 +246,7 @@ process_netflow_v1(u_int8_t *pkt, size_t len, struct sockaddr *from,
 		flow.gateway_addr.af = AF_INET;
 
 		flow.ports.src_port = nf1_flow->src_port;
-		flow.ports.dest_port = nf1_flow->dest_port;
+		flow.ports.dst_port = nf1_flow->dest_port;
 
 		flow.counters.flow_packets = nf1_flow->flow_packets;
 		flow.counters.flow_octets = nf1_flow->flow_octets;
@@ -299,8 +301,8 @@ process_netflow_v5(u_int8_t *pkt, size_t len, struct sockaddr *from,
 
 		bzero(&flow, sizeof(flow));
 
+		/* NB. These are converted to network byte order later */
 		flow.hdr.fieldspec_flags = STORE_FIELD_ALL;
-
 		/* flow.hdr.tag is set later */
 		flow.hdr.recv_secs = time(NULL);
 
@@ -322,7 +324,7 @@ process_netflow_v5(u_int8_t *pkt, size_t len, struct sockaddr *from,
 		flow.gateway_addr.af = AF_INET;
 
 		flow.ports.src_port = nf5_flow->src_port;
-		flow.ports.dest_port = nf5_flow->dest_port;
+		flow.ports.dst_port = nf5_flow->dest_port;
 
 		flow.counters.flow_packets = nf5_flow->flow_packets;
 		flow.counters.flow_octets = nf5_flow->flow_octets;
@@ -338,7 +340,7 @@ process_netflow_v5(u_int8_t *pkt, size_t len, struct sockaddr *from,
 		flow.ftimes.flow_finish = nf5_flow->flow_finish;
 
 		flow.asinf.src_as = nf5_flow->src_as;
-		flow.asinf.dest_as = nf5_flow->dest_as;
+		flow.asinf.dst_as = nf5_flow->dest_as;
 		flow.asinf.src_mask = nf5_flow->src_mask;
 		flow.asinf.dst_mask = nf5_flow->dst_mask;
 

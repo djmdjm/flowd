@@ -22,7 +22,9 @@
 #include <sys/types.h>
 #include <sys/queue.h>
 #include "addr.h"
+#include "store.h"
 
+#define FF_ACTION_ACCEPT	1
 #define FF_ACTION_DISCARD	1
 #define FF_ACTION_TAG		2
 struct filter_action {
@@ -58,5 +60,7 @@ struct filter_rule {
 	TAILQ_ENTRY(filter_rule) entry;
 };
 TAILQ_HEAD(filter_list, filter_rule);
+
+u_int filter_flow(struct store_flow_complete *flow, struct filter_list *filter);
 
 #endif /* _FILTER_H */

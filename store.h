@@ -103,11 +103,11 @@ struct store_flow_AGENT_ADDR_V6 {
 /* Optional flow field - present if STORE_FIELD_SRCDST_ADDR */
 struct store_flow_SRCDST_ADDR_V4 {
 	struct store_addr4	src_addr;
-	struct store_addr4	dest_addr;
+	struct store_addr4	dst_addr;
 };
 struct store_flow_SRCDST_ADDR_V6 {
 	struct store_addr6	src_addr;
-	struct store_addr6	dest_addr;
+	struct store_addr6	dst_addr;
 };
 
 /* Optional flow field - present if STORE_FIELD_GATEWAY_ADDR */
@@ -121,7 +121,7 @@ struct store_flow_GATEWAY_ADDR_V6 {
 /* Optional flow field - present if STORE_FIELD_SRCDST_PORT */
 struct store_flow_FLOW_SRCDST_PORT {
 	u_int16_t		src_port;
-	u_int16_t		dest_port;
+	u_int16_t		dst_port;
 };
 
 /* Optional flow field - present if STORE_FIELD_PACKETS_OCTETS */
@@ -154,7 +154,7 @@ struct store_flow_FLOW_TIMES {
 /* Optional flow field - present if STORE_FIELD_AS_INFO */
 struct store_flow_AS_INFO {
 	u_int16_t		src_as;
-	u_int16_t		dest_as;
+	u_int16_t		dst_as;
 	u_int8_t		src_mask;
 	u_int8_t		dst_mask;
 	u_int16_t		pad;

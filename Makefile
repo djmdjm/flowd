@@ -2,7 +2,7 @@
 
 PROG=	flowd
 
-SRCS=	flowd.c addr.c parse.y privsep_fdpass.c privsep.c atomicio.c
+SRCS=	flowd.c addr.c parse.y privsep_fdpass.c privsep.c atomicio.c filter.c
 
 CFLAGS+= -Wall -I${.CURDIR}
 CFLAGS+= -Wstrict-prototypes -Wmissing-prototypes

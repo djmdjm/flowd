@@ -1,7 +1,9 @@
 - support relaying of pre/post-filter packets to another agent (via UDP)
+
 - runtime reconfigure
   - parse config in monitor, deep-copy to child
+  - Need to be careful about listener fds, merge changes or close+reopen??
+
 - don't pass sockaddr_storage pointers around, just use (struct sockaddr *)
-- Move to a tagged on-disk format
 
 - Per-peer statistics, esp. errors

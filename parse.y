@@ -90,7 +90,7 @@ typedef struct {
 %}
 
 %token	LISTEN ON LOGFILE
-%token	TAG DISCARD QUICK AGENT SRC DST PORT PROTO TOS ANY
+%token	TAG ACCEPT DISCARD QUICK AGENT SRC DST PORT PROTO TOS ANY
 %token	ERROR
 %token	<v.string>		STRING
 %type	<v.number>		number quick
@@ -260,7 +260,11 @@ filterrule	: action quick match_agent match_src match_dst match_proto match_tos
 		}
 		;
 
-action		: DISCARD	{
+action		: ACCEPT	{
+			bzero(&$$, sizeof($$));
+			$$.action_what = FF_ACTION_ACCEPT;
+		}
+		| DISCARD	{
 			bzero(&$$, sizeof($$));
 			$$.action_what = FF_ACTION_DISCARD;
 		}
@@ -395,6 +399,7 @@ lookup(char *s)
 {
 	/* this has to be sorted always */
 	static const struct keywords keywords[] = {
+		{ "accept",		ACCEPT},
 		{ "any",		ANY},
 		{ "agent",		AGENT},
 		{ "discard",		DISCARD},
