@@ -257,8 +257,12 @@ logspec		: STRING	{
 				$$ = STORE_FIELD_AGENT_ADDR6;
 			else if (strcasecmp($1, "SRCDST_ADDR") == 0)
 				$$ = STORE_FIELD_SRCDST_ADDR;
+			else if (strcasecmp($1, "SRC_ADDR") == 0)
+				$$ = STORE_FIELD_SRC_ADDR;
 			else if (strcasecmp($1, "SRC_ADDR4") == 0)
 				$$ = STORE_FIELD_SRC_ADDR4;
+			else if (strcasecmp($1, "DST_ADDR") == 0)
+				$$ = STORE_FIELD_DST_ADDR;
 			else if (strcasecmp($1, "DST_ADDR4") == 0)
 				$$ = STORE_FIELD_DST_ADDR4;
 			else if (strcasecmp($1, "SRC_ADDR6") == 0)

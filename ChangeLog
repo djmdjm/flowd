@@ -6,6 +6,7 @@
    - Remove leading '+' from Math::BigInts when printing
    - Avoid Math::BigInt altogether for counters < 2^32
  - (djm) Don't refuse to load configs without filter rules
+ - (djm) Support "store SRC_ADDR" and "store DST_ADDR" aliases
 
 20040817
  - (djm) Make sure we reinstate signal handers after invocation, fixes 
