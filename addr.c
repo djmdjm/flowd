@@ -60,7 +60,7 @@ masklen_valid(int af, unsigned int masklen)
 
 
 int
-addr_xaddr_to_ss(struct xaddr *xa, struct sockaddr_storage *ss)
+addr_xaddr_to_ss(struct xaddr *xa, struct sockaddr_storage *ss, u_int16_t port)
 {
 	struct sockaddr_in *in4 = (struct sockaddr_in *)ss;
 	struct sockaddr_in6 *in6 = (struct sockaddr_in6 *)ss;
@@ -73,11 +73,13 @@ addr_xaddr_to_ss(struct xaddr *xa, struct sockaddr_storage *ss)
 	case AF_INET:
 		in4->sin_len = sizeof(*in4);
 		in4->sin_family = AF_INET;
+		in4->sin_port = htons(port);
 		memcpy(&in4->sin_addr, &xa->v4, sizeof(in4->sin_addr));
 		break;
 	case AF_INET6:
 		in6->sin6_len = sizeof(*in6);
 		in6->sin6_family = AF_INET6;
+		in6->sin6_port = htons(port);
 		memcpy(&in6->sin6_addr, &xa->v6, sizeof(in6->sin6_addr));
 		in6->sin6_scope_id = xa->scope_id;
 		break;
@@ -354,7 +356,7 @@ addr_ss_pton(const char *h, const char *s, struct sockaddr_storage *n)
 		return (-1);
 
 	if (n != NULL)
-		memcpy(n, &ai->ai_addr, SA_LEN(_SA(&ai->ai_addr)));
+		memcpy(n, &ai->ai_addr, SA_LEN(_SA(ai->ai_addr)));
 
 	freeaddrinfo(ai);
 	return (0);
@@ -364,7 +366,7 @@ int
 addr_ntop(struct xaddr *n, char *p, size_t len)
 {
 	struct sockaddr_storage ss;
-	if (addr_xaddr_to_ss(n, &ss) == -1)
+	if (addr_xaddr_to_ss(n, &ss, 0) == -1)
 		return (-1);
 	if (n == NULL || p == NULL || len == 0)
 		return (-1);
@@ -381,7 +383,7 @@ addr_ss_ntop(struct sockaddr_storage *ss, char *h, size_t hlen,
 {
 	if (ss == NULL)
 		return (-1);
-	if (getnameinfo(_SA(&ss), SA_LEN(_SA(&ss)), h, hlen, s, slen, 
+	if (getnameinfo(_SA(ss), SA_LEN(_SA(ss)), h, hlen, s, slen, 
 	    NI_NUMERICHOST) == -1)
 		return (-1);
 

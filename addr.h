@@ -39,7 +39,7 @@ struct xaddr {
 };
 
 int addr_unicast_masklen(int af);
-int addr_xaddr_to_ss(struct xaddr *xa, struct sockaddr_storage *ss);
+int addr_xaddr_to_ss(struct xaddr *xa, struct sockaddr_storage *ss, u_int16_t port);
 int addr_ss_to_xaddr(struct sockaddr_storage *ss, struct xaddr *xa);
 int addr_netmask(int af, unsigned int l, struct xaddr *n);
 int addr_hostmask(int af, unsigned int l, struct xaddr *n);
