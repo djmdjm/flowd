@@ -1,3 +1,7 @@
+20040810
+ - (djm) Add finish() method to perl API, to close flow log
+ - (djm) Fix filter format_rule for rules that match ports but not addrs
+ 
 20040804
  - (djm) Don't clobber existing configuration file
  - (djm) Rework the storage format a little, so we can be more compact when

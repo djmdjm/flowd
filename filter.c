@@ -62,39 +62,37 @@ format_rule(struct filter_rule *rule)
 		    rule->match.agent_masklen);
 		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
 	}
-
-	if (rule->match.match_what & 
-	    (FF_MATCH_SRC_ADDR|FF_MATCH_SRC_PORT)) {
+	if (rule->match.match_what & FF_MATCH_SRC_ADDR) {
 		snprintf(tmpbuf, sizeof(tmpbuf), "src %s%s/%d ",
 		    FRNEG(SRC_ADDR), addr_ntop_buf(&rule->match.src_addr), 
 		    rule->match.src_masklen);
 		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
 	}
 	if (rule->match.match_what & FF_MATCH_SRC_PORT) {
+		if (!(rule->match.match_what & FF_MATCH_SRC_ADDR))
+			strlcat(rulebuf, "src any ", sizeof(rulebuf));
 		snprintf(tmpbuf, sizeof(tmpbuf), "port %s%d ",
 		    FRNEG(SRC_PORT), rule->match.src_port);
 		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
 	}
-
-	if (rule->match.match_what & 
-	    (FF_MATCH_DST_ADDR|FF_MATCH_DST_PORT)) {
+	if (rule->match.match_what & FF_MATCH_DST_ADDR) {
 		snprintf(tmpbuf, sizeof(tmpbuf), "dst %s%s/%d ",
 		    FRNEG(DST_ADDR), addr_ntop_buf(&rule->match.dst_addr), 
 		    rule->match.dst_masklen);
 		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
 	}
 	if (rule->match.match_what & FF_MATCH_DST_PORT) {
+		if (!(rule->match.match_what & FF_MATCH_DST_ADDR))
+			strlcat(rulebuf, "dst any ", sizeof(rulebuf));
 		snprintf(tmpbuf, sizeof(tmpbuf), "port %s%d ",
 		    FRNEG(DST_PORT), rule->match.dst_port);
 		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
 	}
-
 	if (rule->match.match_what & FF_MATCH_PROTOCOL) {
 		snprintf(tmpbuf, sizeof(tmpbuf), "proto %s%d ",
 		    FRNEG(PROTOCOL), rule->match.proto);
 		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
 	}
-
 	if (rule->match.match_what & FF_MATCH_TOS) {
 		snprintf(tmpbuf, sizeof(tmpbuf), "tos %s0x%x ",
 		FRNEG(TOS), rule->match.tos);
