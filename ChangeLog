@@ -6,6 +6,7 @@
          stress test
  - (djm) Improve PLATFORMS file a little
  - (djm) Release flowd 0.4
+ - (djm) Unbreak spec file for Redhat 9
 
 20040816
  - (djm) Pull in some portability fixes from portable OpenSSH

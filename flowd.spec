@@ -56,7 +56,10 @@ example reader application
 %configure --enable-gcc-warnings
 
 make
+
+%if %{python_pkg}
 ./setup.py build
+%endif
 
 %install
 rm -rf $RPM_BUILD_ROOT
@@ -125,6 +128,9 @@ fi
 %endif
 
 %changelog
+* Tue Aug 17 2004 Damien Miller <djm@mindrot.org>
+- Unbreak for Redhat 9
+
 * Mon Aug 16 2004 Damien Miller <djm@mindrot.org>
 - Make Python package optional, Redhat 9 doesn't have support for
   socket.inet_ntop, which flowd.py needs
