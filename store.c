@@ -57,11 +57,11 @@ int
 store_validate_header(struct store_header *hdr, char *ebuf, int elen)
 {
 	if (ntohl(hdr->magic) != STORE_MAGIC)
-		SFAILX(-1, "Bad magic", 0);
+		SFAILX(STORE_ERR_BAD_MAGIC, "Bad magic", 0);
 	if (ntohl(hdr->version) != STORE_VERSION)
-		SFAILX(-1, "Unsupported version", 0);
+		SFAILX(STORE_ERR_UNSUP_VERSION, "Unsupported version", 0);
 
-	return (0);
+	return (STORE_ERR_OK);
 }
 
 int
@@ -70,9 +70,9 @@ store_get_header(int fd, struct store_header *hdr, char *ebuf, int elen)
 	ssize_t r;
 
 	if ((r = atomicio(read, fd, hdr, sizeof(*hdr))) == -1)
-		SFAIL(-1, "read error", 0);
+		SFAIL(STORE_ERR_IO, "read error", 0);
 	if (r < (ssize_t)sizeof(*hdr))
-		SFAILX(-1, "premature EOF", 0);
+		SFAILX(STORE_ERR_EOF, "premature EOF", 0);
 
 	return (store_validate_header(hdr, ebuf, elen));
 }
@@ -134,7 +134,8 @@ store_flow_deserialise(u_int8_t *buf, int len, struct store_flow_complete *f,
 	memcpy(&f->hdr.fields, buf, sizeof(f->hdr.fields));
 
 	if (store_calc_flow_len((struct store_flow *)buf) != len)
-		SFAILX(-1, "calulated length doesn't match supplied len", 1);
+		SFAILX(STORE_ERR_BUFFER_SIZE,
+		    "calulated length doesn't match supplied len", 1);
 
 	crc32_update((u_char *)&f->hdr, sizeof(f->hdr), &crc);
 
@@ -208,12 +209,12 @@ store_flow_deserialise(u_int8_t *buf, int len, struct store_flow_complete *f,
 		S_CPYADDR(f->gateway_addr, ga6.gateway_addr, 6);
 
 	if (SHASFIELD(CRC32) && crc != ntohl(f->crc32.crc32))
-		SFAILX(-1, "Flow checksum mismatch", 0);
+		SFAILX(STORE_ERR_CRC_MISMATCH, "Flow checksum mismatch", 0);
 
 #undef S_CPYADDR
 #undef RFIELD
 
-	return (0);
+	return (STORE_ERR_OK);
 }
 
 int
@@ -224,22 +225,22 @@ store_get_flow(int fd, struct store_flow_complete *f, char *ebuf, int elen)
 
 	/* Read header */
 	if ((r = atomicio(read, fd, buf, sizeof(struct store_flow))) == -1)
-		SFAIL(-1, "read flow header", 0);
+		SFAIL(STORE_ERR_IO, "read flow header", 0);
 	if (r < sizeof(struct store_flow))
-		SFAILX(0, "EOF reading flow header", 0);
+		SFAILX(STORE_ERR_EOF, "EOF reading flow header", 0);
 
 	if ((len = store_calc_flow_len((struct store_flow *)buf)) == -1)
-		SFAILX(-1, "Invalid flow header", 0);
+		SFAILX(STORE_ERR_FLOW_INVALID, "Invalid flow header", 0);
 	if (len > sizeof(buf) - sizeof(struct store_flow))
-		SFAILX(-1, "Internal error: flow buffer too small", 1);
+		SFAILX(STORE_ERR_INTERNAL,
+		    "Internal error: flow buffer too small", 1);
 
 	if ((r = atomicio(read, fd, buf + sizeof(struct store_flow),len)) == -1)
-		SFAIL(-1, "read flow data", 0);
+		SFAIL(STORE_ERR_IO, "read flow data", 0);
 	if (r < len)
-		SFAILX(0, "EOF reading flow data", 0);
+		SFAILX(STORE_ERR_EOF, "EOF reading flow data", 0);
 
-	r = store_flow_deserialise(buf, len, f, ebuf, elen);
-	return (r == 0 ? 1 : r);
+	return (store_flow_deserialise(buf, len, f, ebuf, elen));
 }
 
 int
@@ -248,12 +249,12 @@ store_check_header(int fd, char *ebuf, int elen)
 	struct store_header hdr;
 	int r;
 
-	if ((r = store_get_header(fd, &hdr, ebuf, elen)) != 0)
+	if ((r = store_get_header(fd, &hdr, ebuf, elen)) != STORE_ERR_OK)
 		return (r);
 
 	/* store_get_header does all the magic & version checks for us */
 
-	return (0);
+	return (STORE_ERR_OK);
 }
 
 int
@@ -270,16 +271,16 @@ store_put_header(int fd, char *ebuf, int elen)
 
 	r = atomicio(vwrite, fd, &hdr, sizeof(hdr));
 	if (r == -1)
-		SFAIL(-1, "write error on header", 0);
+		SFAIL(STORE_ERR_IO, "write error on header", 0);
 	if (r < (ssize_t)sizeof(hdr))
-		SFAILX(-1, "EOF while writing header", 0);
+		SFAILX(STORE_ERR_EOF, "EOF while writing header", 0);
 
-	return (0);
+	return (STORE_ERR_OK);
 }
 
 int
-store_flow_serialise(struct store_flow_complete *f, u_int8_t *buf, int len, 
-    char *ebuf, int elen)
+store_flow_serialise(struct store_flow_complete *f, u_int8_t *buf, int buflen, 
+    int *flowlen, char *ebuf, int elen)
 {
 	struct store_flow_AGENT_ADDR4 aa4;
 	struct store_flow_AGENT_ADDR6 aa6;
@@ -316,7 +317,7 @@ store_flow_serialise(struct store_flow_complete *f, u_int8_t *buf, int len,
 	default:
 		if ((fields & STORE_FIELD_AGENT_ADDR) == 0)
 			break;
-		SFAILX(-1, "silly agent addr af", 1);
+		SFAILX(STORE_ERR_FLOW_INVALID, "silly agent addr af", 1);
 	}
 
 	switch(f->src_addr.af) {
@@ -339,7 +340,7 @@ store_flow_serialise(struct store_flow_complete *f, u_int8_t *buf, int len,
 	default:
 		if ((fields & STORE_FIELD_SRC_ADDR) == 0)
 			break;
-		SFAILX(-1, "silly src addrs af", 1);
+		SFAILX(STORE_ERR_FLOW_INVALID, "silly src addrs af", 1);
 	}
 
 	switch(f->dst_addr.af) {
@@ -362,7 +363,7 @@ store_flow_serialise(struct store_flow_complete *f, u_int8_t *buf, int len,
 	default:
 		if ((fields & STORE_FIELD_DST_ADDR) == 0)
 			break;
-		SFAILX(-1, "silly dst addrs af", 1);
+		SFAILX(STORE_ERR_FLOW_INVALID, "silly dst addrs af", 1);
 	}
 
 	switch(f->gateway_addr.af) {
@@ -385,7 +386,7 @@ store_flow_serialise(struct store_flow_complete *f, u_int8_t *buf, int len,
 	default:
 		if ((fields & STORE_FIELD_GATEWAY_ADDR) == 0)
 			break;
-		SFAILX(-1, "silly gateway addr af", 1);
+		SFAILX(STORE_ERR_FLOW_INVALID, "silly gateway addr af", 1);
 	}
 
 	crc32_start(&crc);
@@ -393,8 +394,8 @@ store_flow_serialise(struct store_flow_complete *f, u_int8_t *buf, int len,
 
 	/* Fields have probably changes as a result of address conversion */
 	f->hdr.fields = htonl(fields);
-	if (store_calc_flow_len(&f->hdr) > len)
-		SFAILX(-1, "flow buffer too small", 1);
+	if (store_calc_flow_len(&f->hdr) > buflen)
+		SFAILX(STORE_ERR_BUFFER_SIZE, "flow buffer too small", 1);
 
 	memcpy(buf + offset, &f->hdr, sizeof(f->hdr));
 	offset += sizeof(f->hdr);
@@ -435,7 +436,8 @@ store_flow_serialise(struct store_flow_complete *f, u_int8_t *buf, int len,
 	WFIELD(CRC32, f->crc32);
 #undef WFIELD
 
-	return (offset);
+	*flowlen = offset;
+	return (STORE_ERR_OK);
 }
 
 int
@@ -445,40 +447,38 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 	u_int32_t fields, origfields;
 	off_t startpos;
 	u_int8_t buf[512];
-	int len, r;
+	int len, r, saved_errno;
 
 	/* Remember where we started, so we can back errors out */
 	if ((startpos = lseek(fd, 0, SEEK_CUR)) == -1)
-		SFAIL(-1, "lseek", 1);
+		SFAIL(STORE_ERR_IO_SEEK, "lseek", 1);
 
 	origfields = ntohl(flow->hdr.fields);
 	fields = origfields & fieldmask;
 
-	if ((len = store_flow_serialise(flow, buf, sizeof(buf), ebuf,
-	    elen)) == -1)
-		return (-1);
+	r = store_flow_serialise(flow, buf, sizeof(buf), &len, ebuf, elen);
+	if (r != STORE_ERR_OK)
+		return (r);
 
 	r = atomicio(vwrite, fd, buf, len);
+	saved_errno = errno;
 	flow->hdr.fields = htonl(origfields);
 
 	if (r == len)
-		return (0);
-	else if (ebuf != NULL && elen > 0) {
-		/* Record error message */
-		if (r == -1)
-			snprintf(ebuf, elen, "write flow: %s", strerror(errno));
-		else
-			snprintf(ebuf, elen, "EOF on write flow");
-	}
+		return (STORE_ERR_OK);
 
 	/* Try to rewind to starting position, so we don't corrupt flow store */
 	if (lseek(fd, startpos, SEEK_SET) == -1)
-		SFAIL(-2, "corrupting failure on lseek", 1);
+		SFAIL(STORE_ERR_CORRUPT, "corrupting failure on lseek", 1);
 	if (ftruncate(fd, startpos) == -1)
-		SFAIL(-2, "corrupting failure on ftruncate", 1);
+		SFAIL(STORE_ERR_CORRUPT, "corrupting failure on ftruncate", 1);
 
-	/* Partial flow record has been removed */
-	return (-1);
+	/* Partial flow record has been removed, return with orig. error */
+	errno = saved_errno;
+	if (r == -1)
+		SFAIL(STORE_ERR_IO, "write flow", 0);
+	else
+		SFAILX(STORE_ERR_EOF, "EOF on write flow", 0);
 }
 
 const char *

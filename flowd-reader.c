@@ -84,7 +84,8 @@ main(int argc, char **argv)
 			    strerror(errno));
 			exit(1);
 		}
-		if (store_get_header(fd, &hdr, ebuf, sizeof(ebuf)) == -1) {
+		if (store_get_header(fd, &hdr, ebuf,
+		    sizeof(ebuf)) != STORE_ERR_OK) {
 			fprintf(stderr, "%s\n", ebuf);
 			exit(1);
 		}
@@ -96,12 +97,12 @@ main(int argc, char **argv)
 			bzero(&flow, sizeof(flow));
 
 			if ((r = store_get_flow(fd, &flow, ebuf,
-			    sizeof(ebuf))) == -1) {
+			    sizeof(ebuf))) == STORE_ERR_EOF)
+				break;
+			else if (r != STORE_ERR_OK) {
 				fprintf(stderr, "%s\n", ebuf);
 				exit(1);
 			}
-			if (r == 0) /* EOF */
-				break;
 
 			store_format_flow(&flow, buf, sizeof(buf), utc,
 			    verbose ? STORE_DISPLAY_ALL : STORE_DISPLAY_BRIEF);

@@ -238,6 +238,19 @@ struct store_flow_complete {
 	struct store_flow_CRC32			crc32;
 } __packed;
 
+/* Error codes for store log functions */
+#define STORE_ERR_OK				0x00
+#define STORE_ERR_EOF				0x01
+#define STORE_ERR_BAD_MAGIC			0x02
+#define STORE_ERR_UNSUP_VERSION			0x03
+#define STORE_ERR_BUFFER_SIZE			0x04
+#define STORE_ERR_FLOW_INVALID			0x05
+#define STORE_ERR_CRC_MISMATCH			0x06
+#define STORE_ERR_INTERNAL			0x07
+#define STORE_ERR_IO				0x08
+#define STORE_ERR_IO_SEEK			0x09
+#define STORE_ERR_CORRUPT			0x10
+
 int store_get_header(int fd, struct store_header *hdr, char *ebuf, int elen);
 int store_get_flow(int fd, struct store_flow_complete *f, char *ebuf, int elen);
 int store_check_header(int fd, char *ebuf, int elen);
@@ -248,8 +261,8 @@ int store_validate_header(struct store_header *hdr, char *ebuf, int elen);
 int store_calc_flow_len(struct store_flow *hdr);
 int store_flow_deserialise(u_int8_t *buf, int len,
     struct store_flow_complete *f, char *ebuf, int elen);
-int store_flow_serialise(struct store_flow_complete *f, u_int8_t *buf, int len, 
-    char *ebuf, int elen);
+int store_flow_serialise(struct store_flow_complete *f, u_int8_t *buf, int buflen, 
+    int *flowlen, char *ebuf, int elen);
 
 const char *iso_time(time_t t, int utc_flag);
 const char *interval_time(time_t t);

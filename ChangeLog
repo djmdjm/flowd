@@ -7,6 +7,8 @@
  - (djm) Add a serialisation function to match the new deserialisation function
  - (djm) More C API tidying: make the functions thread-safe by eliminating 
    static buffers. Error messages are now formatted into caller-supplied buffers
+ - (djm) Make store_ functions return a meaningful error code, in addition to 
+   an error message. Useful for Perl/Python wrapper functions.
 
 20041011
  - (djm) Kill whitespace at EOL, improve nf9 debugging
