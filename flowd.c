@@ -85,21 +85,7 @@ sighand_info(int signo)
 	signal(signo, sighand_info);
 }
 
-/* Display commandline usage information */
-static void
-usage(void)
-{
-	fprintf(stderr, "Usage: %s [options]\n", PROGNAME);
-	fprintf(stderr, "This is %s version %s. Valid commandline options:\n",
-	    PROGNAME, PROGVER);
-	fprintf(stderr, "  -d              Don't daemonise\n");
-	fprintf(stderr, "  -h              Display this help\n");
-	fprintf(stderr, "  -f path         Configuration file (default: %s)\n",
-	    DEFAULT_CONFIG);
-	fprintf(stderr, "\n");
-}
-
-/* Dump a packet */
+/* Format data to a hex string */
 static const char *
 data_ntoa(const u_int8_t *p, int len)
 {
@@ -117,6 +103,7 @@ data_ntoa(const u_int8_t *p, int len)
 	return (buf);
 }
 
+/* Dump a packet */
 void
 dump_packet(const char *tag, const u_int8_t *p, int len)
 {
@@ -704,7 +691,7 @@ nf9_flowset_to_store(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
 
 static int
 process_netflow_v9_template(u_int8_t *pkt, size_t len, struct peer_state *peer,
-     struct peers *peers, u_int source_id)
+    struct peers *peers, u_int source_id)
 {
 	struct NF9_TEMPLATE_FLOWSET_HEADER *tmplh;
 	struct NF9_TEMPLATE_FLOWSET_RECORD *tmplr;
@@ -1145,6 +1132,20 @@ startup_listen_init(struct flowd_config *conf)
 			    addr_ntop_buf(&la->addr), la->port);
 		}
 	}
+}
+
+/* Display commandline usage information */
+static void
+usage(void)
+{
+	fprintf(stderr, "Usage: %s [options]\n", PROGNAME);
+	fprintf(stderr, "This is %s version %s. Valid commandline options:\n",
+	    PROGNAME, PROGVER);
+	fprintf(stderr, "  -d              Don't daemonise\n");
+	fprintf(stderr, "  -h              Display this help\n");
+	fprintf(stderr, "  -f path         Configuration file (default: %s)\n",
+	    DEFAULT_CONFIG);
+	fprintf(stderr, "\n");
 }
 
 int
