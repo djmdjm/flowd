@@ -14,7 +14,7 @@
 
 # $Id$
 
-VERSION = "@PROGVER@"
+VERSION = "0.7"
 
 import struct
 import time

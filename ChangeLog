@@ -1,6 +1,8 @@
 20041103
  - (djm) Rejig Makefile and headers to install C library and headers
  - (djm) Allow [addr] syntax in flowd.conf rules, like we do for listen on
+ - (djm) Don't generate critical Perl and Python build files from autoconf
+   makes packaging easier, at the cost of a little more release-time editing
 
 20041102
  - (djm) Crank versions to prepare for release

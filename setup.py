@@ -27,11 +27,11 @@ if __name__ == '__main__':
 
 	flowd_serialiser = Extension('flowd_serialiser',
 		sources = ['flowd_python.c'],
-		define_macros = [('PROGVER', '"@PROGVER@"')],
+		define_macros = [('PROGVER', '"0.7"')],
 		libraries = ['flowd'],
 		library_dirs = ['.', '../..'])
 	setup(	name = "flowd",
-		version = "@PROGVER@",
+		version = "0.7",
 		author = "Damien Miller",
 		author_email = "djm@mindrot.org",
 		url = "http://www.mindrot.org/flowd.html",

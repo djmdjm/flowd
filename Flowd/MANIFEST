@@ -5,4 +5,4 @@ MANIFEST
 ppport.h
 README
 t/Flowd.t
-lib/Flowd.pm.in
+lib/Flowd.pm
