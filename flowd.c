@@ -126,9 +126,20 @@ delete_peer(struct peers *peers, struct peer_state *peer)
 }
 
 static struct peer_state *
-new_peer(struct peers *peers, struct xaddr *addr)
+new_peer(struct peers *peers, struct flowd_config *conf, struct xaddr *addr)
 {
 	struct peer_state *peer;
+	struct allowed_device *ad;
+
+	/* Check for address authorization */
+	if (TAILQ_FIRST(&conf->allowed_devices) != NULL) {
+		TAILQ_FOREACH(ad, &conf->allowed_devices, entry) {
+			if (addr_netmatch(addr, &ad->addr, ad->masklen) == 0)
+		 		break;
+		}
+		if (ad == NULL)
+			return (NULL);
+	}
 
 	/* If we have overflowed our peer table, then kick out the LRU peer */
 	peers->num_peers++;
@@ -154,16 +165,32 @@ new_peer(struct peers *peers, struct xaddr *addr)
 	return (peer);
 }
 
-#ifdef notyet
 static void
-flush_peers(struct peers *peers)
+scrub_peers(struct flowd_config *conf, struct peers *peers)
 {
-	struct peer_state *peer;
+	struct peer_state *peer, *npeer;
+	struct allowed_device *ad;
 
-	while ((peer = TAILQ_FIRST(&peers->peer_list)) != NULL)
-		delete_peer(peers, peer);
+	/* Check for address authorization */
+	if (TAILQ_FIRST(&conf->allowed_devices) == NULL)
+		return;
+
+	for (peer = TAILQ_FIRST(&peers->peer_list); peer != NULL;) {
+		npeer = TAILQ_NEXT(peer, lp);
+
+		TAILQ_FOREACH(ad, &conf->allowed_devices, entry) {
+			if (addr_netmatch(&peer->from, &ad->addr,
+			    ad->masklen) == 0)
+		 		break;
+		}
+		if (ad == NULL) {
+			logit(LOG_WARNING, "delete peer %s (no longer allowed)",
+			    addr_ntop_buf(&peer->from));
+			delete_peer(peers, peer);
+		}
+		peer = npeer;
+	}
 }
-#endif
 
 static void
 update_peer(struct peers *peers, struct peer_state *peer, u_int nflows, 
@@ -646,7 +673,12 @@ process_input(struct flowd_config *conf, struct peers *peers,
 	}
 
 	if ((peer = find_peer(peers, &flow_source)) == NULL)
-		peer = new_peer(peers, &flow_source);
+		peer = new_peer(peers, conf, &flow_source);
+	if (peer == NULL) {
+		logit(LOG_DEBUG, "packet from unauthorised agent %s",
+		    addr_ntop_buf(&flow_source));
+		return;
+	}
 
 	if ((size_t)len < sizeof(*hdr)) {
 		peer->ninvalid++;
@@ -740,6 +772,7 @@ flowd_mainloop(struct flowd_config *conf, struct peers *peers, int monitor_fd)
 			if (client_reconfigure(monitor_fd, conf) == -1)
 				logerrx("reconfigure failed, exiting");
 			init_pfd(conf, &pfd, monitor_fd, &num_fds);
+			scrub_peers(conf, peers);
 			reconf_flag = 0;
 		}
 		if (log_fd == -1)

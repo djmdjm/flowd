@@ -34,6 +34,13 @@
 #define PRIVSEP_USER		"_flowd"
 #define DEFAULT_MAX_PEERS	1024
 
+struct allowed_device {
+	struct xaddr			addr;
+	u_int				masklen;
+	TAILQ_ENTRY(allowed_device)	entry;
+};
+TAILQ_HEAD(allowed_devices, allowed_device);
+
 struct listen_addr {
 	struct xaddr			addr;
 	u_int16_t			port;
@@ -51,6 +58,7 @@ struct flowd_config {
 	u_int32_t		opts;
 	struct listen_addrs	listen_addrs;
 	struct filter_list	filter_list;
+	struct allowed_devices	allowed_devices;
 };
 
 /* parse.y */

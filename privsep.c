@@ -163,6 +163,7 @@ replace_conf(struct flowd_config *conf, struct flowd_config *newconf)
 {
 	struct listen_addr *la;
 	struct filter_rule *fr;
+	struct allowed_device *ad;
 
 	free(conf->log_file);
 	free(conf->pid_file);
@@ -176,19 +177,28 @@ replace_conf(struct flowd_config *conf, struct flowd_config *newconf)
 		TAILQ_REMOVE(&conf->filter_list, fr, entry);
 		free(fr);
 	}
+	while ((ad = TAILQ_FIRST(&conf->allowed_devices)) != NULL) {
+		TAILQ_REMOVE(&conf->allowed_devices, ad, entry);
+		free(ad);
+	}
 
 	memcpy(conf, newconf, sizeof(*conf));
 	TAILQ_INIT(&conf->listen_addrs);
 	TAILQ_INIT(&conf->filter_list);
+	TAILQ_INIT(&conf->allowed_devices);
 
 	while ((la = TAILQ_LAST(&newconf->listen_addrs, listen_addrs)) != NULL) {
 		TAILQ_REMOVE(&newconf->listen_addrs, la, entry);
 		TAILQ_INSERT_HEAD(&conf->listen_addrs, la, entry);
 	}
-
 	while ((fr = TAILQ_LAST(&newconf->filter_list, filter_list)) != NULL) {
 		TAILQ_REMOVE(&newconf->filter_list, fr, entry);
 		TAILQ_INSERT_HEAD(&conf->filter_list, fr, entry);
+	}
+	while ((ad = TAILQ_LAST(&newconf->allowed_devices,
+	    allowed_devices)) != NULL) {
+		TAILQ_REMOVE(&newconf->allowed_devices, ad, entry);
+		TAILQ_INSERT_HEAD(&conf->allowed_devices, ad, entry);
 	}
 
 	bzero(newconf, sizeof(*newconf));
@@ -200,6 +210,7 @@ recv_config(int fd, struct flowd_config *conf)
 	u_int n, i;
 	struct listen_addr *la;
 	struct filter_rule *fr;
+	struct allowed_device *ad;
 	struct flowd_config newconf;
 
 	logit(LOG_DEBUG, "%s: entering fd = %d", __func__, fd);
@@ -207,6 +218,7 @@ recv_config(int fd, struct flowd_config *conf)
 	bzero(&newconf, sizeof(newconf));
 	TAILQ_INIT(&newconf.listen_addrs);
 	TAILQ_INIT(&newconf.filter_list);
+	TAILQ_INIT(&newconf.allowed_devices);
 
 	logit(LOG_DEBUG, "%s: ready to receive config", __func__);
 
@@ -279,6 +291,29 @@ recv_config(int fd, struct flowd_config *conf)
 		TAILQ_INSERT_TAIL(&newconf.filter_list, fr, entry);
 	}
 
+	/* Read Allowed Devices */
+	if (atomicio(read, fd, &n, sizeof(n)) != sizeof(n)) {
+		logitm(LOG_ERR, "%s: read(num allowed_devices)", __func__);
+		return (-1);
+	}
+	if (n > 1024*1024) {
+		logit(LOG_ERR, "%s: silly number of allowed_devices: %d",
+		    __func__, n);
+		return (-1);
+	}
+	for (i = 0; i < n; i++) {
+		if ((ad = calloc(1, sizeof(*ad))) == NULL) {
+			logit(LOG_ERR, "%s: calloc", __func__);
+			return (-1);
+		}
+		if (atomicio(read, fd, ad,
+		    sizeof(*ad)) != sizeof(*ad)) {
+			logitm(LOG_ERR, "%s: read(filter_rule)", __func__);
+			return (-1);
+		}
+		TAILQ_INSERT_TAIL(&newconf.allowed_devices, ad, entry);
+	}
+
 	replace_conf(conf, &newconf);
 
 	return (0);
@@ -290,6 +325,7 @@ send_config(int fd, struct flowd_config *conf)
 	u_int n;
 	struct listen_addr *la;
 	struct filter_rule *fr;
+	struct allowed_device *ad;
 
 	logit(LOG_DEBUG, "%s: entering fd = %d", __func__, fd);
 
@@ -344,6 +380,22 @@ send_config(int fd, struct flowd_config *conf)
 		if (atomicio(vwrite, fd, fr,
 		    sizeof(*fr)) != sizeof(*fr)) {
 			logitm(LOG_ERR, "%s: write(filter_rule)", __func__);
+			return (-1);
+		}
+	}
+
+	/* Write Allowed Devices */
+	n = 0;
+	TAILQ_FOREACH(ad, &conf->allowed_devices, entry)
+		n++;
+	if (atomicio(vwrite, fd, &n, sizeof(n)) != sizeof(n)) {
+		logitm(LOG_ERR, "%s: write(num allowed_devices)", __func__);
+		return (-1);
+	}
+	TAILQ_FOREACH(ad, &conf->allowed_devices, entry) {
+		if (atomicio(vwrite, fd, ad,
+		    sizeof(*ad)) != sizeof(*ad)) {
+			logitm(LOG_ERR, "%s: write(allowed_devices)", __func__);
 			return (-1);
 		}
 	}
@@ -418,7 +470,8 @@ child_get_config(const char *path, struct flowd_config *conf)
 	struct flowd_config newconf = {
 		NULL, NULL, 0, 0, 
 		TAILQ_HEAD_INITIALIZER(newconf.listen_addrs),
-		TAILQ_HEAD_INITIALIZER(newconf.filter_list)
+		TAILQ_HEAD_INITIALIZER(newconf.filter_list),
+		TAILQ_HEAD_INITIALIZER(newconf.allowed_devices)
 	};
 
 	logit(LOG_DEBUG, "%s: entering", __func__);
@@ -602,6 +655,7 @@ answer_reconfigure(struct flowd_config *conf, int client_fd,
 	bzero(&newconf, sizeof(newconf));
 	TAILQ_INIT(&newconf.listen_addrs);
 	TAILQ_INIT(&newconf.filter_list);
+	TAILQ_INIT(&newconf.allowed_devices);
 
 	logit(LOG_DEBUG, "%s: entering", __func__);
 

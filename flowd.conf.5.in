@@ -48,6 +48,8 @@ This selection specifies which fields from the flow packets are stored in
 the on-disk log file.
 By eliminating unnecessary fields, the log files may be made quite compact.
 .It Cm Filter
+The filter section allows filtering and tagging of flows using a matching
+language similar to a packet filter.
 .Sh MACROS
 Much like
 .Xr cpp 1
@@ -76,6 +78,51 @@ There are several settings that affect the operation of the
 .Xr flowd 8
 daemon globally.
 .Bl -tag -width xxxxxxxx
+.It Ar flow source
+Specify an address (or network) that
+.Nm
+should accept flows from.
+The default is to accept flow packets from anyway, but if one or
+more
+.Ar flow source
+options has been specified then
+.Nm
+will disregard flow packets from other hosts.
+This is separate from the flow filtering language (mentioned below in the
+.Cm Filter
+section) - packets disregarded at this stage are not subject to any further
+processing.
+.Pp
+For example,
+.Bd -literal -offset indent
+flow source 127.0.0.1
+flow source 192.168.0.0/16
+flow source [4000:1::]/32
+.Ed
+.Pp
+This option is optional, if it is not specified then
+.Nm
+will accept flow records from any address.
+.\" xxx notyet
+.\" The use of this option is strongly recommended when flow export protocols 
+.\" are used that require the collector to retain state information (e.g. 
+.\" NetFlow v.9 flow templates) in order to avoid flooding attacks.
+.It Ar listen on
+Specifies an address and port on which
+.Nm
+should listen.
+IPv6 addresses must be surrounded by square brackets to distinguish them from
+the port number.
+This option may be specified more than once to listen on mutiple addresses
+and ports.
+.Pp
+For example,
+.Bd -literal -offset indent
+listen on 0.0.0.0:12345
+listen on [::]:12345
+.Ed
+.Pp
+This option is mandatory, there is no default value.
 .It Ar logfile
 Specifies the file in which the received flow records are stored.
 The full path to the file must be specified in quotes.

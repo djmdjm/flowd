@@ -92,7 +92,7 @@ typedef struct {
 
 %}
 
-%token	LISTEN ON LOGFILE STORE PIDFILE
+%token	LISTEN ON LOGFILE STORE PIDFILE FLOW SOURCE
 %token	ALL TAG ACCEPT DISCARD QUICK AGENT SRC DST PORT PROTO TOS ANY
 %token	ERROR
 %token	<v.string>		STRING
@@ -230,6 +230,17 @@ conf_main	: LISTEN ON address_port	{
 			la->addr = $3.addr;
 			la->port = $3.port;
 			TAILQ_INSERT_TAIL(&conf->listen_addrs, la, entry);
+		}
+		| FLOW SOURCE prefix_or_any	{
+			struct allowed_device	*ad;
+
+			if ((ad = calloc(1, sizeof(*ad))) == NULL)
+				logerrx("flow_source: calloc");
+
+			memcpy(&ad->addr, &$3.addr, sizeof(ad->addr));
+			ad->masklen = $3.len;
+
+			TAILQ_INSERT_TAIL(&conf->allowed_devices, ad, entry);
 		}
 		| LOGFILE string		{
 			conf->log_file = $2;
@@ -536,6 +547,7 @@ lookup(char *s)
 		{ "any",		ANY},
 		{ "discard",		DISCARD},
 		{ "dst",		DST},
+		{ "flow",		FLOW},
 		{ "listen",		LISTEN},
 		{ "logfile",		LOGFILE},
 		{ "on",			ON},
@@ -543,6 +555,7 @@ lookup(char *s)
 		{ "port",		PORT},
 		{ "proto",		PROTO},
 		{ "quick",		QUICK},
+		{ "source",		SOURCE},
 		{ "src",		SRC},
 		{ "store",		STORE},
 		{ "tag",		TAG},
