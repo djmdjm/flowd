@@ -151,6 +151,7 @@ open_listener(struct xaddr *addr, u_int16_t port)
 		return (-1);
 	}
 
+#ifdef IPV6_V6ONLY
 	/* Set v6-only for AF_INET6 sockets (no mapped address crap) */
 	fl = 1;
 	if (addr->af == AF_INET6 &&
@@ -158,6 +159,7 @@ open_listener(struct xaddr *addr, u_int16_t port)
 		syslog(LOG_ERR, "setsockopt(IPV6_V6ONLY): %s", strerror(errno));
 		return (-1);
 	}
+#endif
 
 	if (bind(fd, (struct sockaddr *)&ss, slen) == -1) {
 		syslog(LOG_ERR, "bind: %s", strerror(errno));

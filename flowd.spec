@@ -1,5 +1,9 @@
-%define ver 0.3
+%define ver 0.4
 %define rel 1fc2
+
+# Python < 2.3 (e.g. Redhat 9) doesn't have everything we need, so it may be
+# necessary to turn off the python package on older systems
+%define python_pkg 1
 
 Summary: The flowd NetFlow collector daemon
 Name: flowd
@@ -20,10 +24,12 @@ Summary: Perl API to access flowd logfiles
 Group: Applications/Internet
 Requires: perl
 
+%if %{python_pkg}
 %package python
 Summary: Python API to access flowd logfiles
 Group: Applications/Internet
 Requires: python
+%endif
 
 %description
 This is flowd, a NetFlow collector daemon intended to be small, fast and secure.
@@ -36,9 +42,11 @@ itself.
 This is a Perl API to the binary flowd network flow log format and an example
 reader application
 
+%if %{python_pkg}
 %description python
 This is a Python API to the binary flowd network flow log format and an 
 example reader application
+%endif
 
 %prep
 
@@ -65,10 +73,12 @@ install -d $RPM_BUILD_ROOT/%{perl_sitearch}/
 install -m755 Flowd.pm $RPM_BUILD_ROOT/%{perl_sitearch}/
 
 # Python module
+%if %{python_pkg}
 ./setup.py install --optimize 1 --root=$RPM_BUILD_ROOT --record=INSTALLED_FILES
 sed -e 's|/[^/]*$||' INSTALLED_FILES | grep "site-packages/" | \
     sort -u | awk '{ print "%attr(755,root,root) %dir " $1}' > INSTALLED_DIRS
 cat INSTALLED_FILES INSTALLED_DIRS > INSTALLED_OBJECTS
+%endif
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -108,12 +118,18 @@ fi
 %doc reader.pl
 %attr(0644,root,root) %{perl_sitearch}/Flowd.pm
 
+%if %{python_pkg}
 %files python -f INSTALLED_OBJECTS
 %defattr(-,root,root)
 %doc reader.py
+%endif
 
 %changelog
-* Tue Aug 13 2004 Damien Miller <djm@mindrot.org>
+* Mon Aug 16 2004 Damien Miller <djm@mindrot.org>
+- Make Python package optional, Redhat 9 doesn't have support for
+  socket.inet_ntop, which flowd.py needs
+
+* Fri Aug 13 2004 Damien Miller <djm@mindrot.org>
 - Subpackages for perl and python modules
 
 * Tue Aug 03 2004 Damien Miller <djm@mindrot.org>

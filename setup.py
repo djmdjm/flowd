@@ -18,12 +18,14 @@
 import sys
 from distutils.core import setup
 
-if sys.hexversion < 0x02030000:
-	print sys.stderr, "warning: flowd.py hasn't been tested on python < 2.3"
-
 if __name__ == '__main__':
+	if sys.hexversion < 0x02030000:
+		print >> sys.stderr, "error: " + \
+		    "flowd.py doesn't work on python < 2.3 (missing inet_ntop)"
+		sys.exit(1)
+
 	setup(	name = "flowd",
-		version = "0.3",
+		version = "0.4",
 		author = "Damien Miller",
 		author_email = "djm@mindrot.org",
 		url = "http://www.mindrot.org/flowd.html",
@@ -35,3 +37,4 @@ collector.
 		license = "BSD",
 		py_modules = ['flowd']
 	     )
+

@@ -1,6 +1,6 @@
 # $Id$
 
-PROGVER=0.3
+PROGVER=0.4
 
 prefix=@prefix@
 exec_prefix=@exec_prefix@

@@ -24,7 +24,7 @@ use Carp;
 package Flowd;
 
 use constant {
-	VERSION		=>	"0.3"
+	VERSION		=>	"0.4"
 };
 
 sub iso_time {
