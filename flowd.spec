@@ -38,6 +38,8 @@ rm -rf $RPM_BUILD_ROOT
 
 install -d $RPM_BUILD_ROOT/var/empty
 install -d $RPM_BUILD_ROOT/etc/rc.d/init.d
+install -d $RPM_BUILD_ROOT/usr/lib/perl5/site_perl
+install -m755 Flowd.pm $RPM_BUILD_ROOT/usr/lib/perl5/site_perl
 install -m755 flowd.init $RPM_BUILD_ROOT/etc/rc.d/init.d/flowd
 
 %clean
@@ -63,7 +65,7 @@ fi
 
 %files
 %defattr(-,root,root)
-%doc ChangeLog LICENSE README TODO
+%doc ChangeLog LICENSE README TODO reader.pl
 %dir %attr(0111,root,root) %{_var}/empty
 %attr(0600,root,root) %config(noreplace) %{_sysconfdir}/flowd.conf
 %attr(0644,root,root) %{_mandir}/man5/flowd.conf.5*
