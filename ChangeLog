@@ -1,3 +1,7 @@
+20040916
+ - (djm) Fix transposed flow limits for v.1 vs v.5 flows; found by 
+   jon AT exalia.com
+
 20040914
  - (djm) Use a table-based parser in Flowd.pm, like the python code
 
