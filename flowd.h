@@ -40,6 +40,7 @@ TAILQ_HEAD(listen_addrs, listen_addr);
 #define FLOWD_OPT_VERBOSE		(1<<1)
 struct flowd_config {
 	char			*log_file;
+	u_int32_t		store_mask;
 	u_int32_t		opts;
 	struct listen_addrs	listen_addrs;
 	struct filter_list	filter_list;

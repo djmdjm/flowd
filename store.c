@@ -271,7 +271,8 @@ write_flow(int fd, char **errptr,
 }
 
 int
-store_put_flow(int fd, struct store_flow_complete *flow, char **errptr)
+store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
+    char **errptr)
 {
 	struct store_flow_AGENT_ADDR_V4 aa4;
 	struct store_flow_AGENT_ADDR_V6 aa6;
@@ -279,7 +280,7 @@ store_put_flow(int fd, struct store_flow_complete *flow, char **errptr)
 	struct store_flow_SRCDST_ADDR_V6 sda6;
 	struct store_flow_GATEWAY_ADDR_V4 gwa4;
 	struct store_flow_GATEWAY_ADDR_V6 gwa6;
-	u_int32_t fields;
+	u_int32_t fields, origfields;
 	off_t startpos;
 	char ebuf[512];
 
@@ -287,17 +288,22 @@ store_put_flow(int fd, struct store_flow_complete *flow, char **errptr)
 	if ((startpos = lseek(fd, 0, SEEK_CUR)) == -1)
 		SFAIL(-1, __func__ ":lseek");
 
-	fields = ntohl(flow->hdr.fields);
+	origfields = ntohl(flow->hdr.fields);
+	fields = origfields & fieldmask;
 
 	/* Convert addresses and set AF fields correctly */
 	switch(flow->agent_addr.af) {
 	case AF_INET:
+		if ((fields & STORE_FIELD_AGENT_ADDR4) == 0)
+			break;
 		memcpy(&aa4.flow_agent_addr, &flow->agent_addr.v4,
 		    sizeof(aa4.flow_agent_addr));
 		fields |= STORE_FIELD_AGENT_ADDR4;
 		fields &= ~STORE_FIELD_AGENT_ADDR6;
 		break;
 	case AF_INET6:
+		if ((fields & STORE_FIELD_AGENT_ADDR6) == 0)
+			break;
 		memcpy(&aa6.flow_agent_addr, &flow->agent_addr.v6,
 		    sizeof(aa6.flow_agent_addr));
 		fields |= STORE_FIELD_AGENT_ADDR6;
@@ -310,6 +316,8 @@ store_put_flow(int fd, struct store_flow_complete *flow, char **errptr)
 	/* NB. Assume that this is the same as dst_addr.af */
 	switch(flow->src_addr.af) {
 	case AF_INET:
+		if ((fields & STORE_FIELD_SRCDST_ADDR4) == 0)
+			break;
 		memcpy(&sda4.src_addr, &flow->src_addr.v4,
 		    sizeof(sda4.src_addr));
 		memcpy(&sda4.dst_addr, &flow->dst_addr.v4,
@@ -318,6 +326,8 @@ store_put_flow(int fd, struct store_flow_complete *flow, char **errptr)
 		fields &= ~STORE_FIELD_SRCDST_ADDR6;
 		break;
 	case AF_INET6:
+		if ((fields & STORE_FIELD_SRCDST_ADDR6) == 0)
+			break;
 		memcpy(&sda6.src_addr, &flow->src_addr.v6,
 		    sizeof(sda6.src_addr));
 		memcpy(&sda6.dst_addr, &flow->dst_addr.v6,
@@ -331,12 +341,16 @@ store_put_flow(int fd, struct store_flow_complete *flow, char **errptr)
 	
 	switch(flow->gateway_addr.af) {
 	case AF_INET:
+		if ((fields & STORE_FIELD_GATEWAY_ADDR4) == 0)
+			break;
 		memcpy(&gwa4.gateway_addr, &flow->gateway_addr.v4,
 		    sizeof(gwa4.gateway_addr));
 		fields |= STORE_FIELD_GATEWAY_ADDR4;
 		fields &= ~STORE_FIELD_GATEWAY_ADDR6;
 		break;
 	case AF_INET6:
+		if ((fields & STORE_FIELD_GATEWAY_ADDR6) == 0)
+			break;
 		memcpy(&gwa6.gateway_addr, &flow->gateway_addr.v6,
 		    sizeof(gwa6.gateway_addr));
 		fields |= STORE_FIELD_GATEWAY_ADDR6;
@@ -349,8 +363,12 @@ store_put_flow(int fd, struct store_flow_complete *flow, char **errptr)
 	flow->hdr.fields = htonl(fields);
 
 	if (write_flow(fd, errptr, fields, flow, &aa4, &aa6, &sda4, &sda6,
-	    &gwa4, &gwa6) == 0)
+	    &gwa4, &gwa6) == 0) {
+		flow->hdr.fields = htonl(origfields);
 		return (0);
+	}
+
+	flow->hdr.fields = htonl(origfields);
 
 	/* Try to rewind to starting position, so we don't corrupt flow store */	
 	if (lseek(fd, startpos, SEEK_SET) == -1)

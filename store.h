@@ -64,7 +64,14 @@ struct store_header {
 #define STORE_FIELD_RESERVED		(1U<<31) /* For extension header */
 #define STORE_FIELD_ALL			(((1U<<14)-1)|STORE_FIELD_CRC32)
 
-/* Useful combinations for displaying flows */
+/* Useful combinations */
+#define STORE_FIELD_AGENT_ADDR		(STORE_FIELD_AGENT_ADDR4|\
+					 STORE_FIELD_AGENT_ADDR6)
+#define STORE_FIELD_SRCDST_ADDR		(STORE_FIELD_SRCDST_ADDR4|\
+					 STORE_FIELD_SRCDST_ADDR6)
+#define STORE_FIELD_GATEWAY_ADDR	(STORE_FIELD_GATEWAY_ADDR4|\
+					 STORE_FIELD_GATEWAY_ADDR6)
+
 #define STORE_DISPLAY_ALL		STORE_FIELD_ALL
 #define STORE_DISPLAY_BRIEF		(STORE_FIELD_PROTO_FLAGS_TOS|\
 					 STORE_FIELD_SRCDST_PORT|\
@@ -191,7 +198,8 @@ struct store_flow_complete {
 int store_get_header(int fd, struct store_header *hdr, char **errptr);
 int store_get_flow(int fd, struct store_flow_complete *f, char **errptr);
 int store_put_header(int fd, char **errptr);
-int store_put_flow(int fd, struct store_flow_complete *flow, char **errptr);
+int store_put_flow(int fd, struct store_flow_complete *flow,
+    u_int32_t fieldmask, char **errptr);
 
 const char *iso_time(time_t t, int utc_flag);
 const char *interval_time(time_t t);

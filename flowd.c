@@ -88,6 +88,7 @@ dump_config(struct flowd_config *c)
 	struct listen_addr *la;
 
 	fprintf(stderr, "logfile \"%s\"\n", c->log_file);
+	fprintf(stderr, "# store mask %08x\n", c->store_mask);
 	TAILQ_FOREACH(la, &c->listen_addrs, entry) {
 		fprintf(stderr, "listen on [%s]:%d\n",
 		    addr_ntop_buf(&la->addr), la->port);
@@ -166,7 +167,7 @@ process_flow(struct store_flow_complete *flow, struct flowd_config *conf,
 	if (filter_flow(flow, &conf->filter_list) == FF_ACTION_DISCARD)
 		return; /* XXX log? count (against rule?) */
 
-	if (store_put_flow(log_fd, flow, &e) != 0) {
+	if (store_put_flow(log_fd, flow, conf->store_mask, &e) != 0) {
 		syslog(LOG_CRIT, "%s: exiting on %s", __func__, e);
 		exit(1);
 	}
@@ -522,7 +523,7 @@ main(int argc, char **argv)
 	extern int optind;
 	char *config_file = DEFAULT_CONFIG;
 	struct flowd_config conf = {
-		NULL, 0 ,
+		NULL, 0, 0, 
 		TAILQ_HEAD_INITIALIZER(conf.listen_addrs),
 		TAILQ_HEAD_INITIALIZER(conf.filter_list)
 	};

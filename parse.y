@@ -89,11 +89,11 @@ typedef struct {
 
 %}
 
-%token	LISTEN ON LOGFILE
+%token	LISTEN ON LOGFILE STORE
 %token	TAG ACCEPT DISCARD QUICK AGENT SRC DST PORT PROTO TOS ANY
 %token	ERROR
 %token	<v.string>		STRING
-%type	<v.number>		number quick
+%type	<v.number>		number quick logspec 
 %type	<v.string>		string
 %type	<v.addrport>		address_port
 %type	<v.prefix>		prefix prefix_or_any
@@ -224,7 +224,53 @@ conf_main	: LISTEN ON address_port	{
 				free(conf->log_file);
 			conf->log_file = $2;
 		}
+		| STORE logspec		{ conf->store_mask |= $2; }
 		;
+
+logspec		: STRING	{
+			if (strcasecmp($1, "PROTO_FLAGS_TOS") == 0) {
+				$$ = STORE_FIELD_PROTO_FLAGS_TOS;
+			} else if (strcasecmp($1, "AGENT_ADDR") == 0) {
+				$$ = STORE_FIELD_AGENT_ADDR;
+			} else if (strcasecmp($1, "AGENT_ADDR4") == 0) {
+				$$ = STORE_FIELD_AGENT_ADDR4;
+			} else if (strcasecmp($1, "AGENT_ADDR6") == 0) {
+				$$ = STORE_FIELD_AGENT_ADDR6;
+			} else if (strcasecmp($1, "SRCDST_ADDR") == 0) {
+				$$ = STORE_FIELD_SRCDST_ADDR;
+			} else if (strcasecmp($1, "SRCDST_ADDR4") == 0) {
+				$$ = STORE_FIELD_SRCDST_ADDR4;
+			} else if (strcasecmp($1, "SRCDST_ADDR6") == 0) {
+				$$ = STORE_FIELD_SRCDST_ADDR6;
+			} else if (strcasecmp($1, "GATEWAY_ADDR") == 0) {
+				$$ = STORE_FIELD_GATEWAY_ADDR;
+			} else if (strcasecmp($1, "GATEWAY_ADDR4") == 0) {
+				$$ = STORE_FIELD_GATEWAY_ADDR4;
+			} else if (strcasecmp($1, "GATEWAY_ADDR6") == 0) {
+				$$ = STORE_FIELD_GATEWAY_ADDR6;
+			} else if (strcasecmp($1, "SRCDST_PORT") == 0) {
+				$$ = STORE_FIELD_SRCDST_PORT;
+			} else if (strcasecmp($1, "PACKETS_OCTETS") == 0) {
+				$$ = STORE_FIELD_PACKETS_OCTETS;
+			} else if (strcasecmp($1, "IF_INDICES") == 0) {
+				$$ = STORE_FIELD_IF_INDICES;
+			} else if (strcasecmp($1, "AGENT_INFO") == 0) {
+				$$ = STORE_FIELD_AGENT_INFO;
+			} else if (strcasecmp($1, "FLOW_TIMES") == 0) {
+				$$ = STORE_FIELD_FLOW_TIMES;
+			} else if (strcasecmp($1, "AS_INFO") == 0) {
+				$$ = STORE_FIELD_AS_INFO;
+			} else if (strcasecmp($1, "FLOW_ENGINE_INFO") == 0) {
+				$$ = STORE_FIELD_FLOW_ENGINE_INFO;
+			} else if (strcasecmp($1, "CRC32") == 0) {
+				$$ = STORE_FIELD_CRC32;
+			} else {
+				yyerror("unknown log field type");
+				free($1);
+				YYERROR;
+			}
+			free($1);
+		}
 
 filterrule	: action tag quick match_agent match_src match_dst match_proto match_tos
 		{
@@ -410,8 +456,8 @@ lookup(char *s)
 	/* this has to be sorted always */
 	static const struct keywords keywords[] = {
 		{ "accept",		ACCEPT},
-		{ "any",		ANY},
 		{ "agent",		AGENT},
+		{ "any",		ANY},
 		{ "discard",		DISCARD},
 		{ "dst",		DST},
 		{ "listen",		LISTEN},
@@ -421,6 +467,7 @@ lookup(char *s)
 		{ "proto",		PROTO},
 		{ "quick",		QUICK},
 		{ "src",		SRC},
+		{ "store",		STORE},
 		{ "tag",		TAG},
 		{ "tos",		TOS},
 	};
