@@ -21,7 +21,7 @@ use Socket6;
 package Flowd;
 
 use constant {
-	VERSION		=>	"0.01"
+	VERSION		=>	"0.2"
 };
 
 sub iso_time {
