@@ -26,6 +26,7 @@
 /* privsep.c */
 void privsep_init(struct flowd_config *, int *);
 int client_open_log(int);
+int open_listener(struct xaddr *, u_int16_t);
 
 /* privsep_fdpass.c */
 int send_fd(int, int);

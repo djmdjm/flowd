@@ -3,6 +3,8 @@
  - (djm) Fix filter format_rule for rules that match ports but not addrs
  - (djm) Set IPV6_V6ONLY on AF_INET6 sockets - avoids stupid mapped address crap
  - (djm) Don't leak fd on logfile reopen
+ - (djm) Move listener open function to privsep.c, in preparation for runtime 
+   reconfigure support
 
 20040804
  - (djm) Don't clobber existing configuration file

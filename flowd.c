@@ -493,39 +493,6 @@ flowd_mainloop(struct flowd_config *conf, int monitor_fd)
 		syslog(LOG_NOTICE, "Exiting on signal %d", exit_flag);
 }
 
-static int
-setup_listener(struct xaddr *addr, u_int16_t port)
-{
-	int fd, fl;
-	struct sockaddr_storage ss;
-	socklen_t slen = sizeof(ss);
-
-	if (addr_xaddr_to_sa(addr, (struct sockaddr *)&ss, &slen, port) == -1)
-		errx(1, "addr_xaddr_to_sa");
-	if ((fd = socket(addr->af, SOCK_DGRAM, 0)) == -1)
-		err(1, "socket");
-
-	/* Set non-blocking */
-	if ((fl = fcntl(fd, F_GETFL, 0)) == -1)
-		err(1, "fcntl(%d, F_GETFL, 0)", fd);
-	fl |= O_NONBLOCK;
-	if (fcntl(fd, F_SETFL, fl) == -1)
-		err(1, "fcntl(%d, F_SETFL, O_NONBLOCK)", fd);
-
-	/* Set v6-only for AF_INET6 sockets (no mapped address crap) */
-	fl = 1;
-	if (addr->af == AF_INET6 &&
-	    setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &fl, sizeof(fl)) == -1) {
-		syslog(LOG_ERR, "setsockopt(IPV6_V6ONLY): %s", strerror(errno));
-		return (-1);
-	}
-
-	if (bind(fd, (struct sockaddr *)&ss, slen) == -1)
-		err(1, "bind");
-
-	return (fd);
-}
-
 static void
 listen_init(struct flowd_config *conf)
 {
@@ -535,7 +502,7 @@ listen_init(struct flowd_config *conf)
 		if (la->fd != -1)
 			close(la->fd);
 
-		la->fd = setup_listener(&la->addr, la->port);
+		la->fd = open_listener(&la->addr, la->port);
 		if (la->fd == -1) {
 			errx(1, "Listener setup of [%s]:%d failed", 
 			    addr_ntop_buf(&la->addr), la->port);
@@ -565,6 +532,10 @@ main(int argc, char **argv)
 	compat_init_setproctitle(argc, &argv);
 #endif
 	umask(0077);
+
+	closefrom(STDERR_FILENO + 1);
+
+	openlog(PROGNAME, LOG_NDELAY|LOG_PERROR, LOG_DAEMON);
 
 	while ((ch = getopt(argc, argv, "dhD:f:")) != -1) {
 		switch (ch) {
@@ -605,14 +576,8 @@ main(int argc, char **argv)
 	if (conf.opts & FLOWD_OPT_VERBOSE)
 		dump_config(&conf); 
 
-	closefrom(STDERR_FILENO + 1);
-
 	/* Start listening (do this early to report errors before privsep) */
 	listen_init(&conf);
-
-	/* Open log before privsep */
-	openlog(PROGNAME, LOG_NDELAY|LOG_PID| 
-	    (conf.opts & FLOWD_OPT_DONT_FORK ? LOG_PERROR : 0), LOG_DAEMON);
 
 	/* Start the monitor - we continue as the unprivileged child */
 	privsep_init(&conf, &monitor_fd);

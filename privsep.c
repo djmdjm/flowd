@@ -191,6 +191,10 @@ privsep_init(struct flowd_config *conf, int *child_to_monitor_sock)
 	case -1:
 		err(1, "fork");
 	case 0: /* Child */
+		closelog();
+		openlog(PROGNAME, LOG_NDELAY|LOG_PID| 
+		    (conf->opts & FLOWD_OPT_DONT_FORK ? LOG_PERROR : 0),
+		    LOG_DAEMON);
 		close(monitor_to_child_sock);
 		if (setsid() == -1)
 			err(1, "setsid");
@@ -216,6 +220,10 @@ privsep_init(struct flowd_config *conf, int *child_to_monitor_sock)
 		setproctitle("net");
 		return;
 	default: /* Parent */
+		closelog();
+		openlog(PROGNAME, LOG_NDELAY|LOG_PID| 
+		    (conf->opts & FLOWD_OPT_DONT_FORK ? LOG_PERROR : 0),
+		    LOG_DAEMON);
 		if ((conf->opts & FLOWD_OPT_DONT_FORK) == 0 && 
 		    dup2(devnull, STDERR_FILENO) == -1) {
 			syslog(LOG_ERR, "dup2: %s", strerror(errno));
@@ -251,3 +259,48 @@ privsep_init(struct flowd_config *conf, int *child_to_monitor_sock)
 	/* NOTREACHED */
 }
 
+int
+open_listener(struct xaddr *addr, u_int16_t port)
+{
+	int fd, fl;
+	struct sockaddr_storage ss;
+	socklen_t slen = sizeof(ss);
+
+	if (addr_xaddr_to_sa(addr, (struct sockaddr *)&ss, &slen, port) == -1) {
+		syslog(LOG_ERR, "addr_xaddr_to_sa");
+		return (-1);
+	}
+
+	if ((fd = socket(addr->af, SOCK_DGRAM, 0)) == -1) {
+		syslog(LOG_ERR, "socket: %s", strerror(errno));
+		return (-1);
+	}
+
+	/* Set non-blocking */
+	if ((fl = fcntl(fd, F_GETFL, 0)) == -1) {
+		syslog(LOG_ERR, "fcntl(%d, F_GETFL, 0): %s",
+		    fd, strerror(errno));
+		return (-1);
+	}
+	fl |= O_NONBLOCK;
+	if (fcntl(fd, F_SETFL, fl) == -1) {
+		syslog(LOG_ERR, "fcntl(%d, F_SETFL, O_NONBLOCK): %s",
+		    fd, strerror(errno));
+		return (-1);
+	}
+
+	/* Set v6-only for AF_INET6 sockets (no mapped address crap) */
+	fl = 1;
+	if (addr->af == AF_INET6 &&
+	    setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &fl, sizeof(fl)) == -1) {
+		syslog(LOG_ERR, "setsockopt(IPV6_V6ONLY): %s", strerror(errno));
+		return (-1);
+	}
+
+	if (bind(fd, (struct sockaddr *)&ss, slen) == -1) {
+		syslog(LOG_ERR, "bind: %s", strerror(errno));
+		return (-1);
+	}
+
+	return (fd);
+}
