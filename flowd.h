@@ -32,6 +32,7 @@
 #define DEFAULT_CONFIG		SYSCONFDIR "/flowd.conf"
 #define DEFAULT_PIDFILE		PIDFILEDIR "/flowd.pid"
 #define PRIVSEP_USER		"_flowd"
+#define DEFAULT_MAX_PEERS	1024
 
 struct listen_addr {
 	struct xaddr			addr;

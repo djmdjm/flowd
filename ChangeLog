@@ -7,6 +7,8 @@
  - (djm) Release flowd-0.5
  - (djm) Add packet dumping code (disabled by default)
  - (djm) Add untested NetFlow v.7 parsing code
+ - (djm) Add peer tracking and stateholding code, will be needed to support 
+   NetFlow v.9 and IPFIX
 
 20040914
  - (djm) Use a table-based parser in Flowd.pm, like the python code
