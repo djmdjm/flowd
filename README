@@ -39,7 +39,7 @@ At present, flowd supports NetFlow v.1, v.5, v.7 and v.9 packet formats
 over both IPv4 and IPv6 transports. Future plans include sflow and IETF
 IPFIX protocol support (when it is finalised). See the TODO file in
 this distribution for more information (and more interesting projects if
-you are a prospective developers)
+you are a prospective developer)
 
 flowd is tested on OpenBSD and Linux. It may work on other platforms,
 but will likely need some adjusting. Please refer to the PLATFORMS file

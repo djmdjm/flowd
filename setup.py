@@ -22,7 +22,7 @@ from distutils.core import setup, Extension
 if __name__ == '__main__':
 	if sys.hexversion < 0x02030000:
 		print >> sys.stderr, "error: " + \
-		    "flowd.py requires python < 2.3"
+		    "flowd.py requires python >= 2.3"
 		sys.exit(1)
 
 	flowd_serialiser = Extension('flowd_serialiser',

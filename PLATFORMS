@@ -21,8 +21,9 @@ to add a listener. E.g.:
 
 SYSLOGD_OPTIONS="-m 0 -a /var/empty/dev/log"
 
-[2] Python-2.3 is required and this platform lacks it by default, so the 
-Python API is unavailable, unless you have installed Python by default
+[2] Python-2.3 or greater is required and this platform lacks it by default,
+so the Python API is unavailable, unless you have manually installed an
+appropriate Python version.
 
 [3] Solaris includes Berkeley yacc by default, but you will need to add 
 /usr/ccs/bin to your $PATH. E.g.

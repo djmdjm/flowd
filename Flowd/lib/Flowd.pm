@@ -308,7 +308,7 @@ Refer to Flowd.pm for usage information.
 
 =head1 AUTHOR
 
-Damien Miller, E<lt>djm@mindrot.org<gt>
+Damien Miller, E<lt>djm@mindrot.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 

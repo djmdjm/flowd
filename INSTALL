@@ -1,4 +1,4 @@
-flowd is tested on OpenBSD, Linux and Solairs. It may work on other platforms, 
+flowd is tested on OpenBSD, Linux and Solaris. It may work on other platforms, 
 but may need some adjusting. Please read PLATFORMS for comments specific to 
 your environment.
 
@@ -13,16 +13,17 @@ To build flowd, follow the familiar incantation:
 make
 make install
 
-The Perl interface no longer requires extra modules. Built it after you have
-built flow, using these commands:
+The Perl interface no longer requires extra modules. Build it after you have
+built flowd, using these commands:
 
 cd Flowd
 perl Makefile.PL
 make
 make install
 
-The Python module doesn't have any special dependencies beyond Python-2.3. 
-To install it, run the following commands after you have built flowd:
+The Python module doesn't have any special dependencies beyond Python-2.3
+or a newer version. To install it, run the following commands after you
+have built flowd:
 
 python setup.py build 
 python setup.py install

@@ -30,7 +30,7 @@
 .Sh DESCRIPTION
 .Nm
 is a small NetFlow collector daemon capable of understanding Cisco NetFlow
-version 1 and version 5 packet formats.
+version 1, version 5 and version 9 packet formats.
 .Nm
 supports filtering and tagging of received flows before they are stored on
 disk, using a filter syntax similar to the OpenBSD PF packet filter.
