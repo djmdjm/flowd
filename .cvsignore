@@ -9,3 +9,8 @@ parse.c
 y.tab.c
 y.tab.h
 Makefile
+flowd
+flowd-reader
+flowd-reader.8
+flowd.8
+flowd.conf.5
