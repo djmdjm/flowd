@@ -85,7 +85,7 @@ sighand_exit(int signo)
 		shutdown(monitor_to_child_sock, SHUT_RDWR);
 		close(monitor_to_child_sock);
 	}
-	if (child_pid > 1)
+	if (!child_exited && child_pid > 1)
 		kill(child_pid, signo);
 	_exit(0);
 }
@@ -99,8 +99,9 @@ sighand_child(int signo)
 static void
 sighand_reopen(int signo)
 {
-	if (child_pid <= 1 || kill(child_pid, signo) == -1)
-		_exit(1);
+	if (!child_exited && child_pid <= 1)
+		if (kill(child_pid, signo) != 0)
+			_exit(1);
 }
 
 void
