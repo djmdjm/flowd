@@ -18,8 +18,9 @@ VERSION = "0.3"
 
 import struct
 import time
-import binascii
 import socket
+import sys
+import zlib
 
 def iso_time(secs, utc = 0):
 	if utc:
@@ -29,21 +30,23 @@ def iso_time(secs, utc = 0):
 
 	return "%04u-%02u-%02uT%02u:%02u:%02u" % tm[:6]
 
-def interval_time(secs):
-	ivs = [[ "m", 60 ], [ "h", 60 ], [ "d", 24 ],  [ "w", 7 ], [ "y", 52 ]]
-	ret = "s"
+def interval_time(t):
+	intervals = [	[ "s", 60 ], [ "m", 60 ], [ "h", 24 ], 
+			[ "d", 7 ], [ "w", 52 ]]
+	ret = ""
+	for interval in intervals:
+		r = t % interval[1]
+		t = int(t / interval[1])
+		if r != 0 or interval[0] == "s":
+			ret = "%u%s%s" % (r, interval[0], ret)
+	if t > 0:
+		ret = "%uy%s", (t, ret)
 
-	for iv in ivs:
-		ret = "%u%s" % (secs % iv[1], ret)
-		secs = int(secs / iv[1])
-		if secs <= 0:
-			break
-		ret = iv[0] + ret
 	return ret
 
-def interval_time_ms(tms):
-	return "%s.%03u" % ( flowd.interval_time(int(tms / 1000)), tms % 1000 )
 
+def interval_time_ms(tms):
+	return "%s.%03u" % ( interval_time(int(tms / 1000)), tms % 1000 )
 
 class log:
 	def __init__(self, path):
@@ -67,7 +70,11 @@ class log:
 		self.flow_file = None
 
 	def readflow(self):
-		return flow(self.flow_file)
+		try:
+			f = flow(self.flow_file)
+		except EOFError:
+			f = None
+		return f
 
 class flow:
 	TAG			= 0x00000001
@@ -103,7 +110,7 @@ class flow:
 	_fieldspec = [
 #	  Field 		Len   packspec	Unpacked fields
 	[ "TAG",		4,    ">I", 	[ "tag" ] ],
-	[ "RECV_TIME",		4,    ">I", 	[ "recv_time" ] ],
+	[ "RECV_TIME",		4,    ">I", 	[ "recv_secs" ] ],
 	[ "PROTO_FLAGS_TOS",	4,    ">BBBx",	[ "tcp_flags", "protocol", "tos" ] ],
 	[ "AGENT_ADDR4",	4,    None, 	[ "agent_addr" ] ],
 	[ "AGENT_ADDR6",	16,   None, 	[ "agent_addr" ] ],
@@ -127,10 +134,12 @@ class flow:
 	def __init__(self, flow_file):
 		self.crc32 = crc32()
 		self.fields = {}
-		self.rawfields = {}
+		self.rawfields = {} 
 
 		# Read flow header
 		hdr = flow_file.read(4)
+		if len(hdr) == 0:
+			raise EOFError
 		if len(hdr) != 4:
 			raise ValueError, "Short read on flow header"
 		self.crc32.update(hdr)
@@ -173,6 +182,71 @@ class flow:
 		if fields & flow.CRC32:
 			if self.crc32.final() != self.fields["crc"]:
 				raise ValueError, "Checksum mismatch"
+
+	def format(self, field_mask = BRIEF, utc = 0):
+		fields = self.fields["fields"] & field_mask
+		ret = "FLOW "
+
+		if fields & self.__class__.TAG != 0:
+			ret = ret + "tag %u " % self.fields["tag"]
+		if fields & self.__class__.RECV_TIME != 0:
+			ret = ret + "recv_time %s " % \
+			    iso_time(self.fields["recv_secs"], utc)
+		if fields & self.__class__.PROTO_FLAGS_TOS != 0:
+			ret = ret + "proto %u " % self.fields["protocol"]
+			ret = ret + "tcpflags %02x " % self.fields["tcp_flags"]
+			ret = ret + "tos %02x " % self.fields["tos"]
+		if fields & self.__class__.AGENT_ADDR != 0: 
+			ret = ret + "agent %s " % self.fields["agent_addr"]
+		if fields & self.__class__.SRC_ADDR != 0: 
+			ret = ret + "src %s" % self.fields["src_addr"];
+			if fields & self.__class__.SRCDST_PORT != 0: 
+				ret = ret + ":%u" % self.fields["src_port"];
+			ret = ret + " ";
+		if fields & self.__class__.DST_ADDR != 0: 
+			ret = ret + "dst %s" % self.fields["dst_addr"];
+			if fields & self.__class__.SRCDST_PORT != 0: 
+				ret = ret + ":%u" % self.fields["dst_port"];
+			ret = ret + " ";
+		if fields & self.__class__.GATEWAY_ADDR != 0: 
+			ret = ret + "gateway %s " % self.fields["gateway_addr"];
+		if fields & self.__class__.PACKETS != 0: 
+			ret = ret + "packets %s " % self.fields["flow_packets"];
+		if fields & self.__class__.OCTETS != 0: 
+			ret = ret + "octets %s " % self.fields["flow_octets"];
+		if fields & self.__class__.IF_INDICES != 0: 
+			ret = ret + "in_if %u " % self.fields["if_index_in"];
+			ret = ret + "out_if %u " % self.fields["if_index_out"];
+		if fields & self.__class__.AGENT_INFO != 0: 
+			ret = ret + "sys_uptime_ms %s " % \
+			    interval_time_ms(self.fields["sys_uptime_ms"]);
+			ret = ret + "time_sec %s " % \
+			    iso_time(self.fields["time_sec"], utc);
+			ret = ret + "time_nanosec %u " % \
+			    self.fields["time_nanosec"];
+			ret = ret + "netflow ver %u " % \
+				self.fields["netflow_version"];
+		if fields & self.__class__.FLOW_TIMES != 0: 
+			ret = ret + "flow_start %s " % \
+			    interval_time_ms(self.fields["flow_start"]);
+			ret = ret + "flow_finish %s " % \
+			    interval_time_ms(self.fields["flow_finish"]);
+		if fields & self.__class__.AS_INFO != 0: 
+			ret = ret + "src_AS %u " % self.fields["src_as"];
+			ret = ret + "src_masklen %u " % \
+			    self.fields["src_masklen"];
+			ret = ret + "dst_AS %u " % self.fields["dst_as"];
+			ret = ret + "dst_masklen %u " % \
+			    self.fields["dst_masklen"];
+		if fields & self.__class__.FLOW_ENGINE_INFO != 0: 
+			ret = ret + "engine_type %u " % \
+			    self.fields["engine_type"];
+			ret = ret + "engine_id %u " % self.fields["engine_id"];
+			ret = ret + "seq %u " % self.fields["flow_sequence"];
+		if fields & self.__class__.CRC32 != 0: 
+			ret = ret + "crc32 %08x " % self.fields["crc"];
+
+		return ret;
 
 class crc32:
 	_CRC32TAB = [
