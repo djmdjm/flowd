@@ -3,6 +3,7 @@
  - (djm) Tidy Flowd.pm and perl reader application a little
  - (djm) Don't allow port in filter rules for !(tcp|udp)
  - (djm) Support negated matching in filter language. E.g. agent ! x.x.x.x/y
+ - (djm) Document negated matching in flowd.conf manpage
 
 20040730
  - (djm) Release flowd 0.1

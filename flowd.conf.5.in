@@ -203,6 +203,9 @@ The rule parameters specify the NetFlow records to which a rule applies.
 Most parameters are optional.
 If a parameter is specified, the rule only applies to packets with
 matching attributes.
+The matching sense of any clause in a filter rule may be negated by placing a
+.Cm !\&
+operator between a filter keyword and its parameter.
 .Bl -tag -width xxxxxxxx
 .It Ar tag <number>
 Tag flows matched by this rule with the 
@@ -245,17 +248,19 @@ Protocols may be specified by name (tcp, udp, icmp, etc) or by number.
 .Pp
 This is an example of the filtering language in action:
 .Bd -literal -offset indent
-# Disallow all from unkown agents
-discard agent any
+# Immediately discard all flowd from unknown agents
+discard quick agent ! 192.2.0.254
 # Perform classification of local traffic
-accept tag 1 agent 192.2.0.254 src 192.0.2.0/24 dst 192.0.2.0/24
+accept tag 1 src 192.0.2.0/24 dst 192.0.2.0/24
 # Classification of inbound traffic
-accept tag 2 agent 192.2.0.254 dst 192.0.2.0/24
+accept tag 2 dst 192.0.2.0/24
 # Classification of outbound traffic
-accept tag 3 agent 192.2.0.254 src 192.0.2.0/24
+accept tag 3 src 192.0.2.0/24
 # Classification of web traffic
-accept tag 0x100 agent 192.2.0.254 dst any port 80 proto tcp
-accept tag 0x100 agent 192.2.0.254 src any port 80 proto tcp
+accept tag 0x100 dst any port 80 proto tcp
+accept tag 0x100 src any port 80 proto tcp
+# Ignore all but one hosts' traffic to a specific port
+discard src ! 192.2.0.33 dst any port 12345 proto tcp
 .Ed
 .Pp
 .Sh AUTHORS
