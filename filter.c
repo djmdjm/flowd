@@ -21,7 +21,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <syslog.h>
 
 #include "flowd.h"
 #include "filter.h"
@@ -100,50 +99,35 @@ flow_match(struct filter_rule *rule, struct store_flow_complete *flow)
 {
 	if ((rule->match.match_what & FF_MATCH_AGENT_ADDR) && 
 	    addr_netmatch(&flow->agent_addr, &rule->match.agent_addr,
-	    rule->match.agent_masklen) != 0) {
-		syslog(LOG_DEBUG, "%s: mismatch agent addr", __func__);
+	    rule->match.agent_masklen) != 0)
 		return (0);
-	}
 
 	if ((rule->match.match_what & FF_MATCH_SRC_ADDR) && 
 	    addr_netmatch(&flow->src_addr, &rule->match.src_addr,
-		    rule->match.src_masklen) != 0) {
-		syslog(LOG_DEBUG, "%s: mismatch src addr", __func__);
+		    rule->match.src_masklen) != 0)
 		return (0);
-	}
 
 	if ((rule->match.match_what & FF_MATCH_DST_ADDR) && 
 	    addr_netmatch(&flow->dst_addr, &rule->match.dst_addr,
-		    rule->match.dst_masklen) != 0) {
-		syslog(LOG_DEBUG, "%s: mismatch dst addr", __func__);
+		    rule->match.dst_masklen) != 0)
 		return (0);
-	}
 
 	if ((rule->match.match_what & FF_MATCH_SRC_PORT) && 
-	    ntohs(flow->ports.src_port) != rule->match.src_port) {
-		syslog(LOG_DEBUG, "%s: mismatch src port", __func__);
+	    ntohs(flow->ports.src_port) != rule->match.src_port)
 		return (0);
-	}
 
 	if ((rule->match.match_what & FF_MATCH_DST_PORT) && 
-	    ntohs(flow->ports.dst_port) != rule->match.dst_port) {
-		syslog(LOG_DEBUG, "%s: mismatch dst port", __func__);
+	    ntohs(flow->ports.dst_port) != rule->match.dst_port)
 		return (0);
-	}
 
 	if ((rule->match.match_what & FF_MATCH_PROTOCOL) &&
-	    flow->pft.protocol != rule->match.proto) {
-		syslog(LOG_DEBUG, "%s: mismatch proto", __func__);
+	    flow->pft.protocol != rule->match.proto)
 		return (0);
-	}
 
 	if ((rule->match.match_what & FF_MATCH_TOS) &&
-	    flow->pft.tos != rule->match.tos) {
-		syslog(LOG_DEBUG, "%s: mismatch tos", __func__);
+	    flow->pft.tos != rule->match.tos)
 		return (0);
-	}
 
-	syslog(LOG_DEBUG, "%s: matched", __func__);
 	return (1);
 }
 
@@ -159,7 +143,6 @@ filter_flow(struct store_flow_complete *flow, struct filter_list *filter)
 	TAILQ_FOREACH(fr, filter, entry) {
 		/* XXX - check necessary fields are present */
 
-		syslog(LOG_DEBUG, "%s: try rule %d", __func__, i++);
 		if (!flow_match(fr, flow))
 			continue;
 
@@ -170,11 +153,8 @@ filter_flow(struct store_flow_complete *flow, struct filter_list *filter)
 			break;
 	}
 
-	syslog(LOG_DEBUG, "%s: rule action %d", __func__, action);
-
 	if (action == FF_ACTION_TAG) {
-		syslog(LOG_DEBUG, "%s: tagging with %d", __func__, tag);
-		flow->hdr.tag = tag;
+		flow->hdr.tag = htonl(tag);
 		action = FF_ACTION_ACCEPT;
 	}
 
