@@ -4,8 +4,6 @@
   - parse config in monitor, deep-copy to child
   - Need to be careful about listener fds, merge changes or close+reopen??
 
-- don't pass sockaddr_storage pointers around, just use (struct sockaddr *)
-
 - Per-peer statistics, esp. errors
 
 - Negations in filter language, e.g. from ! 10.0.0.0/8
