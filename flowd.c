@@ -505,19 +505,23 @@ setup_listener(struct xaddr *addr, u_int16_t port)
 	if ((fd = socket(addr->af, SOCK_DGRAM, 0)) == -1)
 		err(1, "socket");
 
-	fl = 1;
-	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &fl, sizeof(fl)) == -1)
-		err(1, "setsockopt");
-
-	if (bind(fd, (struct sockaddr *)&ss, slen) == -1)
-		err(1, "bind");
-
 	/* Set non-blocking */
 	if ((fl = fcntl(fd, F_GETFL, 0)) == -1)
 		err(1, "fcntl(%d, F_GETFL, 0)", fd);
 	fl |= O_NONBLOCK;
 	if (fcntl(fd, F_SETFL, fl) == -1)
 		err(1, "fcntl(%d, F_SETFL, O_NONBLOCK)", fd);
+
+	/* Set v6-only for AF_INET6 sockets (no mapped address crap) */
+	fl = 1;
+	if (addr->af == AF_INET6 &&
+	    setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &fl, sizeof(fl)) == -1) {
+		syslog(LOG_ERR, "setsockopt(IPV6_V6ONLY): %s", strerror(errno));
+		return (-1);
+	}
+
+	if (bind(fd, (struct sockaddr *)&ss, slen) == -1)
+		err(1, "bind");
 
 	return (fd);
 }
