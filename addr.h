@@ -61,4 +61,5 @@ int addr_host_is_all1s(const struct xaddr *a, u_int masklen);
 int addr_host_to_all0s(struct xaddr *n, u_int masklen);
 int addr_host_to_all1s(struct xaddr *n, u_int masklen);
 int addr_netmatch(const struct xaddr *host, const struct xaddr *net, u_int masklen);
+const char *addr_ntop_buf(struct xaddr *a);
 #endif /* _ADDR_H */
