@@ -392,7 +392,8 @@ process_input(struct flowd_config *conf, int net_fd, int log_fd)
 		break;
 	default:
 		logit(LOG_INFO, "Unsupported netflow version %u from %s",
-		    hdr->version, from_ntop((struct sockaddr *)&from, fromlen));
+		    ntohs(hdr->version), 
+		    from_ntop((struct sockaddr *)&from, fromlen));
 		return;
 	}
 }

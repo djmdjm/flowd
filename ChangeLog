@@ -1,6 +1,7 @@
 20040823
  - (djm) NetFlow v.5 allows 30 flows per packet, not 24
  - (djm) Call tzset() so unpriv child gets log timestamps right
+ - (djm) Missing htons() in error path
 
 20040819
  - (djm) Fixes to Flowd.pm for Redhat 7.3 (Perl 5.6.1):
