@@ -11,3 +11,10 @@
  to memory buffers (e.g. so they can be sent over the network)
 
 - Add python docs and help
+
+- Write "flow-filter", a small program to filter and/or re-tag on-disk flows 
+  (reuse or share parse.y filtering code)
+
+- Write "flow-send", a small program to take on-disk flows and send them as 
+  NetFlow packets to a chosen host
+
