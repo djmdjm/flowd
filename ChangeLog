@@ -2,6 +2,7 @@
  - (djm) Tidy flowd.conf to the point where it can be installed by default
  - (djm) Tidy Flowd.pm and perl reader application a little
  - (djm) Don't allow port in filter rules for !(tcp|udp)
+ - (djm) Support negated matching in filter language. E.g. agent ! x.x.x.x/y
 
 20040730
  - (djm) Release flowd 0.1

@@ -94,10 +94,10 @@ typedef struct {
 %}
 
 %token	LISTEN ON LOGFILE STORE PIDFILE
-%token	TAG ACCEPT DISCARD QUICK AGENT SRC DST PORT PROTO TOS ANY
+%token	ALL TAG ACCEPT DISCARD QUICK AGENT SRC DST PORT PROTO TOS ANY
 %token	ERROR
 %token	<v.string>		STRING
-%type	<v.number>		number quick logspec 
+%type	<v.number>		number quick logspec not
 %type	<v.string>		string
 %type	<v.addrport>		address_port
 %type	<v.prefix>		prefix prefix_or_any
@@ -212,6 +212,10 @@ prefix_or_any	: ANY			{ memset(&$$, 0, sizeof($$)); }
 		| prefix		{ $$ = $1; }
 		;
 
+not		: '!'		{ $$ = 1; }
+		| /* empty */	{ $$ = 0; }
+		;
+
 conf_main	: LISTEN ON address_port	{
 			struct listen_addr	*la;
 
@@ -304,22 +308,27 @@ filterrule	: action tag quick match_agent match_src match_dst match_proto match_
 			r->match.agent_addr = $4.agent_addr;
 			r->match.agent_masklen = $4.agent_masklen;
 			r->match.match_what |= $4.match_what;
+			r->match.match_negate |= $4.match_negate;
 
 			r->match.src_addr = $5.src_addr;
 			r->match.src_masklen = $5.src_masklen;
 			r->match.src_port = $5.src_port;
 			r->match.match_what |= $5.match_what;
+			r->match.match_negate |= $5.match_negate;
 
 			r->match.dst_addr = $6.dst_addr;
 			r->match.dst_masklen = $6.dst_masklen;
 			r->match.dst_port = $6.dst_port;
 			r->match.match_what |= $6.match_what;
+			r->match.match_negate |= $6.match_negate;
 
 			r->match.proto = $7.proto;
 			r->match.match_what |= $7.match_what;
+			r->match.match_negate |= $7.match_negate;
 
 			r->match.tos = $8.tos;
 			r->match.match_what |= $8.match_what;
+			r->match.match_negate |= $8.match_negate;
 
 			if ((r->match.match_what & 
 			    (FF_MATCH_SRC_PORT|FF_MATCH_DST_PORT)) && 
@@ -330,6 +339,26 @@ filterrule	: action tag quick match_agent match_src match_dst match_proto match_
 				free(r);
 				YYERROR;
 			}
+
+			TAILQ_INSERT_TAIL(&conf->filter_list, r, entry);
+		}
+		| action tag quick ALL
+		{
+			struct filter_rule	*r;
+
+			if ((r = calloc(1, sizeof(*r))) == NULL)
+				errx(1, "filterrule: calloc");
+
+			r->action = $1;
+			if ($2.action_what == FF_ACTION_TAG) {
+				if (r->action.action_what != FF_ACTION_ACCEPT) {
+					yyerror("tag not allowed in discard");
+					free(r);
+					YYERROR;
+				}
+				r->action = $2;
+			}
+			r->quick = $3;
 
 			TAILQ_INSERT_TAIL(&conf->filter_list, r, entry);
 		}
@@ -357,88 +386,97 @@ quick		: /* empty */	{ $$ = 0; }
 		;
 
 match_agent	: /* empty */			{ bzero(&$$, sizeof($$)); }
-		| AGENT prefix_or_any			{
+		| AGENT not prefix		{
 			bzero(&$$, sizeof($$));
-			memcpy(&$$.agent_addr, &$2.addr, sizeof($$.agent_addr));
-			$$.agent_masklen = $2.len;
+			memcpy(&$$.agent_addr, &$3.addr, sizeof($$.agent_addr));
+			$$.agent_masklen = $3.len;
 			$$.match_what |= FF_MATCH_AGENT_ADDR;
+			$$.match_negate |= $2 ? FF_MATCH_AGENT_ADDR : 0;
 		}
 		;
 
 match_src	: /* empty */			{ bzero(&$$, sizeof($$)); }
-		| SRC prefix_or_any			{
+		| SRC not prefix_or_any			{
 			bzero(&$$, sizeof($$));
-			memcpy(&$$.src_addr, &$2.addr, sizeof($$.src_addr));
-			$$.src_masklen = $2.len;
+			memcpy(&$$.src_addr, &$3.addr, sizeof($$.src_addr));
+			$$.src_masklen = $3.len;
 			$$.match_what |= FF_MATCH_SRC_ADDR;
+			$$.match_negate |= $2 ? FF_MATCH_SRC_ADDR : 0;
 		}
-		| SRC prefix_or_any PORT number	{
+		| SRC not prefix_or_any PORT not number	{
 			bzero(&$$, sizeof($$));
-			memcpy(&$$.src_addr, &$2.addr, sizeof($$.src_addr));
-			$$.src_masklen = $2.len;
-			$$.src_port = $4;
+			memcpy(&$$.src_addr, &$3.addr, sizeof($$.src_addr));
+			$$.src_masklen = $3.len;
+			$$.src_port = $6;
 			if ($$.src_port <= 0 || $$.src_port > 65535) {
 				yyerror("invalid port number");
 				YYERROR;
 			}
-			$$.match_what |= FF_MATCH_SRC_PORT;
-			if ($$.src_masklen != 0)
+			if ($$.dst_addr.af != 0)
 				$$.match_what |= FF_MATCH_SRC_ADDR;
+			$$.match_what |= FF_MATCH_SRC_PORT;
+			$$.match_negate |= $2 ? FF_MATCH_SRC_ADDR : 0;
+			$$.match_negate |= $5 ? FF_MATCH_SRC_PORT : 0;
 		}
 		;
 
 match_dst	: /* empty */			{ bzero(&$$, sizeof($$)); }
-		| DST prefix_or_any			{
+		| DST not prefix_or_any			{
 			bzero(&$$, sizeof($$));
-			memcpy(&$$.dst_addr, &$2.addr, sizeof($$.dst_addr));
-			$$.dst_masklen = $2.len;
+			memcpy(&$$.dst_addr, &$3.addr, sizeof($$.dst_addr));
+			$$.dst_masklen = $3.len;
 			$$.match_what |= FF_MATCH_DST_ADDR;
+			$$.match_negate |= $2 ? FF_MATCH_DST_ADDR : 0;
 		}
-		| DST prefix_or_any PORT number	{
+		| DST not prefix_or_any PORT not number	{
 			bzero(&$$, sizeof($$));
-			memcpy(&$$.dst_addr, &$2.addr, sizeof($$.dst_addr));
-			$$.dst_masklen = $2.len;
-			$$.dst_port = $4;
+			memcpy(&$$.dst_addr, &$3.addr, sizeof($$.dst_addr));
+			$$.dst_masklen = $3.len;
+			$$.dst_port = $6;
 			if ($$.dst_port <= 0 || $$.dst_port > 65535) {
 				yyerror("invalid port number");
 				YYERROR;
 			}
-			$$.match_what |= FF_MATCH_DST_PORT;
-			if ($$.src_masklen != 0)
+			if ($$.dst_addr.af != 0)
 				$$.match_what |= FF_MATCH_DST_ADDR;
+			$$.match_what |= FF_MATCH_DST_PORT;
+			$$.match_negate |= $2 ? FF_MATCH_DST_ADDR : 0;
+			$$.match_negate |= $5 ? FF_MATCH_DST_PORT : 0;
 		}
 		;
 
 match_proto	: /* empty */			{ bzero(&$$, sizeof($$)); }
-		| PROTO string		{
+		| PROTO not string		{
 			unsigned long proto;
 			struct protoent *pe;
 
 			bzero(&$$, sizeof($$));
-			if ((pe = getprotobyname($2)) != NULL)
+			if ((pe = getprotobyname($3)) != NULL)
 				proto = pe->p_proto;
 			else {
-				if (atoul($2, &proto) == -1 || proto == 0 || 
+				if (atoul($3, &proto) == -1 || proto == 0 || 
 				    proto > 255) {
 					yyerror("Invalid protocol");
-					free($2);
+					free($3);
 					YYERROR;
 				}
 			}
 			$$.proto = proto;
 			$$.match_what |= FF_MATCH_PROTOCOL;
+			$$.match_negate |= $2 ? FF_MATCH_PROTOCOL : 0;
 		}
 		;
 
 match_tos	: /* empty */			{ bzero(&$$, sizeof($$)); }
-		| TOS number		{
+		| TOS not number		{
 			bzero(&$$, sizeof($$));
-			if ($2 > 0xff) {
+			if ($3 > 0xff) {
 				yyerror("Invalid ToS");
 				YYERROR;
 			}
-			$$.tos = $2;
+			$$.tos = $3;
 			$$.match_what |= FF_MATCH_TOS;
+			$$.match_negate |= $2 ? FF_MATCH_TOS : 0;
 		}
 		;
 
@@ -479,6 +517,7 @@ lookup(char *s)
 	static const struct keywords keywords[] = {
 		{ "accept",		ACCEPT},
 		{ "agent",		AGENT},
+		{ "all",		ALL},
 		{ "any",		ANY},
 		{ "discard",		DISCARD},
 		{ "dst",		DST},

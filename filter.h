@@ -43,6 +43,7 @@ struct filter_action {
 #define FF_MATCH_AGENT_ADDR	(1<<6)
 struct filter_match {
 	u_int32_t	match_what;
+	u_int32_t	match_negate;
 	int		agent_masklen;
 	struct xaddr	agent_addr;
 	int		src_masklen;
