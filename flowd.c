@@ -565,7 +565,7 @@ main(int argc, char **argv)
 			errx(1, "strdup pidfile");
 	}
 
-	if (conf->opts & FLOWD_OPT_VERBOSE)
+	if (conf.opts & FLOWD_OPT_VERBOSE)
 		dump_config(&conf); 
 
 	closefrom(STDERR_FILENO + 1);
