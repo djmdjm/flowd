@@ -5,6 +5,7 @@
    value in Makefile; found by jon AT exalia.com
  - (djm) Fix permissions on generated setup.py
  - (djm) Release flowd-0.5
+ - (djm) Add packet dumping code (disabled by default)
 
 20040914
  - (djm) Use a table-based parser in Flowd.pm, like the python code

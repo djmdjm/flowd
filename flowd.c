@@ -43,6 +43,8 @@ static sig_atomic_t reconf_flag = 0;
 static sig_atomic_t reopen_flag = 0;
 static sig_atomic_t info_flag = 0;
 
+/* #define DEBUG_UNKNOWN */
+
 /* Signal handlers */
 static void
 sighand_exit(int signo)
@@ -86,6 +88,25 @@ usage(void)
 	    DEFAULT_CONFIG);
 	fprintf(stderr, "\n");
 }
+
+/* Dump a packet */
+#ifdef DEBUG_UNKNOWN
+static void
+dump_packet(const u_int8_t *p, int len)
+{
+	char buf[1024], tmp[3];
+	int i;
+
+	for (*buf = '\0', i = 0; i < len; i++) {
+		snprintf(tmp, sizeof(tmp), "%02x%s", p[i], i % 2 ? " " : "");
+		if (strlcat(buf, tmp, sizeof(buf) - 4) >= sizeof(buf) - 4) {
+			strlcat(buf, "...", sizeof(buf));
+			break;
+		}
+	}
+	logit(LOG_INFO, "packet len %d: %s", len, buf);
+}
+#endif
 
 static const char *
 from_ntop(struct sockaddr *s, socklen_t slen)
@@ -394,6 +415,9 @@ process_input(struct flowd_config *conf, int net_fd, int log_fd)
 		logit(LOG_INFO, "Unsupported netflow version %u from %s",
 		    ntohs(hdr->version), 
 		    from_ntop((struct sockaddr *)&from, fromlen));
+#ifdef DEBUG_UNKNOWN
+		dump_packet(buf, len);
+#endif
 		return;
 	}
 }
