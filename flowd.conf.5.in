@@ -24,7 +24,7 @@
 .Nm flowd.conf
 .Nd NetFlow Collector daemon configuration file
 .Sh DESCRIPTION
-This is the configuration file for the 
+This is the configuration file for the
 .Xr flowd 8
 NetFlow collector daemon.
 All runtime configuration is performed through this file.
@@ -44,7 +44,7 @@ configuration file.
 .It Cm Global configuration
 Global settings for the flowd daemon.
 .It Cm Storage field selection
-This selection specifies which fields from the flow packets are stored in 
+This selection specifies which fields from the flow packets are stored in
 the on-disk log file.
 By eliminating unnecessary fields, the log files may be made quite compact.
 .It Cm Filter
@@ -103,8 +103,8 @@ flow source [4000:1::]/32
 This option is optional, if it is not specified then
 .Nm
 will accept flow records from any address.
-The use of this option is strongly recommended when flow export protocols 
-are used that require the collector to retain state information (e.g. 
+The use of this option is strongly recommended when flow export protocols
+are used that require the collector to retain state information (e.g.
 NetFlow v.9 flow templates) in order to avoid flooding attacks.
 .It Ar listen on
 Specifies an address and port on which
@@ -145,11 +145,11 @@ The default is to create a PID file in
 .Pa @PIDPATH@/run/flowd.pid
 .El
 .Sh STORAGE FIELD SELECTION
-After filtering, 
+After filtering,
 .Xr flowd 8
-stores the flows that it receives in a flexible binary format, which permits 
+stores the flows that it receives in a flexible binary format, which permits
 the selection of which fields will be stored on disk.
-This enables the flow logs to be made very compact, by selecting only the 
+This enables the flow logs to be made very compact, by selecting only the
 fields of interest (this is particularly relevant for high-traffic collectors)
 .Pp
 The selection of which fields are recorded is made through the
@@ -180,10 +180,10 @@ This field must be present for the tags to be recorded.
 Stores the time that the flow was received by
 .Xr flowd 8 .
 .It Ar PROTO_FLAGS_TOS
-Store the protocol, TCP flags and type-of-service (ToS) fields from the 
+Store the protocol, TCP flags and type-of-service (ToS) fields from the
 NetFlow packet.
 .Pp
-Like several other storage fields, 
+Like several other storage fields,
 .Ar PROTO_FLAGS_TOS
 actually contains several small NetFlow fields together for convenience.
 .It Ar AGENT_ADDR
@@ -201,10 +201,10 @@ Store the packet and octet counters from the NetFlow packet.
 .It Ar IF_INDICES
 Store the in and out interface indices from the NetFlow packet.
 .It Ar AGENT_INFO
-Store several fields from the NetFlow packet's header, including the 
+Store several fields from the NetFlow packet's header, including the
 agent uptime and "wall clock" time and the version of NetFlow in use.
 .It Ar AS_INFO
-Store the source and destination network Autonomous System (AS) numbers and 
+Store the source and destination network Autonomous System (AS) numbers and
 network prefix lengths from the NetFlow packet.
 .It Ar FLOW_ENGINE_INFO
 Store the flow engine type and ID fields from the NetFlow packet.
@@ -215,9 +215,9 @@ This checksum is automatically checked by
 .Xr flowd-reader 8 .
 Its use is highly recommended.
 .El
-Regardless of the options specified by the 
+Regardless of the options specified by the
 .Ar store
-directive, 
+directive,
 .Xr flowd 8
 will always store the time that the flow was received and an integer "tag"
 that may be set by the filter system (see below).
@@ -227,17 +227,17 @@ has the ability to
 .Ar accept
 and
 .Ar discard
-flow records 
-based on the address of the agent that sent them or several parameters in the 
+flow records
+based on the address of the agent that sent them or several parameters in the
 flow itself.
 .Pp
 Flows that are accepted may also be "tagged" with a 32-bit unsigned integer.
 This is intended to allow basic classification of flows.
-For example, this may be used to tag traffic that remains internal to the 
-local network so that it may be treated specially by a traffic accounting 
+For example, this may be used to tag traffic that remains internal to the
+local network so that it may be treated specially by a traffic accounting
 system.
 .Pp
-For each flow received and processed by the filter, the filter rules are 
+For each flow received and processed by the filter, the filter rules are
 evaluated in sequential order, from first to last.
 The last matching
 .Ar accept
@@ -262,7 +262,7 @@ The matching sense of any clause in a filter rule may be negated by placing a
 operator between a filter keyword and its parameter.
 .Bl -tag -width xxxxxxxx
 .It Ar tag <number>
-Tag flows matched by this rule with the 
+Tag flows matched by this rule with the
 .Ar number .
 This option only makes sense for
 .Ar accept
@@ -278,21 +278,21 @@ with an address in the specified network range.
 NB. this applies to the device sending the NetFlow packet, not the addresses
 within the packet itself.
 .It Ar src <address>/<len> Op port Ar <port>
-This rule applies only to flows whose source address (as recorded in the 
+This rule applies only to flows whose source address (as recorded in the
 NetFlow packet) is in the specified address range.
 .Pp
 If the
 .Ar port
-option is specified, then the rule is further restricted to flows whose 
+option is specified, then the rule is further restricted to flows whose
 source port number matches that specified.
 NB. the port checks are only valid for rules matching TCP or UDP flows.
 .It Ar dst <address>/<len> Op port Ar <port>
-This rule applies only to flows whose destination address (as recorded in the 
+This rule applies only to flows whose destination address (as recorded in the
 NetFlow packet) is in the specified address range.
 .Pp
 If the
 .Ar port
-option is specified, then the rule is further restricted to flows whose 
+option is specified, then the rule is further restricted to flows whose
 destination port number matches that specified.
 NB. the port checks are only valid for rules matching TCP or UDP flows.
 .It Ar proto <protocol>

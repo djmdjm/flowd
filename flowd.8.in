@@ -29,27 +29,27 @@
 .Ar command
 .Sh DESCRIPTION
 .Nm
-is a small NetFlow collector daemon capable of understanding Cisco NetFlow 
+is a small NetFlow collector daemon capable of understanding Cisco NetFlow
 version 1 and version 5 packet formats.
 .Nm
-supports filtering and tagging of received flows before they are stored on 
+supports filtering and tagging of received flows before they are stored on
 disk, using a filter syntax similar to the OpenBSD PF packet filter.
 The on-disk format is flexible in that it allows selection of which packet
 fields are recorded, so logs may be made very compact.
 .Pp
 By default,
 .Nm
-will obtain its configuration from the 
+will obtain its configuration from the
 .Xr flowd.conf 5
 file, which typically resides in
 .Pa @CONFPATH@/flowd.conf .
 However, a different configuration file may be specified on the commandline
-using the 
+using the
 .Fl d
 option.
 .Pp
 .Nm
-may be terminated by sending it a 
+may be terminated by sending it a
 .Dv SIGTERM
 signal.
 Upon receipt of a
@@ -59,10 +59,10 @@ will close and reopen its logfile.
 This is useful for rotating logs.
 When
 .Nm
-receives a 
+receives a
 .Dv SIGHUP
 it will re-read its configuration and re-open its logfile.
-Some basic runtime statistics will be logged when 
+Some basic runtime statistics will be logged when
 .Nm
 is signalled with
 .Dv SIGUSR2
@@ -93,7 +93,7 @@ not to fork and background itself.
 Logging will be reported to stderr instead of syslog.
 .It Fl f Ar config_file
 Specify an alternate location for the configuration file
-Default is 
+Default is
 .Pa @CONFPATH@/flowd.conf
 .It Fl h
 Displays commandline usage information.

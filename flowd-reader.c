@@ -80,7 +80,7 @@ main(int argc, char **argv)
 
 	for (i = optind; i < argc; i++) {
 		if ((fd = open(argv[i], O_RDONLY)) == -1) {
-			fprintf(stderr, "Couldn't open %s: %s\n", argv[i], 
+			fprintf(stderr, "Couldn't open %s: %s\n", argv[i],
 			    strerror(errno));
 			exit(1);
 		}

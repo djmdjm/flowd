@@ -17,7 +17,7 @@
  */
 
 /*
- * Routines for tracking state from NetFlow sources. NetFlow v.9 / IPFIX 
+ * Routines for tracking state from NetFlow sources. NetFlow v.9 / IPFIX
  * requires this for their overcomplicated template stuff. Read below for the
  * full horror.
  */
@@ -34,18 +34,18 @@
 /* NetFlow v.9 specific state */
 
 /*
- * NetFlow v.9 is really overcomplicated. Not only does it require you to 
+ * NetFlow v.9 is really overcomplicated. Not only does it require you to
  * maintain state for each NetFlow host, it requires you to retain disjoint
  * state for different sources on each host. Managing this while considering
- * some of the attacks that it enables on a collector is painful. 
- * 
- * So, we try to limit the amount of state that we hold on all peers to a 
- * maximum of max_peers hosts. Within each host, we can retain max_templates 
- * templates of maximum size max_template_len for max_sources distinct 
+ * some of the attacks that it enables on a collector is painful.
+ *
+ * So, we try to limit the amount of state that we hold on all peers to a
+ * maximum of max_peers hosts. Within each host, we can retain max_templates
+ * templates of maximum size max_template_len for max_sources distinct
  * sources. So the total is:
  *     max_peers * max_templates * max_sources * (max_template_len + overheads)
  *
- * NB. The peer.c routines are not responsible for filling in the template 
+ * NB. The peer.c routines are not responsible for filling in the template
  * record structures, just for housekeeping such as allocation and lookup.
  * The filling-in is performed by the netflow v.9 template flowset handler
  *
@@ -80,7 +80,7 @@ TAILQ_HEAD(peer_nf9_list, peer_nf9_source);
 /* General per-peer state */
 
 /*
- * Structure to hold per-peer state. NetFlow v.9 / IPFIX will require that we 
+ * Structure to hold per-peer state. NetFlow v.9 / IPFIX will require that we
  * hold state for each peer to retain templates. This peer state is stored in
  * a splay tree for quick access by sender address and in a deque so we can
  * do fast LRU deletions on overflow
@@ -114,7 +114,7 @@ struct peers {
 struct peer_state *new_peer(struct peers *peers, struct flowd_config *conf,
     struct xaddr *addr);
 void scrub_peers(struct flowd_config *conf, struct peers *peers);
-void update_peer(struct peers *peers, struct peer_state *peer, u_int nflows, 
+void update_peer(struct peers *peers, struct peer_state *peer, u_int nflows,
     u_int netflow_version);
 struct peer_state *find_peer(struct peers *peers, struct xaddr *addr);
 void dump_peers(struct peers *peers);
@@ -123,7 +123,7 @@ void dump_peers(struct peers *peers);
 struct peer_nf9_template *peer_nf9_find_template(struct peer_state *peer,
     u_int32_t source_id, u_int16_t template_id);
 struct peer_nf9_template *
-peer_nf9_new_template(struct peer_state *peer, struct peers *peers, 
+peer_nf9_new_template(struct peer_state *peer, struct peers *peers,
     u_int32_t source_id, u_int16_t template_id);
 void peer_nf9_template_update(struct peer_state *peer,
     u_int32_t source_id, u_int16_t template_id);

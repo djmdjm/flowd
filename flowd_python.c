@@ -90,7 +90,7 @@ flow_deserialise(PyObject *self, PyObject *args)
 
 	if ((ret = PyDict_New()) == NULL)
 		return (NULL);
-	
+
 	field = PyLong_FromUnsignedLong(fields);
 	if (field == NULL)
 		goto field_err;
@@ -347,8 +347,8 @@ flow_deserialise(PyObject *self, PyObject *args)
 
 
 PyDoc_STRVAR(flowd_doc,
-"This module performs conversions from binary flowd logs to Python \n"
-"dictionaries. This is used by the flowd.py module to provide a high-level \n"
+"This module performs conversions from binary flowd logs to Python\n"
+"dictionaries. This is used by the flowd.py module to provide a high-level\n"
 "API to flowd logs. Unless you really have a need, just use flowd.py");
 
 static PyMethodDef flowd_methods[] = {

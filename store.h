@@ -261,7 +261,7 @@ int store_validate_header(struct store_header *hdr, char *ebuf, int elen);
 int store_calc_flow_len(struct store_flow *hdr);
 int store_flow_deserialise(u_int8_t *buf, int len,
     struct store_flow_complete *f, char *ebuf, int elen);
-int store_flow_serialise(struct store_flow_complete *f, u_int8_t *buf, int buflen, 
+int store_flow_serialise(struct store_flow_complete *f, u_int8_t *buf, int buflen,
     int *flowlen, char *ebuf, int elen);
 
 const char *iso_time(time_t t, int utc_flag);
