@@ -1,8 +1,5 @@
 * indicated things to do before 1.0 release
 
-- Per-peer statistics, esp. errors
-  - Does this make sense?
-
 - Port predicates, e.g. "port 1024-65536"
 
 - Improve log handling
@@ -20,7 +17,7 @@
 - Write "flow-send", a small program to take on-disk flows and send them as 
   NetFlow packets to a chosen host
 
-- NetFlow v.7, v.9, sflow, IPFIX
+- NetFlow sflow, IPFIX
 
 - Speed up perl and python modules
   - CRC is especially slow
