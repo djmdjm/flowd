@@ -103,6 +103,13 @@ sub init {
 	die "unsupported version" unless $self->{version} == 0x00000002;
 }
 
+sub finish {
+	my $self = shift;
+
+	close($self->{handle});
+	$self->{handle} = undef;
+}
+
 sub readflow {
 	my $self = shift;
 
@@ -503,6 +510,7 @@ Flowd -- interface to flowd binary NetFlow logs
   while (my $flow = $log->readflow()) {
           print $flow->format(Flowd::Flow::BRIEF, 0) . "\n";
   }
+  $fh->finish();
 
 =head1 DESCRIPTION
 

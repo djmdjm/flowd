@@ -43,4 +43,5 @@ foreach my $ffile (@ARGV) {
 		print $flow->format(Flowd::Flow::BRIEF, 0);
 		print "\n";
 	}
+	$log->finish();
 }
