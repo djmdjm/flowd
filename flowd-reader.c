@@ -51,8 +51,7 @@ main(int argc, char **argv)
 	extern int optind;
 	struct store_flow_complete flow;
 	struct store_header hdr;
-	const char *e;
-	char buf[2048];
+	char buf[2048], ebuf[512];
 
 	utc = verbose = 0;
 	while ((ch = getopt(argc, argv, "Uhv")) != -1) {
@@ -81,11 +80,12 @@ main(int argc, char **argv)
 
 	for (i = optind; i < argc; i++) {
 		if ((fd = open(argv[i], O_RDONLY)) == -1) {
-			fprintf(stderr, "Couldn't open %s\n", argv[i]);
+			fprintf(stderr, "Couldn't open %s: %s\n", argv[i], 
+			    strerror(errno));
 			exit(1);
 		}
-		if (store_get_header(fd, &hdr, &e) == -1) {
-			fprintf(stderr, "%s\n", e);
+		if (store_get_header(fd, &hdr, ebuf, sizeof(ebuf)) == -1) {
+			fprintf(stderr, "%s\n", ebuf);
 			exit(1);
 		}
 
@@ -95,8 +95,9 @@ main(int argc, char **argv)
 		for (;;) {
 			bzero(&flow, sizeof(flow));
 
-			if ((r = store_get_flow(fd, &flow, &e)) == -1) {
-				fprintf(stderr, "%s\n", e);
+			if ((r = store_get_flow(fd, &flow, ebuf,
+			    sizeof(ebuf))) == -1) {
+				fprintf(stderr, "%s\n", ebuf);
 				exit(1);
 			}
 			if (r == 0) /* EOF */

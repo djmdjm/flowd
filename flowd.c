@@ -120,7 +120,7 @@ start_log(int monitor_fd)
 {
 	int fd;
 	off_t pos;
-	const char *e;
+	char ebuf[512];
 
 	if ((fd = client_open_log(monitor_fd)) == -1)
 		logerrx("Logfile open failed, exiting");
@@ -136,8 +136,8 @@ start_log(int monitor_fd)
 		/* Logfile exists, don't write new header */
 		if (lseek(fd, 0, SEEK_SET) != 0)
 			logerr("%s: llseek error, exiting", __func__);
-		if (store_check_header(fd, &e) != 0)
-			logerrx("%s: Exiting on %s", __func__, e);
+		if (store_check_header(fd, ebuf, sizeof(ebuf)) != 0)
+			logerrx("%s: Exiting on %s", __func__, ebuf);
 		if (lseek(fd, 0, SEEK_END) <= 0)
 			logerr("%s: llseek error, exiting", __func__);
 		logit(LOG_DEBUG, "Continuing with existing logfile len %lld",
@@ -147,8 +147,8 @@ start_log(int monitor_fd)
 
 	logit(LOG_DEBUG, "Writing new logfile header");
 
-	if (store_put_header(fd, &e) != 0)
-		logerrx("%s: Exiting on %s", __func__, e);
+	if (store_put_header(fd, ebuf, sizeof(ebuf)) != 0)
+		logerrx("%s: Exiting on %s", __func__, ebuf);
 
 	return (fd);
 }
@@ -157,7 +157,7 @@ static void
 process_flow(struct store_flow_complete *flow, struct flowd_config *conf,
     int log_fd)
 {
-	const char *e;
+	char ebuf[512];
 
 	/* Another sanity check */
 	if (flow->src_addr.af != flow->dst_addr.af) {
@@ -182,8 +182,9 @@ process_flow(struct store_flow_complete *flow, struct flowd_config *conf,
 	if (filter_flow(flow, &conf->filter_list) == FF_ACTION_DISCARD)
 		return;
 
-	if (store_put_flow(log_fd, flow, conf->store_mask, &e) != 0)
-		logerrx("%s: exiting on %s", __func__, e);
+	if (store_put_flow(log_fd, flow, conf->store_mask, ebuf,
+	    sizeof(ebuf)) != 0)
+		logerrx("%s: exiting on %s", __func__, ebuf);
 
 	/* XXX reopen log file on one failure, exit on multiple */
 }

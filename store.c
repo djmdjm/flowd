@@ -36,30 +36,26 @@ RCSID("$Id$");
 
 /* Stash error message and return */
 #define SFAILX(i, m, f) do {						\
-		if (errptr != NULL) {					\
-			snprintf(ebuf, sizeof(ebuf), "%s%s%s",		\
+		if (ebuf != NULL && elen > 0) {				\
+			snprintf(ebuf, elen, "%s%s%s",			\
 			    (f) ? __func__ : "", (f) ? ": " : "", m);	\
-			*errptr = ebuf;					\
 		}							\
 		return (i);						\
 	} while (0)
 
-/* Stash error message, appending strerror into local "ebuf" and return */
+/* Stash error message, appending strerror into "ebuf" and return */
 #define SFAIL(i, m, f) do {						\
-		if (errptr != NULL) {					\
-			snprintf(ebuf, sizeof(ebuf), "%s%s%s: %s", 	\
+		if (ebuf != NULL && elen > 0) {				\
+			snprintf(ebuf, elen, "%s%s%s: %s", 		\
 			    (f) ? __func__ : "", (f) ? ": " : "", m, 	\
 			    strerror(errno));				\
-			*errptr = ebuf;					\
 		}							\
 		return (i);						\
 	} while (0)
 
 int
-store_validate_header(struct store_header *hdr, const char **errptr)
+store_validate_header(struct store_header *hdr, char *ebuf, int elen)
 {
-	static char ebuf[512];
-
 	if (ntohl(hdr->magic) != STORE_MAGIC)
 		SFAILX(-1, "Bad magic", 0);
 	if (ntohl(hdr->version) != STORE_VERSION)
@@ -69,17 +65,16 @@ store_validate_header(struct store_header *hdr, const char **errptr)
 }
 
 int
-store_get_header(int fd, struct store_header *hdr, const char **errptr)
+store_get_header(int fd, struct store_header *hdr, char *ebuf, int elen)
 {
 	ssize_t r;
-	static char ebuf[512];
 
 	if ((r = atomicio(read, fd, hdr, sizeof(*hdr))) == -1)
 		SFAIL(-1, "read error", 0);
 	if (r < (ssize_t)sizeof(*hdr))
 		SFAILX(-1, "premature EOF", 0);
 
-	return (store_validate_header(hdr, errptr));
+	return (store_validate_header(hdr, ebuf, elen));
 }
 
 int
@@ -120,7 +115,7 @@ store_calc_flow_len(struct store_flow *hdr)
 
 int
 store_flow_deserialise(u_int8_t *buf, int len, struct store_flow_complete *f,
-    const char **errptr)
+    char *ebuf, int elen)
 {
 	int offset;
 	struct store_flow_AGENT_ADDR4 aa4;
@@ -132,7 +127,6 @@ store_flow_deserialise(u_int8_t *buf, int len, struct store_flow_complete *f,
 	struct store_flow_GATEWAY_ADDR4 ga4;
 	struct store_flow_GATEWAY_ADDR6 ga6;
 	u_int32_t fields, crc;
-	static char ebuf[256];
 
 	bzero(f, sizeof(*f));
 	crc32_start(&crc);
@@ -148,7 +142,7 @@ store_flow_deserialise(u_int8_t *buf, int len, struct store_flow_complete *f,
 
 	offset = sizeof(f->hdr);
 
-#define RFIELD(flag, dest, desc) do { \
+#define RFIELD(flag, dest) do { \
 		if (SHASFIELD(flag)) { \
 			memcpy(&dest, buf + offset, sizeof(dest)); \
 			offset += sizeof(dest); \
@@ -160,26 +154,26 @@ store_flow_deserialise(u_int8_t *buf, int len, struct store_flow_complete *f,
 		} \
 	} while (0)
 
-	RFIELD(TAG, f->tag, "tag");
-	RFIELD(RECV_TIME, f->recv_time, "receive time");
-	RFIELD(PROTO_FLAGS_TOS, f->pft, "proto/flags/tos");
-	RFIELD(AGENT_ADDR4, aa4, "IPv4 agent addr");
-	RFIELD(AGENT_ADDR6, aa6, "IPv6 agent addr");
-	RFIELD(SRC_ADDR4, sa4, "IPv4 source addrs");
-	RFIELD(SRC_ADDR6, sa6, "IPv6 source addrs");
-	RFIELD(DST_ADDR4, da4, "IPv4 dest addrs");
-	RFIELD(DST_ADDR6, da6, "IPv6 dest addrs");
-	RFIELD(GATEWAY_ADDR4, ga4, "IPv4 gateway addr");
-	RFIELD(GATEWAY_ADDR6, ga6, "IPv6 gateway addr");
-	RFIELD(SRCDST_PORT, f->ports, "ports");
-	RFIELD(PACKETS, f->packets, "packets");
-	RFIELD(OCTETS, f->octets, "octets");
-	RFIELD(IF_INDICES, f->ifndx, "interface indicies");
-	RFIELD(AGENT_INFO, f->ainfo, "agent info");
-	RFIELD(FLOW_TIMES, f->ftimes, "info");
-	RFIELD(AS_INFO, f->asinf, "AS info");
-	RFIELD(FLOW_ENGINE_INFO, f->finf, "engine info");
-	RFIELD(CRC32, f->crc32, "crc32");
+	RFIELD(TAG, f->tag);
+	RFIELD(RECV_TIME, f->recv_time);
+	RFIELD(PROTO_FLAGS_TOS, f->pft);
+	RFIELD(AGENT_ADDR4, aa4);
+	RFIELD(AGENT_ADDR6, aa6);
+	RFIELD(SRC_ADDR4, sa4);
+	RFIELD(SRC_ADDR6, sa6);
+	RFIELD(DST_ADDR4, da4);
+	RFIELD(DST_ADDR6, da6);
+	RFIELD(GATEWAY_ADDR4, ga4);
+	RFIELD(GATEWAY_ADDR6, ga6);
+	RFIELD(SRCDST_PORT, f->ports);
+	RFIELD(PACKETS, f->packets);
+	RFIELD(OCTETS, f->octets);
+	RFIELD(IF_INDICES, f->ifndx);
+	RFIELD(AGENT_INFO, f->ainfo);
+	RFIELD(FLOW_TIMES, f->ftimes);
+	RFIELD(AS_INFO, f->asinf);
+	RFIELD(FLOW_ENGINE_INFO, f->finf);
+	RFIELD(CRC32, f->crc32);
 
 	/* Sanity check and convert addresses */
 	if (SHASFIELD(AGENT_ADDR4) && SHASFIELD(AGENT_ADDR6))
@@ -223,11 +217,10 @@ store_flow_deserialise(u_int8_t *buf, int len, struct store_flow_complete *f,
 }
 
 int
-store_get_flow(int fd, struct store_flow_complete *f, const char **errptr)
+store_get_flow(int fd, struct store_flow_complete *f, char *ebuf, int elen)
 {
 	int r, len;
 	u_int8_t buf[512];
-	static char ebuf[256];
 
 	/* Read header */
 	if ((r = atomicio(read, fd, buf, sizeof(struct store_flow))) == -1)
@@ -245,17 +238,17 @@ store_get_flow(int fd, struct store_flow_complete *f, const char **errptr)
 	if (r < len)
 		SFAILX(0, "EOF reading flow data", 0);
 
-	r = store_flow_deserialise(buf, len, f, errptr);
+	r = store_flow_deserialise(buf, len, f, ebuf, elen);
 	return (r == 0 ? 1 : r);
 }
 
 int
-store_check_header(int fd, const char **errptr)
+store_check_header(int fd, char *ebuf, int elen)
 {
 	struct store_header hdr;
 	int r;
 
-	if ((r = store_get_header(fd, &hdr, errptr)) != 0)
+	if ((r = store_get_header(fd, &hdr, ebuf, elen)) != 0)
 		return (r);
 
 	/* store_get_header does all the magic & version checks for us */
@@ -264,10 +257,9 @@ store_check_header(int fd, const char **errptr)
 }
 
 int
-store_put_header(int fd, const char **errptr)
+store_put_header(int fd, char *ebuf, int elen)
 {
 	struct store_header hdr;
-	char ebuf[512];
 	int r;
 
 	bzero(&hdr, sizeof(hdr));
@@ -287,7 +279,7 @@ store_put_header(int fd, const char **errptr)
 
 int
 store_flow_serialise(struct store_flow_complete *f, u_int8_t *buf, int len, 
-    const char **errptr)
+    char *ebuf, int elen)
 {
 	struct store_flow_AGENT_ADDR4 aa4;
 	struct store_flow_AGENT_ADDR6 aa6;
@@ -298,7 +290,6 @@ store_flow_serialise(struct store_flow_complete *f, u_int8_t *buf, int len,
 	struct store_flow_GATEWAY_ADDR4 gwa4;
 	struct store_flow_GATEWAY_ADDR6 gwa6;
 	u_int32_t fields, crc;
-	char ebuf[512];
 	int offset;
 
 	fields = ntohl(f->hdr.fields);
@@ -449,11 +440,10 @@ store_flow_serialise(struct store_flow_complete *f, u_int8_t *buf, int len,
 
 int
 store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
-    const char **errptr)
+    char *ebuf, int elen)
 {
 	u_int32_t fields, origfields;
 	off_t startpos;
-	char ebuf[512];
 	u_int8_t buf[512];
 	int len, r;
 
@@ -464,7 +454,8 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 	origfields = ntohl(flow->hdr.fields);
 	fields = origfields & fieldmask;
 
-	if ((len = store_flow_serialise(flow, buf, sizeof(buf), errptr)) == -1)
+	if ((len = store_flow_serialise(flow, buf, sizeof(buf), ebuf,
+	    elen)) == -1)
 		return (-1);
 
 	r = atomicio(vwrite, fd, buf, len);
@@ -472,16 +463,12 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 
 	if (r == len)
 		return (0);
-	else if (errptr != NULL) {
+	else if (ebuf != NULL && elen > 0) {
 		/* Record error message */
-		if (r == -1) {
-			snprintf(ebuf, sizeof(ebuf), "write flow: %s",
-			    strerror(errno));
-			*errptr = ebuf;
-		} else {
-			snprintf(ebuf, sizeof(ebuf), "EOF on write flow");
-			*errptr = ebuf;
-		}
+		if (r == -1)
+			snprintf(ebuf, elen, "write flow: %s", strerror(errno));
+		else
+			snprintf(ebuf, elen, "EOF on write flow");
 	}
 
 	/* Try to rewind to starting position, so we don't corrupt flow store */

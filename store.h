@@ -238,18 +238,18 @@ struct store_flow_complete {
 	struct store_flow_CRC32			crc32;
 } __packed;
 
-int store_get_header(int fd, struct store_header *hdr, const char **errptr);
-int store_get_flow(int fd, struct store_flow_complete *f, const char **errptr);
-int store_check_header(int fd, const char **errptr);
-int store_put_header(int fd, const char **errptr);
+int store_get_header(int fd, struct store_header *hdr, char *ebuf, int elen);
+int store_get_flow(int fd, struct store_flow_complete *f, char *ebuf, int elen);
+int store_check_header(int fd, char *ebuf, int elen);
+int store_put_header(int fd, char *ebuf, int elen);
 int store_put_flow(int fd, struct store_flow_complete *flow,
-    u_int32_t fieldmask, const char **errptr);
-int store_validate_header(struct store_header *hdr, const char **errptr);
+    u_int32_t fieldmask, char *ebuf, int elen);
+int store_validate_header(struct store_header *hdr, char *ebuf, int elen);
 int store_calc_flow_len(struct store_flow *hdr);
 int store_flow_deserialise(u_int8_t *buf, int len,
-    struct store_flow_complete *f, const char **errptr);
+    struct store_flow_complete *f, char *ebuf, int elen);
 int store_flow_serialise(struct store_flow_complete *f, u_int8_t *buf, int len, 
-    const char **errptr);
+    char *ebuf, int elen);
 
 const char *iso_time(time_t t, int utc_flag);
 const char *interval_time(time_t t);

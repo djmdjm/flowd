@@ -45,5 +45,3 @@
 - Don't record any nf9 flows unless the entire packet is valid (right now,
   we only validate to the flowset level)
   - Could at least iterate over packet and check for truncation?
-
-- make store_flow_ functions thread-safe
