@@ -37,10 +37,12 @@ rm -rf $RPM_BUILD_ROOT
 %makeinstall
 
 install -d $RPM_BUILD_ROOT/var/empty
+
 install -d $RPM_BUILD_ROOT/etc/rc.d/init.d
-install -d $RPM_BUILD_ROOT/usr/lib/perl5/site_perl
-install -m755 Flowd.pm $RPM_BUILD_ROOT/usr/lib/perl5/site_perl
 install -m755 flowd.init $RPM_BUILD_ROOT/etc/rc.d/init.d/flowd
+
+install -d $RPM_BUILD_ROOT/%{perl_sitearch}/
+install -m755 Flowd.pm $RPM_BUILD_ROOT/%{perl_sitearch}/
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -74,6 +76,7 @@ fi
 %attr(0755,root,root) %{_bindir}/flowd-reader
 %attr(0755,root,root) %config /etc/rc.d/init.d/flowd
 %attr(0755,root,root) %{_sbindir}/flowd
+%attr(0644,root,root) %{perl_sitearch}/Flowd.pm
 
 %changelog
 * Tue Aug 03 2004 Damien Miller <djm@mindrot.org>
