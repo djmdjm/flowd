@@ -51,5 +51,6 @@ struct flowd_config {
 /* parse.y */
 int parse_config(const char *, struct flowd_config *);
 int cmdline_symset(char *);
+void dump_config(struct flowd_config *c);
 
 #endif /* _FLOWD_H */

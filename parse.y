@@ -122,6 +122,7 @@ number		: STRING			{
 				YYERROR;
 			} else
 				$$ = ulval;
+
 			free($1);
 		}
 		;
@@ -137,7 +138,7 @@ string		: string STRING				{
 
 varset		: STRING '=' string		{
 			if (conf->opts & FLOWD_OPT_VERBOSE)
-				fprintf(stderr, "%s = \"%s\"\n", $1, $3);
+				syslog(LOG_DEBUG, "%s = \"%s\"", $1, $3);
 			if (symset($1, $3, 0) == -1)
 				errx(1, "cannot store variable");
 			free($1);
@@ -208,8 +209,8 @@ prefix		: STRING '/' number	{
 		}
 		;
 
-prefix_or_any	: ANY			{ memset(&$$, 0, sizeof($$)); }
-		| prefix		{ $$ = $1; }
+prefix_or_any	: ANY		{ memset(&$$, 0, sizeof($$)); }
+		| prefix	{ $$ = $1; }
 		;
 
 not		: '!'		{ $$ = 1; }
@@ -228,13 +229,9 @@ conf_main	: LISTEN ON address_port	{
 			TAILQ_INSERT_TAIL(&conf->listen_addrs, la, entry);
 		}
 		| LOGFILE string		{
-			if (conf->log_file != NULL)
-				free(conf->log_file);
 			conf->log_file = $2;
 		}
 		| PIDFILE string		{
-			if (conf->pid_file != NULL)
-				free(conf->pid_file);
 			conf->pid_file = $2;
 		}
 		| STORE logspec		{ conf->store_mask |= $2; }
@@ -471,6 +468,7 @@ match_proto	: /* empty */			{ bzero(&$$, sizeof($$)); }
 					YYERROR;
 				}
 			}
+			free($3);
 			$$.proto = proto;
 			$$.match_what |= FF_MATCH_PROTOCOL;
 			$$.match_negate |= $2 ? FF_MATCH_PROTOCOL : 0;
@@ -507,10 +505,9 @@ yyerror(const char *fmt, ...)
 	va_start(ap, fmt);
 	if (asprintf(&nfmt, "%s:%d: %s", infile, yylval.lineno, fmt) == -1)
 		errx(1, "yyerror asprintf");
-	vfprintf(stderr, nfmt, ap);
+	vsyslog(LOG_ERR, nfmt, ap);
 	va_end(ap);
 	free(nfmt);
-	fprintf(stderr, "\n");
 	return (0);
 }
 
@@ -550,11 +547,11 @@ lookup(char *s)
 
 	if (p) {
 		if (pdebug > 1)
-			fprintf(stderr, "%s: %d\n", s, p->k_val);
+			syslog(LOG_DEBUG, "%s: %d", s, p->k_val);
 		return (p->k_val);
 	} else {
 		if (pdebug > 1)
-			fprintf(stderr, "string: %s\n", s);
+			syslog(LOG_DEBUG, "string: %s", s);
 		return (STRING);
 	}
 }
@@ -772,8 +769,8 @@ parse_config(const char *filename, struct flowd_config *mconf)
 	for (sym = TAILQ_FIRST(&symhead); sym != NULL; sym = next) {
 		next = TAILQ_NEXT(sym, entry);
 		if ((conf->opts & FLOWD_OPT_VERBOSE) && !sym->used)
-			fprintf(stderr, "warning: macro \"%s\" not "
-			    "used\n", sym->nam);
+			syslog(LOG_WARNING, "warning: macro \"%s\" not used",
+			    sym->nam);
 		if (!sym->persist) {
 			free(sym->nam);
 			free(sym->val);
@@ -873,5 +870,23 @@ atoul(char *s, u_long *ulvalp)
 		return (-1);
 	*ulvalp = ulval;
 	return (0);
+}
+
+void
+dump_config(struct flowd_config *c)
+{
+	struct filter_rule *fr;
+	struct listen_addr *la;
+
+	syslog(LOG_DEBUG, "logfile \"%s\"", c->log_file);
+	syslog(LOG_DEBUG, "# store mask %08x", c->store_mask);
+	syslog(LOG_DEBUG, "# opts %08x", c->opts);
+	TAILQ_FOREACH(la, &c->listen_addrs, entry) {
+		syslog(LOG_DEBUG, "listen on [%s]:%d",
+		    addr_ntop_buf(&la->addr), la->port);
+	}
+
+	TAILQ_FOREACH(fr, &c->filter_list, entry)
+		syslog(LOG_DEBUG, "%s", format_rule(fr));
 }
 

@@ -40,7 +40,7 @@
 RCSID("$Id$");
 
 static sig_atomic_t exit_flag = 0;
-static sig_atomic_t reopen_flag = 0;
+static sig_atomic_t reconf_flag = 0;
 static sig_atomic_t info_flag = 0;
 
 /* Signal handlers */
@@ -51,9 +51,9 @@ sighand_exit(int signo)
 }
 
 static void
-sighand_reopen(int signo)
+sighand_reconf(int signo)
 {
-	reopen_flag = 1;
+	reconf_flag = 1;
 }
 
 static void
@@ -87,23 +87,6 @@ from_ntop(struct sockaddr *s, socklen_t slen)
 	snprintf(ret, sizeof(ret), "[%s]:%s", hbuf, sbuf);
 
 	return (ret);
-}
-
-static void
-dump_config(struct flowd_config *c)
-{
-	struct filter_rule *fr;
-	struct listen_addr *la;
-
-	fprintf(stderr, "logfile \"%s\"\n", c->log_file);
-	fprintf(stderr, "# store mask %08x\n", c->store_mask);
-	TAILQ_FOREACH(la, &c->listen_addrs, entry) {
-		fprintf(stderr, "listen on [%s]:%d\n",
-		    addr_ntop_buf(&la->addr), la->port);
-	}
-
-	TAILQ_FOREACH(fr, &c->filter_list, entry)
-		fprintf(stderr, "%s\n", format_rule(fr));
 }
 
 static int
@@ -450,10 +433,19 @@ flowd_mainloop(struct flowd_config *conf, int monitor_fd)
 	/* Main loop */
 	log_fd = -1;
 	for(;exit_flag == 0;) {
-		if (reopen_flag && log_fd != -1) {
-			close(log_fd);
-			log_fd = -1;
-			reopen_flag = 0;
+		if (reconf_flag) {
+			if (log_fd != -1) {
+				close(log_fd);
+				log_fd = -1;
+			}
+#ifdef notyet
+	/* This has memory leaks */
+			if (client_reconfigure(monitor_fd, conf) == -1) {
+				syslog(LOG_ERR, "reconfigure failed, exiting");
+				exit(1);
+			}
+#endif
+			reconf_flag = 0;
 		}
 		if (log_fd == -1)
 			log_fd = start_log(monitor_fd);
@@ -494,22 +486,14 @@ flowd_mainloop(struct flowd_config *conf, int monitor_fd)
 }
 
 static void
-listen_init(struct flowd_config *conf)
+startup_listen_init(struct flowd_config *conf)
 {
 	struct listen_addr *la;
 
 	TAILQ_FOREACH(la, &conf->listen_addrs, entry) {
-		if (la->fd != -1)
-			close(la->fd);
-
-		la->fd = open_listener(&la->addr, la->port);
-		if (la->fd == -1) {
+		if ((la->fd = open_listener(&la->addr, la->port)) == -1) {
 			errx(1, "Listener setup of [%s]:%d failed", 
 			    addr_ntop_buf(&la->addr), la->port);
-		}
-		if (conf->opts & FLOWD_OPT_VERBOSE) {
-			fprintf(stderr, "Listener for [%s]:%d fd = %d\n",
-			    addr_ntop_buf(&la->addr), la->port, la->fd);
 		}
 	}
 }
@@ -561,30 +545,18 @@ main(int argc, char **argv)
 		}
 	}
 
-	if (parse_config(config_file, &conf))
-		exit(1);
-
-	if (TAILQ_EMPTY(&conf.listen_addrs))
-		errx(1, "No listening addresses specified");
-	if (conf.log_file == NULL)
-		errx(1, "No log file specified");
-	if (conf.pid_file == NULL) {
-		if ((conf.pid_file = strdup(DEFAULT_PIDFILE)) == NULL)
-			errx(1, "strdup pidfile");
-	}
-
-	if (conf.opts & FLOWD_OPT_VERBOSE)
-		dump_config(&conf); 
+	if (read_config(config_file, &conf) == -1)
+		errx(1, "Config file has errors");
 
 	/* Start listening (do this early to report errors before privsep) */
-	listen_init(&conf);
+	startup_listen_init(&conf);
 
 	/* Start the monitor - we continue as the unprivileged child */
-	privsep_init(&conf, &monitor_fd);
+	privsep_init(&conf, &monitor_fd, config_file);
 
 	signal(SIGINT, sighand_exit);
 	signal(SIGTERM, sighand_exit);
-	signal(SIGHUP, sighand_reopen);
+	signal(SIGHUP, sighand_reconf);
 	signal(SIGUSR1, sighand_info);
 #ifdef SIGINFO
 	signal(SIGINFO, sighand_info);

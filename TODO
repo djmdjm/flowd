@@ -1,7 +1,5 @@
 - runtime reconfigure
-  - parse config in monitor, deep-copy to child
-  - Need to be careful about listener fds, merge changes or close+reopen??
-  - We probably leak memory in parse.y right now
+  - done, but disabled until I kill the last of the memory leaks
 
 - Per-peer statistics, esp. errors
   - Does this make sense?

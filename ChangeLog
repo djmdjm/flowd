@@ -5,6 +5,8 @@
  - (djm) Don't leak fd on logfile reopen
  - (djm) Move listener open function to privsep.c, in preparation for runtime 
    reconfigure support
+ - (djm) Implement runtime reconfigure, currently disabled because of memory 
+   leaks in config parsing code
 
 20040804
  - (djm) Don't clobber existing configuration file

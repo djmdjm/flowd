@@ -41,13 +41,156 @@ static sig_atomic_t child_exited = 0;
 static pid_t child_pid = -1;
 static int monitor_to_child_sock = -1;
 
-#define C2M_MSG_OPEN_LOG	1	/* send: nothing	ret: fdpass */
+#define C2M_MSG_OPEN_LOG	1	/* send: nothing   ret: fdpass */
+#define C2M_MSG_RECONFIGURE	2	/* send: nothing   ret: conf+fdpass */
+
+/* Utility functions */
+static char *
+privsep_read_string(int fd)
+{
+	size_t len;
+	char buf[8192], *ret;
+
+	if (atomicio(read, fd, &len, sizeof(len)) != sizeof(len)) {
+		syslog(LOG_ERR, "%s: read len: %s", __func__, strerror(errno));
+		return (NULL);
+	}
+	if (len == 0 || len >= sizeof(buf)) {
+		syslog(LOG_ERR, "%s: silly len: %u", __func__, len);
+		return (NULL);
+	}
+	if (atomicio(read, fd, buf, len) != len) {
+		syslog(LOG_ERR, "%s: read str: %s", __func__, strerror(errno));
+		return (NULL);
+	}
+	buf[len] = '\0';
+	if ((ret = strdup(buf)) == NULL)
+		syslog(LOG_ERR, "%s: strdup failed", __func__);
+	return (ret);
+}
+
+static int
+privsep_write_string(int fd, char *s)
+{
+	size_t len;
+
+	if ((len = strlen(s)) == 0) {
+		syslog(LOG_ERR, "%s: silly len: %u", __func__, len);
+		return (-1);
+	}
+	if (atomicio(vwrite, fd, &len, sizeof(len)) != sizeof(len)) {
+		syslog(LOG_ERR, "%s: write len: %s", __func__, strerror(errno));
+		return (-1);
+	}
+	if (atomicio(vwrite, fd, s, len) != len) {
+		syslog(LOG_ERR, "%s: write(str): %s", __func__, strerror(errno));
+		return (-1);
+	}
+
+	return (0);
+}
+
+static int
+write_pid_file(const char *path)
+{
+	FILE *pid_file;
+
+	if ((pid_file = fopen(path, "w")) == NULL) {
+		syslog(LOG_ERR, "fopen(%s): %s", path, strerror(errno));
+		return (-1);
+	}
+	if (fprintf(pid_file, "%ld\n", (long)getpid()) == -1) {
+		syslog(LOG_ERR, "fprintf(%s): %s", path, strerror(errno));
+		return (-1);
+	}
+	fclose(pid_file);
+
+	return (0);
+}
+
+int
+read_config(const char *path, struct flowd_config *conf)
+{
+	syslog(LOG_DEBUG, "%s: entering", __func__);
+
+	if (parse_config(path, conf))
+		return (-1);
+
+	if (TAILQ_EMPTY(&conf->listen_addrs)) {
+		syslog(LOG_ERR, "No listening addresses specified");
+		return (-1);
+	}
+	if (conf->log_file == NULL) {
+		syslog(LOG_ERR, "No log file specified");
+		return (-1);
+	}
+	if (conf->pid_file == NULL && 
+	    (conf->pid_file = strdup(DEFAULT_PIDFILE)) == NULL) {
+		syslog(LOG_ERR, "strdup pidfile");
+		return (-1);
+	}
+
+	if (conf->opts & FLOWD_OPT_VERBOSE)
+		dump_config(conf); 
+
+	return (0);
+}
+
+int
+open_listener(struct xaddr *addr, u_int16_t port)
+{
+	int fd, fl;
+	struct sockaddr_storage ss;
+	socklen_t slen = sizeof(ss);
+
+	if (addr_xaddr_to_sa(addr, (struct sockaddr *)&ss, &slen, port) == -1) {
+		syslog(LOG_ERR, "addr_xaddr_to_sa");
+		return (-1);
+	}
+
+	if ((fd = socket(addr->af, SOCK_DGRAM, 0)) == -1) {
+		syslog(LOG_ERR, "socket: %s", strerror(errno));
+		return (-1);
+	}
+
+	/* Set non-blocking */
+	if ((fl = fcntl(fd, F_GETFL, 0)) == -1) {
+		syslog(LOG_ERR, "fcntl(%d, F_GETFL, 0): %s",
+		    fd, strerror(errno));
+		return (-1);
+	}
+	fl |= O_NONBLOCK;
+	if (fcntl(fd, F_SETFL, fl) == -1) {
+		syslog(LOG_ERR, "fcntl(%d, F_SETFL, O_NONBLOCK): %s",
+		    fd, strerror(errno));
+		return (-1);
+	}
+
+	/* Set v6-only for AF_INET6 sockets (no mapped address crap) */
+	fl = 1;
+	if (addr->af == AF_INET6 &&
+	    setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &fl, sizeof(fl)) == -1) {
+		syslog(LOG_ERR, "setsockopt(IPV6_V6ONLY): %s", strerror(errno));
+		return (-1);
+	}
+
+	if (bind(fd, (struct sockaddr *)&ss, slen) == -1) {
+		syslog(LOG_ERR, "bind: %s", strerror(errno));
+		return (-1);
+	}
+
+	syslog(LOG_DEBUG, "Listener for [%s]:%d fd = %d", addr_ntop_buf(addr),
+	    port, fd);
+
+	return (fd);
+}
 
 /* Client functions */
 int
 client_open_log(int monitor_fd)
 {
-	int fd = -1, msg = C2M_MSG_OPEN_LOG;
+	int fd = -1;
+	u_int msg = C2M_MSG_OPEN_LOG;
 
 	syslog(LOG_DEBUG, "%s: entering", __func__);
 
@@ -60,6 +203,131 @@ client_open_log(int monitor_fd)
 
 	return (fd);
 
+}
+
+int
+client_reconfigure(int monitor_fd, struct flowd_config *conf)
+{
+	u_int msg = C2M_MSG_RECONFIGURE, n, i, ok;
+	struct listen_addr *la;
+	struct filter_rule *fr;
+
+	syslog(LOG_DEBUG, "%s: entering", __func__);
+
+	if (atomicio(vwrite, monitor_fd, &msg, sizeof(msg)) != sizeof(msg)) {
+		syslog(LOG_ERR, "%s: write: %s", __func__, strerror(errno));
+		return (-1);
+	}
+
+	free(conf->log_file);
+	free(conf->pid_file);
+	while ((la = TAILQ_FIRST(&conf->listen_addrs)) != NULL) {
+		close(la->fd);
+		TAILQ_REMOVE(&conf->listen_addrs, la, entry);
+		free(la);
+	}
+	while ((fr = TAILQ_FIRST(&conf->filter_list)) != NULL) {
+		TAILQ_REMOVE(&conf->filter_list, fr, entry);
+		free(fr);
+	}
+	bzero(conf, sizeof(*conf));
+	TAILQ_INIT(&conf->listen_addrs);
+	TAILQ_INIT(&conf->filter_list);
+
+	syslog(LOG_DEBUG, "%s: ready to receive config", __func__);
+
+	if (atomicio(read, monitor_fd, &ok, sizeof(ok)) != sizeof(ok)) {
+		syslog(LOG_ERR, "%s: read(ok): %s", __func__,
+		    strerror(errno));
+		return (-1);
+	}
+	if (!ok) {
+		syslog(LOG_ERR, "New config is invalid");
+		return (-1);
+	}
+
+	if ((conf->log_file = privsep_read_string(monitor_fd)) == NULL) {
+		syslog(LOG_ERR, "%s: Couldn't read conf.log_file", __func__);
+		return (-1);
+	}
+	if ((conf->pid_file = privsep_read_string(monitor_fd)) == NULL) {
+		syslog(LOG_ERR, "%s: Couldn't read conf.pid_file", __func__);
+		return (-1);
+	}
+		
+	if (atomicio(read, monitor_fd, &conf->store_mask,
+	    sizeof(conf->store_mask)) != sizeof(conf->store_mask)) {
+		syslog(LOG_ERR, "%s: read(conf.store_mask): %s", __func__,
+		    strerror(errno));
+		return (-1);
+	}
+
+	if (atomicio(read, monitor_fd, &conf->opts, sizeof(conf->opts)) !=
+	    sizeof(conf->opts)) {
+		syslog(LOG_ERR, "%s: read(conf.opts): %s", __func__,
+		    strerror(errno));
+		return (-1);
+	}
+
+	/* Read Listen Addrs */
+	if (atomicio(read, monitor_fd, &n, sizeof(n)) != sizeof(n)) {
+		syslog(LOG_ERR, "%s: read(num listen_addrs): %s", __func__,
+		    strerror(errno));
+		return (-1);
+	}
+	if (n == 0 || n > 8192) {
+		syslog(LOG_ERR, "%s: silly number of listen_addrs: %d",
+		    __func__, n);
+		return (-1);
+	}
+	syslog(LOG_DEBUG, "%s: reading %u listen_addrs", __func__, n);
+	for (i = 0; i < n; i++) {
+		if ((la = calloc(1, sizeof(*la))) == NULL) {
+			syslog(LOG_ERR, "%s: calloc", __func__);
+			return (-1);
+		}
+		if (atomicio(read, monitor_fd, la,
+		    sizeof(*la)) != sizeof(*la)) {
+			syslog(LOG_ERR, "%s: read(listen_addr): %s", __func__,
+			    strerror(errno));
+			return (-1);
+		}
+		if ((la->fd = receive_fd(monitor_fd)) == -1) {
+			free(la);
+			return (-1);
+		}
+		TAILQ_INSERT_TAIL(&conf->listen_addrs, la, entry);
+	}
+
+	/* Read Filter Rules */
+	if (atomicio(read, monitor_fd, &n, sizeof(n)) != sizeof(n)) {
+		syslog(LOG_ERR, "%s: read(num filter_rules): %s", __func__,
+		    strerror(errno));
+		return (-1);
+	}
+	if (n == 0 || n > 1024*1024) {
+		syslog(LOG_ERR, "%s: silly number of filter_rules: %d",
+		    __func__, n);
+		return (-1);
+	}
+	syslog(LOG_DEBUG, "%s: reading %u filter_rules", __func__, n);
+	for (i = 0; i < n; i++) {
+		if ((fr = calloc(1, sizeof(*fr))) == NULL) {
+			syslog(LOG_ERR, "%s: calloc", __func__);
+			return (-1);
+		}
+		if (atomicio(read, monitor_fd, fr,
+		    sizeof(*fr)) != sizeof(*fr)) {
+			syslog(LOG_ERR, "%s: read(filter_rule): %s", __func__,
+			    strerror(errno));
+			return (-1);
+		}
+		TAILQ_INSERT_TAIL(&conf->filter_list, fr, entry);
+	}
+
+	dump_config(conf); 
+
+	return (0);
 }
 
 /* Client answer functions */
@@ -78,6 +346,146 @@ answer_open_log(struct flowd_config *conf, int client_fd)
 	if (send_fd(client_fd, fd) == -1)
 		return (-1);
 	close(fd);
+	return (0);
+}
+
+static int
+answer_reconfigure(struct flowd_config *conf, int client_fd,
+    const char *config_path)
+{
+	u_int n, ok;
+	struct listen_addr *la;
+	struct filter_rule *fr;
+	struct flowd_config newconf;
+
+	bzero(&newconf, sizeof(newconf));
+	TAILQ_INIT(&newconf.listen_addrs);
+	TAILQ_INIT(&newconf.filter_list);
+
+	/* Transfer all options not set in config file */
+	newconf.opts |= conf->opts & (FLOWD_OPT_VERBOSE);
+
+	syslog(LOG_DEBUG, "%s: entering", __func__);
+
+	if (read_config(config_path, &newconf) == -1) {
+		syslog(LOG_ERR, "New config has errors");
+		return (-1);
+	}
+
+	ok = 1;
+	TAILQ_FOREACH(la, &newconf.listen_addrs, entry) {
+		if ((la->fd = open_listener(&la->addr, la->port)) == -1) {
+			syslog(LOG_ERR, "Listener setup of [%s]:%d failed", 
+			    addr_ntop_buf(&la->addr), la->port);
+			ok = 0;
+			break;
+		}
+	}
+	syslog(LOG_DEBUG, "%s: post listener open, ok = %d", __func__, ok);
+	if (atomicio(vwrite, client_fd, &ok, sizeof(ok)) != sizeof(ok)) {
+		syslog(LOG_ERR, "%s: write(ok): %s", __func__,
+		    strerror(errno));
+		return (-1);
+	}
+	if (ok == 0)
+		return (-1);
+
+	if (privsep_write_string(client_fd, newconf.log_file) == -1) {
+		syslog(LOG_ERR, "%s: Couldn't write newconf.log_file",
+		    __func__);
+		return (-1);
+	}
+	if (privsep_write_string(client_fd, newconf.pid_file) == -1) {
+		syslog(LOG_ERR, "%s: Couldn't read newconf.pid_file",
+		    __func__);
+		return (-1);
+	}
+		
+	if (atomicio(vwrite, client_fd, &newconf.store_mask,
+	    sizeof(newconf.store_mask)) != sizeof(newconf.store_mask)) {
+		syslog(LOG_ERR, "%s: write(newconf.store_mask): %s", __func__,
+		    strerror(errno));
+		return (-1);
+	}
+
+	if (atomicio(vwrite, client_fd, &newconf.opts,
+	    sizeof(newconf.opts)) != sizeof(newconf.opts)) {
+		syslog(LOG_ERR, "%s: write(newconf.opts): %s", __func__,
+		    strerror(errno));
+		return (-1);
+	}
+
+	/* Write Listen Addrs */
+	n = 0;
+	TAILQ_FOREACH(la, &newconf.listen_addrs, entry)
+		n++;
+	syslog(LOG_DEBUG, "%s: writing %u listen_addrs", __func__, n);
+	if (atomicio(vwrite, client_fd, &n, sizeof(n)) != sizeof(n)) {
+		syslog(LOG_ERR, "%s: write(num listen_addrs): %s", __func__,
+		    strerror(errno));
+		return (-1);
+	}
+	TAILQ_FOREACH(la, &newconf.listen_addrs, entry) {
+		if (atomicio(vwrite, client_fd, la,
+		    sizeof(*la)) != sizeof(*la)) {
+			syslog(LOG_ERR, "%s: write(listen_addr): %s", __func__,
+			    strerror(errno));
+			return (-1);
+		}
+		if (send_fd(client_fd, la->fd) == -1)
+			return (-1);
+		close(la->fd);
+		la->fd = -1;
+	}
+
+	/* Write Filter Rules */
+	n = 0;
+	TAILQ_FOREACH(fr, &newconf.filter_list, entry)
+		n++;
+	syslog(LOG_DEBUG, "%s: writing %u filter_rules", __func__, n);
+	if (atomicio(vwrite, client_fd, &n, sizeof(n)) != sizeof(n)) {
+		syslog(LOG_ERR, "%s: write(num filter_rules): %s", __func__,
+		    strerror(errno));
+		return (-1);
+	}
+	TAILQ_FOREACH(fr, &newconf.filter_list, entry) {
+		if (atomicio(vwrite, client_fd, fr,
+		    sizeof(*fr)) != sizeof(*fr)) {
+			syslog(LOG_ERR, "%s: write(filter_rule): %s", __func__,
+			    strerror(errno));
+			return (-1);
+		}
+	}
+
+	/* Cleanup old config and move new one into place */
+
+	unlink(conf->pid_file);
+
+	free(conf->log_file);
+	free(conf->pid_file);
+	while ((la = TAILQ_FIRST(&conf->listen_addrs)) != NULL) {
+		TAILQ_REMOVE(&conf->listen_addrs, la, entry);
+		free(la);
+	}
+	while ((fr = TAILQ_FIRST(&conf->filter_list)) != NULL) {
+		TAILQ_REMOVE(&conf->filter_list, fr, entry);
+		free(fr);
+	}
+
+	memcpy(conf, &newconf, sizeof(*conf));
+	TAILQ_INIT(&conf->listen_addrs);
+	TAILQ_INIT(&conf->filter_list);
+
+	TAILQ_FOREACH(la, &newconf.listen_addrs, entry)
+		TAILQ_INSERT_TAIL(&conf->listen_addrs, la, entry);
+	TAILQ_FOREACH(fr, &newconf.filter_list, entry)
+		TAILQ_INSERT_TAIL(&conf->filter_list, fr, entry);
+
+	if (write_pid_file(conf->pid_file) == -1)
+		return (-1);
+
+	syslog(LOG_DEBUG, "%s: done", __func__);
+
 	return (0);
 }
 
@@ -106,9 +514,10 @@ sighand_reopen(int signo)
 }
 
 static void
-privsep_master(struct flowd_config *conf)
+privsep_master(struct flowd_config *conf, const char *config_path)
 {
-	int status, what, r;
+	int status, r;
+	u_int what;
 
 	for (;!child_exited;) {
 		r = atomicio(read, monitor_to_child_sock, &what, sizeof(what));
@@ -126,6 +535,13 @@ privsep_master(struct flowd_config *conf)
 		switch (what) {
 		case C2M_MSG_OPEN_LOG:
 			if (answer_open_log(conf, monitor_to_child_sock)) {
+				unlink(conf->pid_file);
+				exit(1);
+			}
+			break;
+		case C2M_MSG_RECONFIGURE:
+			if (answer_reconfigure(conf, monitor_to_child_sock, 
+			    config_path)) {
 				unlink(conf->pid_file);
 				exit(1);
 			}
@@ -157,12 +573,12 @@ privsep_master(struct flowd_config *conf)
 }
 
 void
-privsep_init(struct flowd_config *conf, int *child_to_monitor_sock)
+privsep_init(struct flowd_config *conf, int *child_to_monitor_sock, 
+    const char *config_path)
 {
 	int s[2], devnull;
 	struct passwd *pw;
 	struct listen_addr *la;
-	FILE *pid_file;
 
 	syslog(LOG_DEBUG, "%s: entering", __func__);
 
@@ -237,70 +653,16 @@ privsep_init(struct flowd_config *conf, int *child_to_monitor_sock)
 			la->fd = -1;
 		}
 		setproctitle("monitor");
-		if ((pid_file = fopen(conf->pid_file, "w")) == NULL) {
-			syslog(LOG_ERR, "fopen(%s): %s", conf->pid_file,
-			    strerror(errno));
+		if (write_pid_file(conf->pid_file) == -1)
 			exit(1);
-		}
-		if (fprintf(pid_file, "%ld\n", (long)getpid()) == -1) {
-			syslog(LOG_ERR, "fprintf(pid_file): %s", 
-			    strerror(errno));
-			exit(1);
-		}
-		fclose(pid_file);
 
 		signal(SIGINT, sighand_exit);
 		signal(SIGTERM, sighand_exit);
 		signal(SIGHUP, sighand_reopen);
 		signal(SIGCHLD, sighand_child);
 
-		privsep_master(conf);
+		privsep_master(conf, config_path);
 	}
 	/* NOTREACHED */
 }
 
-int
-open_listener(struct xaddr *addr, u_int16_t port)
-{
-	int fd, fl;
-	struct sockaddr_storage ss;
-	socklen_t slen = sizeof(ss);
-
-	if (addr_xaddr_to_sa(addr, (struct sockaddr *)&ss, &slen, port) == -1) {
-		syslog(LOG_ERR, "addr_xaddr_to_sa");
-		return (-1);
-	}
-
-	if ((fd = socket(addr->af, SOCK_DGRAM, 0)) == -1) {
-		syslog(LOG_ERR, "socket: %s", strerror(errno));
-		return (-1);
-	}
-
-	/* Set non-blocking */
-	if ((fl = fcntl(fd, F_GETFL, 0)) == -1) {
-		syslog(LOG_ERR, "fcntl(%d, F_GETFL, 0): %s",
-		    fd, strerror(errno));
-		return (-1);
-	}
-	fl |= O_NONBLOCK;
-	if (fcntl(fd, F_SETFL, fl) == -1) {
-		syslog(LOG_ERR, "fcntl(%d, F_SETFL, O_NONBLOCK): %s",
-		    fd, strerror(errno));
-		return (-1);
-	}
-
-	/* Set v6-only for AF_INET6 sockets (no mapped address crap) */
-	fl = 1;
-	if (addr->af == AF_INET6 &&
-	    setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &fl, sizeof(fl)) == -1) {
-		syslog(LOG_ERR, "setsockopt(IPV6_V6ONLY): %s", strerror(errno));
-		return (-1);
-	}
-
-	if (bind(fd, (struct sockaddr *)&ss, slen) == -1) {
-		syslog(LOG_ERR, "bind: %s", strerror(errno));
-		return (-1);
-	}
-
-	return (fd);
-}
