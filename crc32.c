@@ -25,6 +25,7 @@
  */
 
 #include <sys/types.h>
+#include "common.h"
 #include "crc32.h"
 
 RCSID("$Id$");

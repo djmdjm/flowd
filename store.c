@@ -25,6 +25,7 @@
 #include <time.h>
 #include <poll.h>
 
+#include "common.h"
 #include "store.h"
 #include "atomicio.h"
 #include "crc32.h"

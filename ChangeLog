@@ -6,6 +6,7 @@
  - (djm) Allow building of Perl and Python modules without running configure
    first - useful if building against a system copy of libflowd
  - (djm) Don't clobber perl or python modules in "make distclean"
+ - (djm) Build fixes for Linux
 
 20041102
  - (djm) Crank versions to prepare for release

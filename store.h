@@ -21,6 +21,13 @@
 #ifndef _STORE_H
 #define _STORE_H
 
+#if defined(HAVE_SYS_CDEFS_H)
+# include <sys/cdefs.h> /* For __packed, etc on platforms that have it */
+#endif
+#if defined(__GNUC__) && !defined(__packed)
+# define __packed __attribute__((__packed__))
+#endif
+
 #include "addr.h"
 
 /* On-disk address formats for v4 and v6 addresses */

@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <poll.h>
 
+#include "common.h"
 #include "store.h"
 #include "atomicio.h"
 
