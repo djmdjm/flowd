@@ -854,6 +854,7 @@ process_netflow_v9_data(u_int8_t *pkt, size_t len, struct peer_state *peer,
 
 		offset += template->total_len;
 	}
+	*num_flows = i;
 
 	return (0);
 }
