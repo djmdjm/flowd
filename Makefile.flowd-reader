@@ -1,0 +1,20 @@
+#	$Id$
+
+PROG=	flowd-reader
+
+SRCS=	flowd-reader.c atomicio.c store.c addr.c
+
+CFLAGS+= -Wall -I${.CURDIR}
+CFLAGS+= -Wstrict-prototypes -Wmissing-prototypes
+CFLAGS+= -Wmissing-declarations
+CFLAGS+= -Wshadow -Wpointer-arith -Wcast-qual
+CFLAGS+= -Wsign-compare
+CFLAGS+= -Werror
+YFLAGS=
+
+DEBUG=-g
+
+MAN=
+#MAN= flowd.8 flowd.conf.5
+
+.include <bsd.prog.mk>
