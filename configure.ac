@@ -242,3 +242,6 @@ AC_EXEEXT
 AC_CONFIG_FILES([Makefile flowd.8 flowd-reader.8 flowd.conf.5 flowd.py setup.py Flowd.pm])
 AC_OUTPUT
 
+# Fix permissions on setup.py
+chmod a+x setup.py
+
