@@ -1,4 +1,4 @@
-%define ver 0.4.2
+%define ver 0.5
 %define rel 1
 
 # Python < 2.3 (e.g. Redhat 9) doesn't have everything we need, so it may be

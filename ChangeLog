@@ -3,6 +3,7 @@
    jon AT exalia.com
  - (djm) Generate version number from autoconf, rather than hardcoding old (!)
    value in Makefile; found by jon AT exalia.com
+ - (djm) Release flowd-0.5
 
 20040914
  - (djm) Use a table-based parser in Flowd.pm, like the python code
