@@ -21,9 +21,8 @@ to add a listener. E.g.:
 
 SYSLOGD_OPTIONS="-m 0 -a /var/empty/dev/log"
 
-[2] The socket module in Python-2.2 seems to lack the inet_pton() function 
-that flowd.py uses for address translations. Right now, we only support 
-Python 2.3 (Redhat 9 ships with Python 2.2)
+[2] Python-2.3 is required and this platform lacks it by default, so the 
+Python API is unavailable, unless you have installed Python by default
 
 [3] Solaris includes Berkeley yacc by default, but you will need to add 
 /usr/ccs/bin to your $PATH. E.g.
