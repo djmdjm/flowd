@@ -104,11 +104,14 @@ store_get_flow(int fd, struct store_flow_complete *f, char **errptr)
 	u_int32_t fields, crc;
 
 	bzero(f, sizeof(*f));
+	crc32_start(&crc);
 
 	/* Return -1 on error or 0 on eof */
 	r = read_field(fd, &f->hdr, sizeof(f->hdr), errptr, "header");
 	if (r == 0 || r == -1)
 		return (r);
+
+	crc32_update((u_char *)&f->hdr, sizeof(f->hdr), &crc);
 
 	fields = ntohl(f->hdr.fields);
 
@@ -126,9 +129,6 @@ store_get_flow(int fd, struct store_flow_complete *f, char **errptr)
 			} \
 		} \
 	} while (0)
-
-	if (SHASFIELD(CRC32))
-		crc32_start(&crc);
 
 	RFIELD(PROTO_FLAGS_TOS, f->pft, "proto/flags/tos");
 	RFIELD(AGENT_ADDR4, aa4, "IPv4 agent addr");
@@ -223,8 +223,8 @@ write_flow(int fd, char **errptr,
 	int r;
 	u_int32_t crc;
 
-	if (fields & (STORE_FIELD_CRC32))
-		crc32_start(&crc);
+	crc32_start(&crc);
+	crc32_update((u_char *)&flow->hdr, sizeof(flow->hdr), &crc);
 
 	if ((r = atomicio(vwrite, fd, &flow->hdr, sizeof(flow->hdr))) == -1)
 		SFAIL(-1, "write flow header");
