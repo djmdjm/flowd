@@ -101,8 +101,8 @@ static int
 start_log(int monitor_fd)
 {
 	int fd;
-	struct store_header hdr;
 	off_t pos;
+	char *e;
 
 	if ((fd = client_open_log(monitor_fd)) == -1) {
 		syslog(LOG_CRIT, "Logfile open failed, exiting");
@@ -127,159 +127,20 @@ start_log(int monitor_fd)
 
 	syslog(LOG_DEBUG, "Writing new logfile header");
 
-	bzero(&hdr, sizeof(hdr));
-	hdr.magic = htonl(STORE_MAGIC);
-	hdr.version = htonl(STORE_VERSION);
-	hdr.start_time = htonl(time(NULL));
-	hdr.flags = htonl(0);
-
-	if (atomicio(vwrite, fd, &hdr, sizeof(hdr)) != sizeof(hdr)) {
-		syslog(LOG_CRIT, "%s: write log header failed, exiting: %s",
-		    __func__, strerror(errno));
+	if (store_put_header(fd, &e) != 0) {
+		syslog(LOG_CRIT, "%s: Exiting on %s", __func__, e);
 		exit(1);
 	}
 
 	return (fd);
 }
 
-static int
-store_flow(int fd, struct store_flow_complete *flow)
-{
-	struct store_flow_AGENT_ADDR_V4 aa4;
-	struct store_flow_AGENT_ADDR_V6 aa6;
-	struct store_flow_SRCDST_ADDR_V4 sda4;
-	struct store_flow_SRCDST_ADDR_V6 sda6;
-	struct store_flow_GATEWAY_ADDR_V4 gwa4;
-	struct store_flow_GATEWAY_ADDR_V6 gwa6;
-	u_int32_t fieldspec;
-	off_t startpos;
-
-	syslog(LOG_DEBUG, "%s: entering", __func__);
-
-	/* Remember where we started, so we can back errors out */	
-	if ((startpos = lseek(fd, 0, SEEK_CUR)) == -1) {
-		syslog(LOG_CRIT, "%s: lseek: %s", __func__, strerror(errno));
-		return (-1);
-	}
-
-	/* Convert addresses and set AF fields correctly */
-
-	switch(flow->agent_addr.af) {
-	case AF_INET:
-		memcpy(&aa4.flow_agent_addr, &flow->agent_addr.v4,
-		    sizeof(aa4.flow_agent_addr));
-		flow->hdr.fields |= STORE_FIELD_AGENT_ADDR4;
-		break;
-	case AF_INET6:
-		memcpy(&aa6.flow_agent_addr, &flow->agent_addr.v6,
-		    sizeof(aa6.flow_agent_addr));
-		flow->hdr.fields |= STORE_FIELD_AGENT_ADDR6;
-		break;
-	default:
-		syslog(LOG_WARNING, "%s: silly agent addr af", __func__);
-		return (-1);
-	}
-
-	/* NB. Assume that this is the same as dst_addr.af */
-	switch(flow->src_addr.af) {
-	case AF_INET:
-		memcpy(&sda4.src_addr, &flow->src_addr.v4,
-		    sizeof(sda4.src_addr));
-		memcpy(&sda4.dst_addr, &flow->dst_addr.v4,
-		    sizeof(sda4.dst_addr));
-		flow->hdr.fields |= STORE_FIELD_SRCDST_ADDR4;
-		break;
-	case AF_INET6:
-		memcpy(&sda6.src_addr, &flow->src_addr.v6,
-		    sizeof(sda6.src_addr));
-		memcpy(&sda6.dst_addr, &flow->dst_addr.v6,
-		    sizeof(sda6.dst_addr));
-		flow->hdr.fields |= STORE_FIELD_SRCDST_ADDR6;
-		break;
-	default:
-		syslog(LOG_WARNING, "%s: silly src/dst addr af", __func__);
-		return (-1);
-	}
-	
-	switch(flow->gateway_addr.af) {
-	case AF_INET:
-		memcpy(&gwa4.gateway_addr, &flow->gateway_addr.v4,
-		    sizeof(gwa4.gateway_addr));
-		flow->hdr.fields |= STORE_FIELD_GATEWAY_ADDR4;
-		break;
-	case AF_INET6:
-		memcpy(&gwa6.gateway_addr, &flow->gateway_addr.v6,
-		    sizeof(gwa6.gateway_addr));
-		flow->hdr.fields |= STORE_FIELD_GATEWAY_ADDR6;
-		break;
-	default:
-		syslog(LOG_WARNING, "%s: silly gateway addr af", __func__);
-		return (-1);
-	}
-
-	fieldspec = flow->hdr.fields;
-
-	flow->hdr.tag = htonl(flow->hdr.tag);
-	flow->hdr.recv_secs = htonl(flow->hdr.recv_secs);
-	flow->hdr.fields = htonl(flow->hdr.fields);
-
-	/* Now write out the flow */
-	if (atomicio(vwrite, fd, &flow->hdr, sizeof(flow->hdr)) !=
-	    sizeof(flow->hdr))
-		goto fail;
-
-	syslog(LOG_DEBUG, "%s: write fields %x", __func__, fieldspec);
-
-#define WRITEOUT(spec, what) do {  \
-	if ((fieldspec & (spec))) { \
-		syslog(LOG_DEBUG, "writing %s len %d", #spec, sizeof(what)); \
-		if (atomicio(vwrite, fd, &(what), sizeof(what)) \
-		    != sizeof(what))  \
-			goto fail; \
-	}  } while (0)
-
-	WRITEOUT(STORE_FIELD_PROTO_FLAGS_TOS, flow->pft);
-	WRITEOUT(STORE_FIELD_AGENT_ADDR4, aa4);
-	WRITEOUT(STORE_FIELD_AGENT_ADDR6, aa6);
-	WRITEOUT(STORE_FIELD_SRCDST_ADDR4, sda4);
-	WRITEOUT(STORE_FIELD_SRCDST_ADDR6, sda6);
-	WRITEOUT(STORE_FIELD_GATEWAY_ADDR4, gwa4);
-	WRITEOUT(STORE_FIELD_GATEWAY_ADDR6, gwa6);
-	WRITEOUT(STORE_FIELD_SRCDST_PORT, flow->ports);
-	WRITEOUT(STORE_FIELD_PACKETS_OCTETS, flow->counters);
-	WRITEOUT(STORE_FIELD_IF_INDICES, flow->ifndx);
-	WRITEOUT(STORE_FIELD_AGENT_INFO, flow->ainfo);
-	WRITEOUT(STORE_FIELD_FLOW_TIMES, flow->ftimes);
-	WRITEOUT(STORE_FIELD_AS_INFO, flow->asinf);
-	WRITEOUT(STORE_FIELD_FLOW_ENGINE_INFO, flow->finf);
-#undef WRITEOUT
-
-	return (0);
-
- fail:
-	syslog(LOG_ERR, "%s: write failed: %s", __func__, strerror(errno));
-
-	/* Try to rewind to starting position, so we don't corrupt flow store */	
-	if (lseek(fd, startpos, SEEK_SET) == -1) {
-		syslog(LOG_ERR, "%s: lseek: %s", __func__, strerror(errno));
-		goto hardfail;
-	}
-	if (ftruncate(fd, startpos) == -1) {
-		syslog(LOG_ERR, "%s: ftruncate: %s", __func__, strerror(errno));
-		goto hardfail;
-	}
-	/* Partial flow record has been removed */
-	return (-1);
-
- hardfail:
-	syslog(LOG_CRIT, "%s: couldn't back error, exiting", __func__);
-	exit(1);
-}
-
 static void 
 process_flow(struct store_flow_complete *flow, struct flowd_config *conf,
     int log_fd)
 {
+	char *e;
+
 	syslog(LOG_DEBUG, "%s: entering", __func__);
 
 	/* Another sanity check */
@@ -289,11 +150,19 @@ process_flow(struct store_flow_complete *flow, struct flowd_config *conf,
 		return;
 	}
 
+	/* Prepare for writing */
+	flow->hdr.tag = htonl(flow->hdr.tag);
+	flow->hdr.recv_secs = htonl(flow->hdr.recv_secs);
+	flow->hdr.fields = htonl(flow->hdr.fields);
+
 	if (filter_flow(flow, &conf->filter_list) == FF_ACTION_DISCARD)
 		return; /* XXX log? count (against rule?) */
 
-	if (store_flow(log_fd, flow) == -1)
-		syslog(LOG_WARNING, "%s: store_flow failed", __func__);
+	if (store_put_flow(log_fd, flow, &e) != 0) {
+		syslog(LOG_CRIT, "%s: exiting on %s", __func__, e);
+		exit(1);
+	}
+
 	/* XXX reopen log file on one failure, exit on multiple */
 }
 
@@ -369,6 +238,7 @@ process_netflow_v1(u_int8_t *pkt, size_t len, struct sockaddr *from,
 		flow.ainfo.sys_uptime_ms = nf1_hdr->uptime_ms;
 		flow.ainfo.time_sec = nf1_hdr->time_sec;
 		flow.ainfo.time_nanosec = nf1_hdr->time_nanosec;
+		flow.ainfo.netflow_version = nf1_hdr->c.version;
 
 		flow.ftimes.flow_start = nf1_flow->flow_start;
 		flow.ftimes.flow_finish = nf1_flow->flow_finish;
@@ -447,6 +317,7 @@ process_netflow_v5(u_int8_t *pkt, size_t len, struct sockaddr *from,
 		flow.ainfo.sys_uptime_ms = nf5_hdr->uptime_ms;
 		flow.ainfo.time_sec = nf5_hdr->time_sec;
 		flow.ainfo.time_nanosec = nf5_hdr->time_nanosec;
+		flow.ainfo.netflow_version = nf5_hdr->c.version;
 
 		flow.ftimes.flow_start = nf5_flow->flow_start;
 		flow.ftimes.flow_finish = nf5_flow->flow_finish;

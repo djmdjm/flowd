@@ -175,4 +175,9 @@ struct store_flow_complete {
 	struct store_flow_FLOW_ENGINE_INFO	finf;
 } __packed;
 
+int store_get_header(int fd, struct store_header *hdr, char **errptr);
+int store_get_flow(int fd, struct store_flow_complete *f, char **errptr);
+int store_put_header(int fd, char **errptr);
+int store_put_flow(int fd, struct store_flow_complete *flow, char **errptr);
+
 #endif /* _STORE_H */
