@@ -22,7 +22,9 @@
 .Nd NetFlow collector daemon
 .Sh SYNOPSIS
 .Nm flowd
-.Op Fl hd
+.Op Fl hdg
+.Oo Fl D
+.Ar macro Ns = Ns Ar value Oc
 .Op Fl f Ar config_file
 .Ar command
 .Sh DESCRIPTION
@@ -69,6 +71,13 @@ or
 .Pp
 The command-line options are as follows:
 .Bl -tag -width Ds
+.It Fl D Ar macro Ns = Ns Ar value
+defines the name macro, which can then be used later in the config file.
+Refer to the
+.Cm MACROS
+section in
+.Xr flowd.conf 5
+for more information on the use of macros.
 .It Fl d
 Places
 .Nm
@@ -77,6 +86,11 @@ In this mode,
 .Nm
 will not fork to the background and will print verbose diagnostics, including
 details of each flow received.
+.It Fl g
+Causes
+.Nm
+not to fork and background itself.
+Logging will be reported to stderr instead of syslog.
 .It Fl f Ar config_file
 Specify an alternate location for the configuration file
 Default is 

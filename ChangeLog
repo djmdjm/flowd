@@ -2,6 +2,7 @@
  - (djm) Kill whitespace at EOL, improve nf9 debugging
  - (djm) Add option to keep flowd in foreground without verbose debugging; 
    patch from lars AT unet.net.ph
+ - (djm) Document new -g and existing -D options
 
 20040929
  - (djm) Don't refuse to write flows lacking gateway addr
