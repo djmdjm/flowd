@@ -19,7 +19,9 @@
 #ifndef _FLOWD_COMMON_H
 #define _FLOWD_COMMON_H
 
+#ifdef HAVE_CONFIG_H
 #include "config.h"
+#endif
 
 #if defined(HAVE_SYS_CDEFS_H)
 # include <sys/cdefs.h>
@@ -48,9 +50,23 @@
 # include <endian.h>
 #endif
 
-#define RCSID(msg) \
+#ifndef RCSID
+# define RCSID(msg) \
 	static /**/const char *const flowd_rcsid[] =		\
-	    { (const char *)flowd_rcsid, "\100(#)" msg }	\
+	    { (const char *)flowd_rcsid, "\100(#)" msg }
+#endif
+
+#if defined(__GNUC__)
+# ifndef __dead
+#  define __dead		__attribute__((__noreturn__))
+# endif
+# ifndef __packed
+#  define __packed		__attribute__((__packed__))
+# endif
+#endif
+
+/* More autoconf-driven compat goop */
+#ifdef HAVE_CONFIG_H
 
 /* Prototypes for absent friends */
 #ifndef HAVE_CLOSEFROM
@@ -76,15 +92,6 @@ int daemon(int nochdir, int noclose);
 
 #ifndef _PATH_DEVNULL
 # define _PATH_DEVNULL		"/dev/null"
-#endif
-
-#if defined(__GNUC__)
-# ifndef __dead
-#  define __dead		__attribute__((__noreturn__))
-# endif
-# ifndef __packed
-#  define __packed		__attribute__((__packed__))
-# endif
 #endif
 
 #if !defined(HAVE_INT8_T) && defined(OUR_CFG_INT8_T)
@@ -114,6 +121,8 @@ typedef OUR_CFG_U_INT64_T u_int64_t;
 #if !defined(HAVE_U_INT)
 typedef unsigned int u_int;
 #endif
+
+#endif /* HAVE_CONFIG_H */
 
 #endif /* _FLOWD_COMMON_H */
 

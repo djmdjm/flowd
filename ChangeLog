@@ -3,6 +3,8 @@
  - (djm) Allow [addr] syntax in flowd.conf rules, like we do for listen on
  - (djm) Don't generate critical Perl and Python build files from autoconf
    makes packaging easier, at the cost of a little more release-time editing
+ - (djm) Allow building of Perl and Python modules without running configure
+   first - useful if building against a system copy of libflowd
 
 20041102
  - (djm) Crank versions to prepare for release
