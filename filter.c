@@ -18,7 +18,6 @@
 
 #include <unistd.h>
 #include <stdlib.h>
-#include <syslog.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -180,7 +179,7 @@ filter_flow(struct store_flow_complete *flow, struct filter_list *filter)
 		fr->evaluations++;
 
 #ifdef FILTER_DEBUG
-		syslog(LOG_DEBUG, "%s: match %s = %d action %d/%d", __func__,
+		logit(LOG_DEBUG, "%s: match %s = %d action %d/%d", __func__,
 		    format_rule(fr), m, fr->action.action_what, fr->action.tag);
 #endif
 
@@ -205,7 +204,7 @@ filter_flow(struct store_flow_complete *flow, struct filter_list *filter)
 	}
 
 #ifdef FILTER_DEBUG
-	syslog(LOG_DEBUG, "%s: return %d", __func__, action);
+	logit(LOG_DEBUG, "%s: return %d", __func__, action);
 #endif
 
 	return (action);

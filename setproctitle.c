@@ -32,6 +32,7 @@
  */
 
 #include "common.h"
+#include "flowd.h"
 
 #ifndef HAVE_SETPROCTITLE
 
@@ -40,7 +41,6 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdio.h>
-#include <err.h>
 #ifdef HAVE_SYS_PSTAT_H
 #include <sys/pstat.h>
 #endif
@@ -79,10 +79,10 @@ compat_init_setproctitle(int argc, char ***argvp)
 
 	/* Save argv so setproctitle emulation doesn't clobber it */
 	if ((saved_argv = malloc(sizeof(*saved_argv) * (argc + 1))) == NULL)
-		errx(1, "setproctitle malloc");
+		logerrx("setproctitle malloc");
 	for (i = 0; i < argc; i++)
 		if ((saved_argv[i] = strdup(argv[i])) == NULL)
-			errx(1, "setproctitle strdup");
+			logerrx("setproctitle strdup");
 	saved_argv[i] = NULL;
         *argvp = saved_argv;
 
@@ -116,7 +116,7 @@ compat_init_setproctitle(int argc, char ***argvp)
 	 */
 	for (i = 0; envp[i] != NULL; i++)
 		if ((environ[i] = strdup(envp[i])) == NULL)
-			errx(1, "setproctitle strdup");
+			logerrx("setproctitle strdup");
 
 	environ[i] = NULL;
 #endif /* SPT_REUSEARGV */

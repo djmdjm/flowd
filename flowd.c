@@ -23,11 +23,10 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <syslog.h>
 #include <string.h>
 #include <stdio.h>
-#include <syslog.h>
 #include <time.h>
-#include <err.h>
 #include <poll.h>
 
 #include "sys-queue.h"
@@ -104,10 +103,8 @@ start_log(int monitor_fd)
 	off_t pos;
 	const char *e;
 
-	if ((fd = client_open_log(monitor_fd)) == -1) {
-		syslog(LOG_CRIT, "Logfile open failed, exiting");
-		exit(1);
-	}
+	if ((fd = client_open_log(monitor_fd)) == -1)
+		logerrx("Logfile open failed, exiting");
 
 	/* Only write out the header if we are at the start of the file */
 	switch ((pos = lseek(fd, 0, SEEK_END))) {
@@ -115,36 +112,24 @@ start_log(int monitor_fd)
 		/* New file, continue below */
 		break;
 	case -1:
-		syslog(LOG_CRIT, "%s: llseek error, exiting: %s", __func__, 
-		    strerror(errno));
-		exit(1);
+		logerr("%s: llseek error, exiting", __func__);
 	default:
 		/* Logfile exists, don't write new header */
-		if (lseek(fd, 0, SEEK_SET) != 0) {
-			syslog(LOG_CRIT, "%s: llseek error, exiting: %s",
-			    __func__, strerror(errno));
-			exit(1);
-		}
-		if (store_check_header(fd, &e) != 0) {
-			syslog(LOG_CRIT, "%s: Exiting on %s", __func__, e);
-			exit(1);
-		}
-		if (lseek(fd, 0, SEEK_END) <= 0) {
-			syslog(LOG_CRIT, "%s: llseek error, exiting: %s",
-			    __func__, strerror(errno));
-			exit(1);
-		}
-		syslog(LOG_DEBUG, "Continuing with existing logfile len %lld", 
+		if (lseek(fd, 0, SEEK_SET) != 0)
+			logerr("%s: llseek error, exiting", __func__);
+		if (store_check_header(fd, &e) != 0)
+			logerrx("%s: Exiting on %s", __func__, e);
+		if (lseek(fd, 0, SEEK_END) <= 0)
+			logerr("%s: llseek error, exiting", __func__);
+		logit(LOG_DEBUG, "Continuing with existing logfile len %lld", 
 		    (long long)pos);
 		return (fd);
 	}
 
-	syslog(LOG_DEBUG, "Writing new logfile header");
+	logit(LOG_DEBUG, "Writing new logfile header");
 
-	if (store_put_header(fd, &e) != 0) {
-		syslog(LOG_CRIT, "%s: Exiting on %s", __func__, e);
-		exit(1);
-	}
+	if (store_put_header(fd, &e) != 0)
+		logerrx("%s: Exiting on %s", __func__, e);
 
 	return (fd);
 }
@@ -157,7 +142,7 @@ process_flow(struct store_flow_complete *flow, struct flowd_config *conf,
 
 	/* Another sanity check */
 	if (flow->src_addr.af != flow->dst_addr.af) {
-		syslog(LOG_WARNING, "%s: flow src(%d)/dst(%d) AF mismatch",
+		logit(LOG_WARNING, "%s: flow src(%d)/dst(%d) AF mismatch",
 		    __func__, flow->src_addr.af, flow->dst_addr.af);
 		return;
 	}
@@ -172,16 +157,14 @@ process_flow(struct store_flow_complete *flow, struct flowd_config *conf,
 
 		store_format_flow(flow, fbuf, sizeof(fbuf), 0,
 		    STORE_DISPLAY_BRIEF);
-		syslog(LOG_DEBUG, "%s: flow %s", __func__, fbuf);
+		logit(LOG_DEBUG, "%s: flow %s", __func__, fbuf);
 	}
 
 	if (filter_flow(flow, &conf->filter_list) == FF_ACTION_DISCARD)
 		return;
 
-	if (store_put_flow(log_fd, flow, conf->store_mask, &e) != 0) {
-		syslog(LOG_CRIT, "%s: exiting on %s", __func__, e);
-		exit(1);
-	}
+	if (store_put_flow(log_fd, flow, conf->store_mask, &e) != 0)
+		logerrx("%s: exiting on %s", __func__, e);
 
 	/* XXX reopen log file on one failure, exit on multiple */
 }
@@ -197,24 +180,24 @@ process_netflow_v1(u_int8_t *pkt, size_t len, struct sockaddr *from,
 	u_int i, nflows;
 
 	if (len < sizeof(*nf1_hdr)) {
-		syslog(LOG_WARNING, "short netflow v.1 packet %d bytes from %s",
+		logit(LOG_WARNING, "short netflow v.1 packet %d bytes from %s",
 		    len, from_ntop(from, fromlen));
 		return;
 	}
 	nflows = ntohs(nf1_hdr->c.flows);
 	if (nflows == 0 || nflows > NF1_MAXFLOWS) {
-		syslog(LOG_WARNING, "Invalid number of flows (%u) in netflow "
+		logit(LOG_WARNING, "Invalid number of flows (%u) in netflow "
 		    "v.1 packet from %s", nflows, from_ntop(from, fromlen));
 		return;
 	}
 	if (len != NF1_PACKET_SIZE(nflows)) {
-		syslog(LOG_WARNING, "Inconsistent Netflow v.1 packet from %s: "
+		logit(LOG_WARNING, "Inconsistent Netflow v.1 packet from %s: "
 		    "len %u expected %u", from_ntop(from, fromlen), len,
 		    NF1_PACKET_SIZE(nflows));
 		return;
 	}
 
-	syslog(LOG_DEBUG, "Valid netflow v.1 packet %d flows", nflows);
+	logit(LOG_DEBUG, "Valid netflow v.1 packet %d flows", nflows);
 
 	for (i = 0; i < nflows; i++) {
 		offset = NF1_PACKET_SIZE(i);
@@ -239,7 +222,7 @@ process_netflow_v1(u_int8_t *pkt, size_t len, struct sockaddr *from,
 		flow.pft.tos = nf1_flow->tos;
 
 		if (addr_sa_to_xaddr(from, fromlen, &flow.agent_addr) == -1) {
-			syslog(LOG_WARNING, "Invalid agent address");
+			logit(LOG_WARNING, "Invalid agent address");
 			break;
 		}
 		
@@ -284,24 +267,24 @@ process_netflow_v5(u_int8_t *pkt, size_t len, struct sockaddr *from,
 	u_int i, nflows;
 
 	if (len < sizeof(*nf5_hdr)) {
-		syslog(LOG_WARNING, "short netflow v.5 packet %d bytes from %s",
+		logit(LOG_WARNING, "short netflow v.5 packet %d bytes from %s",
 		    len, from_ntop(from, fromlen));
 		return;
 	}
 	nflows = ntohs(nf5_hdr->c.flows);
 	if (nflows == 0 || nflows > NF5_MAXFLOWS) {
-		syslog(LOG_WARNING, "Invalid number of flows (%u) in netflow "
+		logit(LOG_WARNING, "Invalid number of flows (%u) in netflow "
 		    "v.5 packet from %s", nflows, from_ntop(from, fromlen));
 		return;
 	}
 	if (len != NF5_PACKET_SIZE(nflows)) {
-		syslog(LOG_WARNING, "Inconsistent Netflow v.5 packet from %s: "
+		logit(LOG_WARNING, "Inconsistent Netflow v.5 packet from %s: "
 		    "len %u expected %u", from_ntop(from, fromlen), len,
 		    NF5_PACKET_SIZE(nflows));
 		return;
 	}
 
-	syslog(LOG_DEBUG, "Valid netflow v.5 packet %d flows", nflows);
+	logit(LOG_DEBUG, "Valid netflow v.5 packet %d flows", nflows);
 
 	for (i = 0; i < nflows; i++) {
 		offset = NF5_PACKET_SIZE(i);
@@ -324,7 +307,7 @@ process_netflow_v5(u_int8_t *pkt, size_t len, struct sockaddr *from,
 		flow.pft.tos = nf5_flow->tos;
 
 		if (addr_sa_to_xaddr(from, fromlen, &flow.agent_addr) == -1) {
-			syslog(LOG_WARNING, "Invalid agent address");
+			logit(LOG_WARNING, "Invalid agent address");
 			break;
 		}
 		
@@ -383,14 +366,13 @@ process_input(struct flowd_config *conf, int net_fd, int log_fd)
 		if (errno == EINTR)
 			goto retry;
 		if (errno != EAGAIN) {
-			syslog(LOG_ERR, "recvfrom(fd = %d): %s",
-			    net_fd, strerror(errno));
+			logit(LOG_WARNING, "recvfrom(fd = %d)", net_fd);
 		}
 		/* XXX ratelimit errors */
 		return;
 	}
 	if ((size_t)len < sizeof(*hdr)) {
-		syslog(LOG_WARNING, "short packet %d bytes from %s", len,
+		logit(LOG_WARNING, "short packet %d bytes from %s", len,
 		    from_ntop((struct sockaddr *)&from, fromlen));
 		return;
 	}
@@ -405,7 +387,7 @@ process_input(struct flowd_config *conf, int net_fd, int log_fd)
 		    conf, log_fd);
 		break;
 	default:
-		syslog(LOG_INFO, "Unsupported netflow version %u from %s",
+		logit(LOG_INFO, "Unsupported netflow version %u from %s",
 		    hdr->version, from_ntop((struct sockaddr *)&from, fromlen));
 		return;
 	}
@@ -418,7 +400,7 @@ init_pfd(struct flowd_config *conf, struct pollfd **pfdp, int mfd, int *num_fds)
 	struct listen_addr *la;
 	int i;
 
-	syslog(LOG_ERR, "%s: entering (num_fds = %d)", __func__, *num_fds);
+	logit(LOG_DEBUG, "%s: entering (num_fds = %d)", __func__, *num_fds);
 
 	if (pfd != NULL)
 		free(pfd);
@@ -430,9 +412,8 @@ init_pfd(struct flowd_config *conf, struct pollfd **pfdp, int mfd, int *num_fds)
 		(*num_fds)++;
 
 	if ((pfd = calloc((*num_fds) + 1, sizeof(*pfd))) == NULL) {
-		syslog(LOG_ERR, "%s: calloc failed (num %d)",
+		logerrx("%s: calloc failed (num %d)",
 		    __func__, *num_fds + 1);
-		exit(1);
 	}
 
 	pfd[0].fd = mfd;
@@ -447,7 +428,7 @@ init_pfd(struct flowd_config *conf, struct pollfd **pfdp, int mfd, int *num_fds)
 
 	*pfdp = pfd;
 
-	syslog(LOG_ERR, "%s: done (num_fds = %d)", __func__, *num_fds);
+	logit(LOG_DEBUG, "%s: done (num_fds = %d)", __func__, *num_fds);
 }
 
 static void
@@ -463,15 +444,15 @@ flowd_mainloop(struct flowd_config *conf, int monitor_fd)
 	log_fd = -1;
 	for(;exit_flag == 0;) {
 		if (reopen_flag && log_fd != -1) {
+			logit(LOG_INFO, "log reopen requested");
 			close(log_fd);
 			log_fd = -1;
 			reopen_flag = 0;
 		}
 		if (reconf_flag) {
-			if (client_reconfigure(monitor_fd, conf) == -1) {
-				syslog(LOG_ERR, "reconfigure failed, exiting");
-				exit(1);
-			}
+			logit(LOG_INFO, "reconfiguration requested");
+			if (client_reconfigure(monitor_fd, conf) == -1)
+				logerrx("reconfigure failed, exiting");
 			init_pfd(conf, &pfd, monitor_fd, &num_fds);
 			reconf_flag = 0;
 		}
@@ -483,21 +464,19 @@ flowd_mainloop(struct flowd_config *conf, int monitor_fd)
 
 			info_flag = 0;
 			TAILQ_FOREACH(fr, &conf->filter_list, entry)
-				syslog(LOG_INFO, "%s", format_rule(fr));
+				logit(LOG_INFO, "%s", format_rule(fr));
 		}
 		
 		i = poll(pfd, num_fds, INFTIM);
 		if (i <= 0) {
 			if (i == 0 || errno == EINTR)
 				continue;
-			syslog(LOG_ERR, "%s: poll: %s", __func__,
-			    strerror(errno));
-			exit(1);
+			logerr("%s: poll", __func__);
 		}
 
 		/* monitor exited */
 		if (pfd[0].revents != 0) {
-			syslog(LOG_DEBUG, "%s: monitor closed", __func__);
+			logit(LOG_DEBUG, "%s: monitor closed", __func__);
 			break;
 		}
 
@@ -510,7 +489,7 @@ flowd_mainloop(struct flowd_config *conf, int monitor_fd)
 	}
 
 	if (exit_flag != 0)
-		syslog(LOG_NOTICE, "Exiting on signal %d", exit_flag);
+		logit(LOG_NOTICE, "Exiting on signal %d", exit_flag);
 }
 
 static void
@@ -520,7 +499,7 @@ startup_listen_init(struct flowd_config *conf)
 
 	TAILQ_FOREACH(la, &conf->listen_addrs, entry) {
 		if ((la->fd = open_listener(&la->addr, la->port)) == -1) {
-			errx(1, "Listener setup of [%s]:%d failed", 
+			logerrx("Listener setup of [%s]:%d failed", 
 			    addr_ntop_buf(&la->addr), la->port);
 		}
 	}
@@ -542,8 +521,7 @@ main(int argc, char **argv)
 	umask(0077);
 	closefrom(STDERR_FILENO + 1);
 
-	openlog(PROGNAME, LOG_NDELAY|LOG_PERROR, LOG_DAEMON);
-	setlogmask(LOG_UPTO(LOG_INFO));
+	loginit(PROGNAME, 1, 0);
 
 	bzero(&conf, sizeof(conf));
 	while ((ch = getopt(argc, argv, "dhD:f:")) != -1) {
@@ -551,15 +529,15 @@ main(int argc, char **argv)
 		case 'd':
 			conf.opts |= FLOWD_OPT_DONT_FORK;
 			conf.opts |= FLOWD_OPT_VERBOSE;
-			setlogmask(LOG_UPTO(LOG_DEBUG));
+			loginit(PROGNAME, 1, 1);
 			break;
 		case 'h':
 			usage();
 			return (0);
 		case 'D':
 			if (cmdline_symset(optarg) < 0)
-				errx(1, "could not parse macro definition %s",
-				    optarg);
+				logerrx("Could not parse macro "
+				    "definition %s", optarg);
 			break;
 		case 'f':
 			config_file = optarg;
@@ -572,7 +550,7 @@ main(int argc, char **argv)
 	}
 
 	if (read_config(config_file, &conf) == -1)
-		errx(1, "Config file has errors");
+		logerrx("Config file has errors");
 
 	/* Start listening (do this early to report errors before privsep) */
 	startup_listen_init(&conf);

@@ -37,15 +37,16 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
-#include <syslog.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <syslog.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
+#include "flowd.h"
 #include "privsep.h"
 
 int
@@ -78,11 +79,11 @@ send_fd(int sock, int fd)
 	msg.msg_iovlen = 1;
 
 	if ((n = sendmsg(sock, &msg, 0)) == -1) {
-		syslog(LOG_ERR, "%s: sendmsg(%d)", __func__, sock);
+		logitm(LOG_ERR, "%s: sendmsg(%d)", __func__, sock);
 		return (-1);
 	}
 	if (n != sizeof(int)) {
-		syslog(LOG_ERR, "%s: sendmsg: expected sent 1 got %ld",
+		logit(LOG_ERR, "%s: sendmsg: expected sent 1 got %ld",
 		    __func__, (long)n);
 		return (-1);
 	}
@@ -109,11 +110,11 @@ receive_fd(int sock)
 	msg.msg_controllen = sizeof(tmp);
 
 	if ((n = recvmsg(sock, &msg, 0)) == -1) {
-		syslog(LOG_ERR, "%s: recvmsg", __func__);
+		logitm(LOG_ERR, "%s: recvmsg", __func__);
 		return (-1);
 	}
 	if (n != sizeof(int)) {
-		syslog(LOG_ERR, "%s: recvmsg: expected received 1 got %ld",
+		logit(LOG_ERR, "%s: recvmsg: expected received 1 got %ld",
 		    __func__, (long)n);
 		return (-1);
 	}
@@ -124,11 +125,11 @@ receive_fd(int sock)
 
 	cmsg = CMSG_FIRSTHDR(&msg);
 	if (cmsg == NULL) {
-		syslog(LOG_ERR, "%s: no message header", __func__);
+		logit(LOG_ERR, "%s: no message header", __func__);
 		return (-1);
 	}
 	if (cmsg->cmsg_type != SCM_RIGHTS) {
-		syslog(LOG_ERR, "%s: expected type %d got %d", 
+		logit(LOG_ERR, "%s: expected type %d got %d", 
 		    __func__, SCM_RIGHTS, cmsg->cmsg_type);
 		return (-1);
 	}

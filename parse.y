@@ -29,15 +29,14 @@
 #include <arpa/inet.h>
 
 #include <ctype.h>
-#include <err.h>
 #include <errno.h>
 #include <limits.h>
 #include <netdb.h>
 #include <stdarg.h>
+#include <syslog.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <syslog.h>
 
 #include "flowd.h"
 #include "addr.h"
@@ -129,7 +128,7 @@ number		: STRING			{
 
 string		: string STRING				{
 			if (asprintf(&$$, "%s %s", $1, $2) == -1)
-				errx(1, "string: asprintf");
+				logerrx("string: asprintf");
 			free($1);
 			free($2);
 		}
@@ -138,9 +137,9 @@ string		: string STRING				{
 
 varset		: STRING '=' string		{
 			if (conf->opts & FLOWD_OPT_VERBOSE)
-				syslog(LOG_DEBUG, "%s = \"%s\"", $1, $3);
+				logit(LOG_DEBUG, "%s = \"%s\"", $1, $3);
 			if (symset($1, $3, 0) == -1)
-				errx(1, "cannot store variable");
+				logerrx("cannot store variable");
 			free($1);
 			free($3);
 		}
@@ -188,7 +187,7 @@ prefix		: STRING '/' number	{
 			char	*s;
 
 			if (asprintf(&s, "%s/%u", $1, $3) == -1)
-				errx(1, "string: asprintf");
+				logerrx("string: asprintf");
 
 			free($1);
 
@@ -221,7 +220,7 @@ conf_main	: LISTEN ON address_port	{
 			struct listen_addr	*la;
 
 			if ((la = calloc(1, sizeof(*la))) == NULL)
-				errx(1, "listen_on: calloc");
+				logerrx("listen_on: calloc");
 
 			la->fd = -1;
 			la->addr = $3.addr;
@@ -299,7 +298,7 @@ filterrule	: action tag quick match_agent match_src match_dst match_proto match_
 			struct filter_rule	*r;
 
 			if ((r = calloc(1, sizeof(*r))) == NULL)
-				errx(1, "filterrule: calloc");
+				logerrx("filterrule: calloc");
 
 			r->action = $1;
 			if ($2.action_what == FF_ACTION_TAG) {
@@ -354,7 +353,7 @@ filterrule	: action tag quick match_agent match_src match_dst match_proto match_
 			struct filter_rule	*r;
 
 			if ((r = calloc(1, sizeof(*r))) == NULL)
-				errx(1, "filterrule: calloc");
+				logerrx("filterrule: calloc");
 
 			r->action = $1;
 			if ($2.action_what == FF_ACTION_TAG) {
@@ -504,8 +503,8 @@ yyerror(const char *fmt, ...)
 	errors = 1;
 	va_start(ap, fmt);
 	if (asprintf(&nfmt, "%s:%d: %s", infile, yylval.lineno, fmt) == -1)
-		errx(1, "yyerror asprintf");
-	vsyslog(LOG_ERR, nfmt, ap);
+		logerrx("yyerror asprintf");
+	vlogit(LOG_ERR, nfmt, ap);
 	va_end(ap);
 	free(nfmt);
 	return (0);
@@ -547,11 +546,11 @@ lookup(char *s)
 
 	if (p) {
 		if (pdebug > 1)
-			syslog(LOG_DEBUG, "%s: %d", s, p->k_val);
+			logit(LOG_DEBUG, "%s: %d", s, p->k_val);
 		return (p->k_val);
 	} else {
 		if (pdebug > 1)
-			syslog(LOG_DEBUG, "string: %s", s);
+			logit(LOG_DEBUG, "string: %s", s);
 		return (STRING);
 	}
 }
@@ -709,7 +708,7 @@ top:
 		}
 		yylval.v.string = strdup(buf);
 		if (yylval.v.string == NULL)
-			errx(1, "yylex: strdup");
+			logerrx("yylex: strdup");
 		return (STRING);
 	}
 
@@ -731,7 +730,7 @@ top:
 		*p = '\0';
 		if ((token = lookup(buf)) == STRING)
 			if ((yylval.v.string = strdup(buf)) == NULL)
-				errx(1, "yylex: strdup");
+				logerrx("yylex: strdup");
 		return (token);
 	}
 	if (c == '\n') {
@@ -761,24 +760,24 @@ parse_config(const char *path, FILE *f, struct flowd_config *mconf)
 	yyparse();
 
 	if (conf->log_file == NULL) {
-		syslog(LOG_ERR, "No log file specified");
+		logit(LOG_ERR, "No log file specified");
 		return (-1);
 	}
 	if (conf->pid_file == NULL && 
 	    (conf->pid_file = strdup(DEFAULT_PIDFILE)) == NULL) {
-		syslog(LOG_ERR, "strdup pidfile");
+		logit(LOG_ERR, "strdup pidfile");
 		return (-1);
 	}
 
 	if (TAILQ_EMPTY(&conf->listen_addrs)) {
-		syslog(LOG_ERR, "No listening addresses specified");
+		logit(LOG_ERR, "No listening addresses specified");
 		return (-1);
 	}
 	/* Free macros and check which have not been used. */
 	for (sym = TAILQ_FIRST(&symhead); sym != NULL; sym = next) {
 		next = TAILQ_NEXT(sym, entry);
 		if ((conf->opts & FLOWD_OPT_VERBOSE) && !sym->used)
-			syslog(LOG_WARNING, "warning: macro \"%s\" not used",
+			logit(LOG_WARNING, "warning: macro \"%s\" not used",
 			    sym->nam);
 		if (!sym->persist) {
 			free(sym->nam);
@@ -842,7 +841,7 @@ cmdline_symset(char *s)
 
 	len = strlen(s) - strlen(val) + 1;
 	if ((sym = malloc(len)) == NULL)
-		errx(1, "cmdline_symset: malloc");
+		logerrx("cmdline_symset: malloc");
 
 	strlcpy(sym, s, len);
 
@@ -887,16 +886,16 @@ dump_config(struct flowd_config *c, const char *prefix)
 	struct filter_rule *fr;
 	struct listen_addr *la;
 #define DCPR(a) ((a) == NULL ? "" : a), ((a) == NULL ? "" : ": ")
-	syslog(LOG_DEBUG, "%s%slogfile \"%s\"", DCPR(prefix), c->log_file);
-	syslog(LOG_DEBUG, "%s%s# store mask %08x", DCPR(prefix), c->store_mask);
-	syslog(LOG_DEBUG, "%s%s# opts %08x", DCPR(prefix), c->opts);
+	logit(LOG_DEBUG, "%s%slogfile \"%s\"", DCPR(prefix), c->log_file);
+	logit(LOG_DEBUG, "%s%s# store mask %08x", DCPR(prefix), c->store_mask);
+	logit(LOG_DEBUG, "%s%s# opts %08x", DCPR(prefix), c->opts);
 	TAILQ_FOREACH(la, &c->listen_addrs, entry) {
-		syslog(LOG_DEBUG, "%s%slisten on [%s]:%d # fd = %d",
+		logit(LOG_DEBUG, "%s%slisten on [%s]:%d # fd = %d",
 		    DCPR(prefix), addr_ntop_buf(&la->addr), la->port, la->fd);
 	}
 
 	TAILQ_FOREACH(fr, &c->filter_list, entry)
-		syslog(LOG_DEBUG, "%s%s%s", DCPR(prefix), format_rule(fr));
+		logit(LOG_DEBUG, "%s%s%s", DCPR(prefix), format_rule(fr));
 #undef DCPR
 }
 

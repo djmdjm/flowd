@@ -38,7 +38,8 @@ all: $(TARGETS)
 
 LIBFLOWD_OBJS=		atomicio.o addr.o store.o crc32.o closefrom.o \
 			strlcpy.o strlcat.o setproctitle.o
-FLOWD_OBJS=		flowd.o privsep_fdpass.o privsep.o filter.o parse.o
+FLOWD_OBJS=		flowd.o privsep_fdpass.o privsep.o filter.o \
+			parse.o log.o
 FLOWD_READER_OBJS=	flowd-reader.o
 
 libflowd.a: $(LIBFLOWD_OBJS)
