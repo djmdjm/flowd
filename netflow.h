@@ -54,8 +54,8 @@ struct NF1_FLOW {
 #endif
 } __packed;
 
-/* Maximum of 24 flows per packet */
-#define NF1_MAXFLOWS		24
+/* Maximum of 30 flows per packet */
+#define NF1_MAXFLOWS		30
 #define NF1_PACKET_SIZE(nflows)	(sizeof(struct NF1_HEADER) + \
 				((nflows) * sizeof(struct NF1_FLOW)))
 #define NF1_MAXPACKET_SIZE	(NF1_PACKET_SIZE(NF1_MAXFLOWS))
