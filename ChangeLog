@@ -2,6 +2,8 @@
  - (djm) Implement NetFlow v.9 support. Some more work to do yet, but it is 
    basically functional
  - (djm) Bugfix nf v.9: we never updated the peer record
+ - (djm) Tidy nv v.9 code: factor out data flowset to store flow conversion and
+   don't process any flows unless the entire flowset is valid.
 
 20040920
  - (djm) Add new "flow source" directive, to specify hosts that we are willing
