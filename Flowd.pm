@@ -202,7 +202,7 @@ sub init {
 	return 0 if $r == 0;
 	die "early EOF on $store->{filename}" if $r < 4;
 
-	$crc->update($hdr, 4);
+	$crc->update($hdr);
 
 	$self->{fields} = \%fields;
 	$self->{rawfields} = \%rawfields;
@@ -216,7 +216,7 @@ sub init {
 		$r = read($store->{handle}, $rawfields{@$fspec[1]}, @$fspec[2]);
 		die "read($store->{filename}): $!" if not defined $r;
 		die "early EOF on $store->{filename}" if $r < @$fspec[2];
-		$crc->update($rawfields{@$fspec[1]}, @$fspec[2]) 
+		$crc->update($rawfields{@$fspec[1]}) 
 			unless @$fspec[1] eq "CRC32";
 	}
 
@@ -231,27 +231,35 @@ sub init {
 			($fields{tcp_flags}, $fields{protocol},  $fields{tos})
 				= unpack "CCC", $rawfields{$field};
 		} elsif ($field eq "AGENT_ADDR4") {
+			$fields{agent_addr_af} = Socket::PF_INET;
 			$fields{agent_addr} = Socket6::inet_ntop(
 			    Socket::PF_INET, $rawfields{$field});
 		} elsif ($field eq "AGENT_ADDR6") {
+			$fields{agent_addr_af} = Socket::PF_INET6;
 			$fields{agent_addr} = Socket6::inet_ntop(
 			    Socket6::PF_INET6, $rawfields{$field});
 		} elsif ($field eq "SRC_ADDR4") {
+			$fields{src_addr_af} = Socket::PF_INET;
 			$fields{src_addr} = Socket6::inet_ntop(
 			    Socket::PF_INET, $rawfields{$field});
 		} elsif ($field eq "SRC_ADDR6") {
+			$fields{src_addr_af} = Socket::PF_INET6;
 			$fields{src_addr} = Socket6::inet_ntop(
 			    Socket::PF_INET6, $rawfields{$field});
 		} elsif ($field eq "DST_ADDR4") {
+			$fields{dst_addr_af} = Socket::PF_INET;
 			$fields{dst_addr} = Socket6::inet_ntop(
 			    Socket::PF_INET, $rawfields{$field});
 		} elsif ($field eq "DST_ADDR6") {
+			$fields{dst_addr_af} = Socket::PF_INET6;
 			$fields{dst_addr} = Socket6::inet_ntop(
 			    Socket::PF_INET6, $rawfields{$field});
 		} elsif ($field eq "GATEWAY_ADDR4") {
+			$fields{gateways_addr_af} = Socket::PF_INET;
 			$fields{gateway_addr} = Socket6::inet_ntop(
 			    Socket::PF_INET, $rawfields{$field});
 		} elsif ($field eq "GATEWAY_ADDR6") {
+			$fields{gateway_addr_af} = Socket::PF_INET6;
 			$fields{gateway_addr} = Socket6::inet_ntop(
 			    Socket6::PF_INET6, $rawfields{$field});
 		} elsif ($field eq "SRCDST_PORT") {
@@ -479,7 +487,7 @@ sub init {
 sub update {
 	my $self = shift;
 	my $buf = shift;
-	my $len = shift;
+	my $len = length($buf);
 	my $i;
 
 	for($i = 0; $i < $len; $i++) {

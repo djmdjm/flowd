@@ -2,6 +2,7 @@
  - (djm) Parse and verify config in a subprocess, avoiding all memory leaks
    and side effects.
  - (djm) Activate runtime reconfigure
+ - (djm) Store address families for each address in flow
 
 20040810
  - (djm) Add finish() method to perl API, to close flow log
