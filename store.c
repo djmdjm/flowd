@@ -327,3 +327,153 @@ store_put_flow(int fd, struct store_flow_complete *flow, char **errptr)
 	return (-1);
 }
 
+const char *
+iso_time(time_t t, int utc_flag)
+{
+	struct tm *tm;
+	static char buf[128];
+
+	if (utc_flag)
+		tm = gmtime(&t);
+	else
+		tm = localtime(&t);
+
+	strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", tm);
+
+	return (buf);
+}
+
+#define MINUTE		(60)
+#define HOUR		(MINUTE * 60)
+#define DAY		(HOUR * 24)
+#define WEEK		(DAY * 7)
+#define YEAR		(WEEK * 52)
+const char *
+interval_time(time_t t)
+{
+	static char buf[128];
+	char tmp[128];
+	u_long r;
+	int unit_div[] = { YEAR, WEEK, DAY, HOUR, MINUTE, 1, -1 };
+	char unit_sym[] = { 'y', 'w', 'd', 'h', 'm', 's' };
+	int i;
+
+	*buf = '\0';
+
+	for (i = 0; unit_div[i] != -1; i++) {
+		if ((r = t / unit_div[i]) != 0 || unit_div[i] == 1) {
+			snprintf(tmp, sizeof(tmp), "%lu%c", r, unit_sym[i]);
+			strlcat(buf, tmp, sizeof(buf));
+			t %= unit_div[i];
+		}
+	}
+	return (buf);
+}
+
+void
+store_format_flow(struct store_flow_complete *flow, char *buf, size_t len, 
+    int utc_flag)
+{
+	char tmp[256];
+	u_int32_t fields, tt;
+
+	*buf = '\0';
+
+	fields = ntohl(flow->hdr.fields);
+
+	printf("FLOW tag %u %s ", ntohl(flow->hdr.tag),
+	    iso_time(ntohl(flow->hdr.recv_secs), utc_flag));
+
+#define HASFIELD(flag)	(fields & STORE_FIELD_##flag)
+
+	if (HASFIELD(PROTO_FLAGS_TOS)) {
+		snprintf(tmp, sizeof(tmp), "proto %d ", flow->pft.protocol);
+		strlcat(buf, tmp, len);
+		snprintf(tmp, sizeof(tmp), "tcpflags %x ", flow->pft.tcp_flags);
+		strlcat(buf, tmp, len);
+		snprintf(tmp, sizeof(tmp), "tos %02x " , flow->pft.tos);
+		strlcat(buf, tmp, len);
+	}
+	if (HASFIELD(AGENT_ADDR4) || HASFIELD(AGENT_ADDR6)) {
+		snprintf(tmp, sizeof(tmp), "agent %s ",
+		    addr_ntop_buf(&flow->agent_addr));
+		strlcat(buf, tmp, len);
+	}
+	if (HASFIELD(SRCDST_ADDR4) || HASFIELD(SRCDST_ADDR6)) {
+		snprintf(tmp, sizeof(tmp), "src %s",
+		    addr_ntop_buf(&flow->src_addr));
+		strlcat(buf, tmp, len);
+		if (HASFIELD(SRCDST_PORT)) {
+			snprintf(tmp, sizeof(tmp), ":%d",
+			    ntohs(flow->ports.src_port));
+			strlcat(buf, tmp, len);
+		}
+		strlcat(buf, "", len);
+		snprintf(tmp, sizeof(tmp), "dst %s",
+		    addr_ntop_buf(&flow->dst_addr));
+		strlcat(buf, tmp, len);
+		if (HASFIELD(SRCDST_PORT)) {
+			snprintf(tmp, sizeof(tmp), ":%d",
+			    ntohs(flow->ports.dst_port));
+			strlcat(buf, tmp, len);
+		}
+		strlcat(buf, " ", len);
+	}
+	if (HASFIELD(GATEWAY_ADDR4) ||
+	    HASFIELD(GATEWAY_ADDR6)) {
+		snprintf(tmp, sizeof(tmp), "gateway %s ",
+		    addr_ntop_buf(&flow->gateway_addr));
+		strlcat(buf, tmp, len);
+	}
+	if (HASFIELD(PACKETS_OCTETS)) {
+		snprintf(tmp, sizeof(tmp), "packets %lu octets %lu ", 
+		    (u_long)ntohl(flow->counters.flow_packets),
+		    (u_long)ntohl(flow->counters.flow_octets));
+		strlcat(buf, tmp, len);
+	}
+	if (HASFIELD(IF_INDICES)) {
+		snprintf(tmp, sizeof(tmp), "in_if %d out_if %d ", 
+			ntohs(flow->ifndx.if_index_in),
+			ntohs(flow->ifndx.if_index_out));
+		strlcat(buf, tmp, len);
+	}
+	if (HASFIELD(AGENT_INFO)) {
+		snprintf(tmp, sizeof(tmp), "sys_uptime_ms %s.%03u ",
+		    interval_time(ntohl(flow->ainfo.sys_uptime_ms) / 1000),
+		    ntohl(flow->ainfo.sys_uptime_ms) % 1000);
+		strlcat(buf, tmp, len);
+		snprintf(tmp, sizeof(tmp), "time_sec %s ",
+		    iso_time(ntohl(flow->ainfo.time_sec), utc_flag));
+		strlcat(buf, tmp, len);
+		snprintf(tmp, sizeof(tmp), "time_nanosec %lu netflow ver %u ",
+		    (u_long)ntohl(flow->ainfo.time_nanosec),
+		    ntohs(flow->ainfo.netflow_version));
+		strlcat(buf, tmp, len);
+	}
+	if (HASFIELD(FLOW_TIMES)) {
+		snprintf(tmp, sizeof(tmp), "flow_start %s.%03u ", 
+		    interval_time(ntohl(flow->ftimes.flow_start) / 1000),
+		    ntohl(flow->ftimes.flow_start) % 1000);
+		strlcat(buf, tmp, len);
+		snprintf(tmp, sizeof(tmp), "flow_finish %s.%03u ", 
+		    interval_time(ntohl(flow->ftimes.flow_finish) / 1000),
+		    ntohl(flow->ftimes.flow_finish) % 1000);
+		strlcat(buf, tmp, len);
+	}
+	if (HASFIELD(AS_INFO)) {
+		snprintf(tmp, sizeof(tmp), "src_AS %u src_masklen %u ", 
+		    ntohs(flow->asinf.src_as), flow->asinf.src_mask);
+		strlcat(buf, tmp, len);
+		snprintf(tmp, sizeof(tmp), "dst_AS %u dst_masklen %u ", 
+		    ntohs(flow->asinf.dst_as), flow->asinf.dst_mask);
+		strlcat(buf, tmp, len);
+	}
+	if (HASFIELD(FLOW_ENGINE_INFO)) {
+		snprintf(tmp, sizeof(tmp),
+		    "engine_type %u engine_id %u seq %lu", 
+		    flow->finf.engine_type,  flow->finf.engine_id,
+		    (u_long)ntohl(flow->finf.flow_sequence));
+		strlcat(buf, tmp, len);
+	}
+}
+
