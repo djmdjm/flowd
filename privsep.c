@@ -179,6 +179,7 @@ privsep_init(struct flowd_config *conf, int *child_to_monitor_sock)
 	signal(SIGINT, sighand_exit);
 	signal(SIGTERM, sighand_exit);
 	signal(SIGHUP, sighand_reopen);
+	signal(SIGCHLD, sighand_child);
 
 	for (;!child_exited;) {
 		r = atomicio(read, monitor_to_child_sock, &what, sizeof(what));
