@@ -26,6 +26,8 @@
 #include "filter.h"
 #include "store.h"
 
+RCSID("$Id$");
+
 const char *
 format_rule(struct filter_rule *rule)
 {

@@ -31,6 +31,8 @@
 
 #include "atomicio.h"
 
+RCSID("$Id$");
+
 /*
  * ensure all of data on socket comes through. f==read || f==vwrite
  */

@@ -1,3 +1,5 @@
+/*	$Id$	*/
+
 /*
  * Copyright (c) 2004 Damien Miller <djm@mindrot.org>
  *

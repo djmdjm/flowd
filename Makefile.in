@@ -1,5 +1,7 @@
 # $Id$
 
+PROGVER=0.1
+
 prefix=@prefix@
 exec_prefix=@exec_prefix@
 bindir=@bindir@
@@ -10,11 +12,18 @@ mandir=@mandir@
 sysconfdir=@sysconfdir@
 srcdir=@srcdir@
 top_srcdir=@top_srcdir@
+localstatedir=@localstatedir@
+
+PIDFILEDIR=$(localstatedir)/run
+
+PATHFLAGS=-DSYSCONFDIR='"$(sysconfdir)"' -DPIDFILEDIR='"$(PIDFILEDIR)"'
+PROGFLAGS=-DPROGVER='"$(PROGVER)"'
+
 VPATH=@srcdir@
 CC=@CC@
 LDFLAGS=@LDFLAGS@
 CFLAGS=@CFLAGS@
-CPPFLAGS=-I$(srcdir) @CPPFLAGS@
+CPPFLAGS=-I$(srcdir) @CPPFLAGS@ $(PATHFLAGS) $(PROGFLAGS)
 LIBS=@LIBS@
 EXEEXT=@EXEEXT@
 INSTALL=@INSTALL@

@@ -30,6 +30,8 @@
 #include "atomicio.h"
 #include "crc32.h"
 
+RCSID("$Id$");
+
 /* Stash error message and return */
 #define SFAILX(i, m, f) do {						\
 		if (errptr != NULL) {					\

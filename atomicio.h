@@ -1,3 +1,4 @@
+/*	$Id$	*/
 /*	$OpenBSD: atomicio.h,v 1.5 2003/06/28 16:23:06 deraadt Exp $	*/
 
 /*

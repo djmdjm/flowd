@@ -1,3 +1,5 @@
+/*	$Id$	*/
+
 /*
  * Copyright (c) 2004 Damien Miller <djm@mindrot.org>
  *
@@ -22,11 +24,10 @@
 #include "addr.h"
 #include "filter.h"
 
-#define PROGNAME	"flowd"
-#define PROGVER		"0"
-#define DEFAULT_CONFIG	"/etc/flowd.conf"
-#define DEFAULT_PIDFILE	"/var/run/flowd.pid"
-#define PRIVSEP_USER	"_flowd"
+#define PROGNAME		"flowd"
+#define DEFAULT_CONFIG		SYSCONFDIR "/flowd.conf"
+#define DEFAULT_PIDFILE		PIDFILEDIR "/flowd.pid"
+#define PRIVSEP_USER		"_flowd"
 
 struct listen_addr {
 	struct xaddr			addr;

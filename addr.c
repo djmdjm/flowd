@@ -26,6 +26,8 @@
 
 #include "addr.h"
 
+RCSID("$Id$");
+
 #define _SA(x)	((struct sockaddr *)(x))
 
 int

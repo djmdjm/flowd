@@ -36,6 +36,8 @@
 #include "store.h"
 #include "atomicio.h"
 
+RCSID("$Id$");
+
 static sig_atomic_t exit_flag = 0;
 static sig_atomic_t reopen_flag = 0;
 

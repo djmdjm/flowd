@@ -45,6 +45,8 @@
 #include <sys/pstat.h>
 #endif
 
+RCSID("$Id$");
+
 #define SPT_NONE	0	/* don't use it at all */
 #define SPT_PSTAT	1	/* use pstat(PSTAT_SETCMD, ...) */
 #define SPT_REUSEARGV	2	/* cover argv with title information */

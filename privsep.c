@@ -35,6 +35,8 @@
 #include "privsep.h"
 #include "atomicio.h"
 
+RCSID("$Id$");
+
 static sig_atomic_t child_exited = 0;
 static pid_t child_pid = -1;
 static int monitor_to_child_sock = -1;

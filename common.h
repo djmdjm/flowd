@@ -1,3 +1,5 @@
+/*	$Id$	*/
+
 /*
  * Copyright (c) 2004 Damien Miller <djm@mindrot.org>
  *
@@ -38,6 +40,10 @@
 #if defined(HAVE_ENDIAN_H)
 # include <endian.h>
 #endif
+
+#define RCSID(msg) \
+	static /**/const char *const flowd_rcsid[] =		\
+	    { (const char *)flowd_rcsid, "\100(#)" msg }	\
 
 /* Prototypes for absent friends */
 #ifndef HAVE_CLOSEFROM

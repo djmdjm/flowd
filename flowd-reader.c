@@ -28,6 +28,8 @@
 #include "store.h"
 #include "atomicio.h"
 
+RCSID("$Id$");
+
 static void
 usage(void)
 {

@@ -18,6 +18,12 @@ use Math::BigInt;
 use Socket;
 use Socket6;
 
+package Flowd;
+
+use constant {
+	VERSION		=>	"0.01"
+};
+
 package Flowd::Store;
 
 sub new {
