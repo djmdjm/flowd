@@ -12,8 +12,6 @@ CFLAGS+= -Wsign-compare
 CFLAGS+= -Werror
 YFLAGS=
 
-DEBUG=-g
-
 MAN=
 #MAN= flowd.8 flowd.conf.5
 
