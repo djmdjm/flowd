@@ -34,3 +34,5 @@
 - Add calculation and storage of "normalised" flow timers, correcting for 
   flow probe clock errors by using difference between header->time_sec and 
   localtime (assumes flow collector clock is accurate!)
+
+- Track sequence per peer and alert on flow drops
