@@ -59,9 +59,10 @@ flowd-reader: $(FLOWD_READER_OBJS) libflowd.a
 
 clean:
 	rm -f $(TARGETS) *.o core *.core y.tab.* parse.c libflowd.a
-	rm -f flowd.pyc flowd.pyo
 
 realclean: clean
+	rm -f Flowd/lib/Flowd.pm
+	-(cd Flowd && test -f Makefile && make distclean)
 	rm -rf autom4te.cache Makefile config.log config.status
 	rm -f flowd.8 flowd-reader.8 flowd.conf.5
 	rm -f flowd.py setup.py Flowd.pm
