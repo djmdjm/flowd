@@ -1142,7 +1142,8 @@ usage(void)
 	fprintf(stderr, "Usage: %s [options]\n", PROGNAME);
 	fprintf(stderr, "This is %s version %s. Valid commandline options:\n",
 	    PROGNAME, PROGVER);
-	fprintf(stderr, "  -d              Don't daemonise\n");
+	fprintf(stderr, "  -d              Run in the foreground and print debug information\n");
+	fprintf(stderr, "  -g              Run in the foreground and log to stderr\n");
 	fprintf(stderr, "  -h              Display this help\n");
 	fprintf(stderr, "  -f path         Configuration file (default: %s)\n",
 	    DEFAULT_CONFIG);
@@ -1180,11 +1181,15 @@ main(int argc, char **argv)
 	SPLAY_INIT(&peers.peer_tree);
 	TAILQ_INIT(&peers.peer_list);
 
-	while ((ch = getopt(argc, argv, "dhD:f:")) != -1) {
+	while ((ch = getopt(argc, argv, "dghD:f:")) != -1) {
 		switch (ch) {
 		case 'd':
 			conf.opts |= FLOWD_OPT_DONT_FORK;
 			conf.opts |= FLOWD_OPT_VERBOSE;
+			loginit(PROGNAME, 1, 1);
+			break;
+		case 'g':
+			conf.opts |= FLOWD_OPT_DONT_FORK;
 			loginit(PROGNAME, 1, 1);
 			break;
 		case 'h':
