@@ -119,7 +119,7 @@ store_calc_flow_len(struct store_flow *hdr)
 }	
 
 int
-store_flow_convert(u_int8_t *buf, int len, struct store_flow_complete *f,
+store_flow_deserialise(u_int8_t *buf, int len, struct store_flow_complete *f,
     const char **errptr)
 {
 	int offset;
@@ -139,7 +139,7 @@ store_flow_convert(u_int8_t *buf, int len, struct store_flow_complete *f,
 
 	memcpy(&f->hdr.fields, buf, sizeof(f->hdr.fields));
 
-	if ((store_calc_flow_len((struct store_flow *)buf) != len) == -1)
+	if (store_calc_flow_len((struct store_flow *)buf) != len)
 		SFAILX(-1, "calulated length doesn't match supplied len", 1);
 
 	crc32_update((u_char *)&f->hdr, sizeof(f->hdr), &crc);
@@ -219,7 +219,7 @@ store_flow_convert(u_int8_t *buf, int len, struct store_flow_complete *f,
 #undef S_CPYADDR
 #undef RFIELD
 
-	return (1);
+	return (0);
 }
 
 int
@@ -245,9 +245,8 @@ store_get_flow(int fd, struct store_flow_complete *f, const char **errptr)
 	if (r < len)
 		SFAILX(0, "EOF reading flow data", 0);
 
-	return (store_flow_convert(buf, len, f, errptr));
-
-	return (1);
+	r = store_flow_deserialise(buf, len, f, errptr);
+	return (r == 0 ? 1 : r);
 }
 
 int
@@ -286,77 +285,8 @@ store_put_header(int fd, const char **errptr)
 	return (0);
 }
 
-static int
-write_flow(int fd, const char **errptr,
-    u_int32_t fields,
-    struct store_flow_complete *flow,
-    struct store_flow_AGENT_ADDR4 *aa4,
-    struct store_flow_AGENT_ADDR6 *aa6,
-    struct store_flow_SRC_ADDR4 *sa4,
-    struct store_flow_SRC_ADDR6 *sa6,
-    struct store_flow_DST_ADDR4 *da4,
-    struct store_flow_DST_ADDR6 *da6,
-    struct store_flow_GATEWAY_ADDR4 *gwa4,
-    struct store_flow_GATEWAY_ADDR6 *gwa6)
-{
-	char ebuf[512];
-	int r;
-	u_int32_t crc;
-
-	crc32_start(&crc);
-	crc32_update((u_char *)&flow->hdr, sizeof(flow->hdr), &crc);
-
-	if ((r = atomicio(vwrite, fd, &flow->hdr, sizeof(flow->hdr))) == -1)
-		SFAIL(-1, "write flow header", 0);
-	else if (r < (ssize_t)sizeof(flow->hdr))
-		SFAILX(-1, "EOF writing flow header", 0);
-
-#define WRITEOUT(spec, what) do {					\
-	if (SHASFIELD(spec)) {						\
-		r = atomicio(vwrite, fd, (what), sizeof(*(what)));	\
-		if (r == -1)						\
-			SFAIL(-1, "write " #spec, 0);			\
-		if (r < (ssize_t)sizeof(what))				\
-			SFAILX(-1, "EOF writing " #spec, 0);		\
-		if (SHASFIELD(spec) && 					\
-		    (STORE_FIELD_##spec != STORE_FIELD_CRC32)) {	\
-			crc32_update((u_char *)(what), sizeof(*(what)),	\
-			    &crc);					\
-		}							\
-	}  } while (0)
-
-	WRITEOUT(TAG, &flow->tag);
-	WRITEOUT(RECV_TIME, &flow->recv_time);
-	WRITEOUT(PROTO_FLAGS_TOS, &flow->pft);
-	WRITEOUT(AGENT_ADDR4, aa4);
-	WRITEOUT(AGENT_ADDR6, aa6);
-	WRITEOUT(SRC_ADDR4, sa4);
-	WRITEOUT(SRC_ADDR6, sa6);
-	WRITEOUT(DST_ADDR4, da4);
-	WRITEOUT(DST_ADDR6, da6);
-	WRITEOUT(GATEWAY_ADDR4, gwa4);
-	WRITEOUT(GATEWAY_ADDR6, gwa6);
-	WRITEOUT(SRCDST_PORT, &flow->ports);
-	WRITEOUT(PACKETS, &flow->packets);
-	WRITEOUT(OCTETS, &flow->octets);
-	WRITEOUT(IF_INDICES, &flow->ifndx);
-	WRITEOUT(AGENT_INFO, &flow->ainfo);
-	WRITEOUT(FLOW_TIMES, &flow->ftimes);
-	WRITEOUT(AS_INFO, &flow->asinf);
-	WRITEOUT(FLOW_ENGINE_INFO, &flow->finf);
-
-	if (fields & (STORE_FIELD_CRC32))
-		flow->crc32.crc32 = htonl(crc);
-
-	WRITEOUT(CRC32, &flow->crc32);
-#undef WRITEOUT
-
-	return (0);
-
-}
-
 int
-store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
+store_flow_serialise(struct store_flow_complete *f, u_int8_t *buf, int len, 
     const char **errptr)
 {
 	struct store_flow_AGENT_ADDR4 aa4;
@@ -367,23 +297,19 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 	struct store_flow_DST_ADDR6 da6;
 	struct store_flow_GATEWAY_ADDR4 gwa4;
 	struct store_flow_GATEWAY_ADDR6 gwa6;
-	u_int32_t fields, origfields;
-	off_t startpos;
+	u_int32_t fields, crc;
 	char ebuf[512];
+	int offset;
 
-	/* Remember where we started, so we can back errors out */
-	if ((startpos = lseek(fd, 0, SEEK_CUR)) == -1)
-		SFAIL(-1, "lseek", 1);
-
-	origfields = ntohl(flow->hdr.fields);
-	fields = origfields & fieldmask;
+	fields = ntohl(f->hdr.fields);
 
 	/* Convert addresses and set AF fields correctly */
-	switch(flow->agent_addr.af) {
+	/* XXX this is too repetitive */
+	switch(f->agent_addr.af) {
 	case AF_INET:
 		if ((fields & STORE_FIELD_AGENT_ADDR4) == 0)
 			break;
-		memcpy(&aa4.flow_agent_addr, &flow->agent_addr.v4,
+		memcpy(&aa4.flow_agent_addr, &f->agent_addr.v4,
 		    sizeof(aa4.flow_agent_addr));
 		fields |= STORE_FIELD_AGENT_ADDR4;
 		fields &= ~STORE_FIELD_AGENT_ADDR6;
@@ -391,7 +317,7 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 	case AF_INET6:
 		if ((fields & STORE_FIELD_AGENT_ADDR6) == 0)
 			break;
-		memcpy(&aa6.flow_agent_addr, &flow->agent_addr.v6,
+		memcpy(&aa6.flow_agent_addr, &f->agent_addr.v6,
 		    sizeof(aa6.flow_agent_addr));
 		fields |= STORE_FIELD_AGENT_ADDR6;
 		fields &= ~STORE_FIELD_AGENT_ADDR4;
@@ -402,11 +328,11 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 		SFAILX(-1, "silly agent addr af", 1);
 	}
 
-	switch(flow->src_addr.af) {
+	switch(f->src_addr.af) {
 	case AF_INET:
 		if ((fields & STORE_FIELD_SRC_ADDR4) == 0)
 			break;
-		memcpy(&sa4.src_addr, &flow->src_addr.v4,
+		memcpy(&sa4.src_addr, &f->src_addr.v4,
 		    sizeof(sa4.src_addr));
 		fields |= STORE_FIELD_SRC_ADDR4;
 		fields &= ~STORE_FIELD_SRC_ADDR6;
@@ -414,7 +340,7 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 	case AF_INET6:
 		if ((fields & STORE_FIELD_SRC_ADDR6) == 0)
 			break;
-		memcpy(&sa6.src_addr, &flow->src_addr.v6,
+		memcpy(&sa6.src_addr, &f->src_addr.v6,
 		    sizeof(sa6.src_addr));
 		fields |= STORE_FIELD_SRC_ADDR6;
 		fields &= ~STORE_FIELD_SRC_ADDR4;
@@ -425,11 +351,11 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 		SFAILX(-1, "silly src addrs af", 1);
 	}
 
-	switch(flow->dst_addr.af) {
+	switch(f->dst_addr.af) {
 	case AF_INET:
 		if ((fields & STORE_FIELD_DST_ADDR4) == 0)
 			break;
-		memcpy(&da4.dst_addr, &flow->dst_addr.v4,
+		memcpy(&da4.dst_addr, &f->dst_addr.v4,
 		    sizeof(da4.dst_addr));
 		fields |= STORE_FIELD_DST_ADDR4;
 		fields &= ~STORE_FIELD_DST_ADDR6;
@@ -437,7 +363,7 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 	case AF_INET6:
 		if ((fields & STORE_FIELD_DST_ADDR6) == 0)
 			break;
-		memcpy(&da6.dst_addr, &flow->dst_addr.v6,
+		memcpy(&da6.dst_addr, &f->dst_addr.v6,
 		    sizeof(da6.dst_addr));
 		fields |= STORE_FIELD_DST_ADDR6;
 		fields &= ~STORE_FIELD_DST_ADDR4;
@@ -448,11 +374,11 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 		SFAILX(-1, "silly dst addrs af", 1);
 	}
 
-	switch(flow->gateway_addr.af) {
+	switch(f->gateway_addr.af) {
 	case AF_INET:
 		if ((fields & STORE_FIELD_GATEWAY_ADDR4) == 0)
 			break;
-		memcpy(&gwa4.gateway_addr, &flow->gateway_addr.v4,
+		memcpy(&gwa4.gateway_addr, &f->gateway_addr.v4,
 		    sizeof(gwa4.gateway_addr));
 		fields |= STORE_FIELD_GATEWAY_ADDR4;
 		fields &= ~STORE_FIELD_GATEWAY_ADDR6;
@@ -460,7 +386,7 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 	case AF_INET6:
 		if ((fields & STORE_FIELD_GATEWAY_ADDR6) == 0)
 			break;
-		memcpy(&gwa6.gateway_addr, &flow->gateway_addr.v6,
+		memcpy(&gwa6.gateway_addr, &f->gateway_addr.v6,
 		    sizeof(gwa6.gateway_addr));
 		fields |= STORE_FIELD_GATEWAY_ADDR6;
 		fields &= ~STORE_FIELD_GATEWAY_ADDR4;
@@ -471,15 +397,92 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 		SFAILX(-1, "silly gateway addr af", 1);
 	}
 
-	flow->hdr.fields = htonl(fields);
+	crc32_start(&crc);
+	offset = 0;
 
-	if (write_flow(fd, errptr, fields, flow, &aa4, &aa6,
-	    &sa4, &sa6, &da4, &da6, &gwa4, &gwa6) == 0) {
-		flow->hdr.fields = htonl(origfields);
-		return (0);
-	}
+	/* Fields have probably changes as a result of address conversion */
+	f->hdr.fields = htonl(fields);
+	if (store_calc_flow_len(&f->hdr) > len)
+		SFAILX(-1, "flow buffer too small", 1);
 
+	memcpy(buf + offset, &f->hdr, sizeof(f->hdr));
+	offset += sizeof(f->hdr);
+	crc32_update((u_char *)&f->hdr, sizeof(f->hdr), &crc);
+
+#define WFIELD(spec, what) do {						\
+	if (SHASFIELD(spec)) {						\
+		memcpy(buf + offset, &(what), sizeof(what));		\
+		offset += sizeof(what);					\
+		if (SHASFIELD(spec) && 					\
+		    (STORE_FIELD_##spec != STORE_FIELD_CRC32)) {	\
+			crc32_update((u_char *)&(what), sizeof(what),	\
+			    &crc);					\
+		}							\
+	}  } while (0)
+
+	WFIELD(TAG, f->tag);
+	WFIELD(RECV_TIME, f->recv_time);
+	WFIELD(PROTO_FLAGS_TOS, f->pft);
+	WFIELD(AGENT_ADDR4, aa4);
+	WFIELD(AGENT_ADDR6, aa6);
+	WFIELD(SRC_ADDR4, sa4);
+	WFIELD(SRC_ADDR6, sa6);
+	WFIELD(DST_ADDR4, da4);
+	WFIELD(DST_ADDR6, da6);
+	WFIELD(GATEWAY_ADDR4, gwa4);
+	WFIELD(GATEWAY_ADDR6, gwa6);
+	WFIELD(SRCDST_PORT, f->ports);
+	WFIELD(PACKETS, f->packets);
+	WFIELD(OCTETS, f->octets);
+	WFIELD(IF_INDICES, f->ifndx);
+	WFIELD(AGENT_INFO, f->ainfo);
+	WFIELD(FLOW_TIMES, f->ftimes);
+	WFIELD(AS_INFO, f->asinf);
+	WFIELD(FLOW_ENGINE_INFO, f->finf);
+	if (fields & (STORE_FIELD_CRC32))
+		f->crc32.crc32 = htonl(crc);
+	WFIELD(CRC32, f->crc32);
+#undef WFIELD
+
+	return (offset);
+}
+
+int
+store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
+    const char **errptr)
+{
+	u_int32_t fields, origfields;
+	off_t startpos;
+	char ebuf[512];
+	u_int8_t buf[512];
+	int len, r;
+
+	/* Remember where we started, so we can back errors out */
+	if ((startpos = lseek(fd, 0, SEEK_CUR)) == -1)
+		SFAIL(-1, "lseek", 1);
+
+	origfields = ntohl(flow->hdr.fields);
+	fields = origfields & fieldmask;
+
+	if ((len = store_flow_serialise(flow, buf, sizeof(buf), errptr)) == -1)
+		return (-1);
+
+	r = atomicio(vwrite, fd, buf, len);
 	flow->hdr.fields = htonl(origfields);
+
+	if (r == len)
+		return (0);
+	else if (errptr != NULL) {
+		/* Record error message */
+		if (r == -1) {
+			snprintf(ebuf, sizeof(ebuf), "write flow: %s",
+			    strerror(errno));
+			*errptr = ebuf;
+		} else {
+			snprintf(ebuf, sizeof(ebuf), "EOF on write flow");
+			*errptr = ebuf;
+		}
+	}
 
 	/* Try to rewind to starting position, so we don't corrupt flow store */
 	if (lseek(fd, startpos, SEEK_SET) == -1)

@@ -1,4 +1,4 @@
-* indicated things to do before 1.0 release
+* indicates things to do before 1.0 release
 
 - Port predicates, e.g. "port 1024-65536"
 
@@ -7,9 +7,6 @@
  - support relaying of pre/post-filter packets to another agent
    - UDP
    - Unix domain socket (more important)
-
-- Instead of reading/writing flow logs, store.c functions should format them
- to memory buffers (e.g. so they can be sent over the network) *
 
 - Add python docs and help *
 
@@ -24,9 +21,8 @@
 
 - Speed up perl and python modules
   - CRC is especially slow
-  - Making these clients of the C library would be best, but the C library 
-    needs to be modified to work with Python at least (it uses FILE * for
-    file objects)
+  - Making these clients of the C library would be best, the C library 
+    is now ready for this
   - A Python implementation of our CRC code would be easy
 
 - Add writing of binary flows to perl and python modules *
@@ -49,3 +45,5 @@
 - Don't record any nf9 flows unless the entire packet is valid (right now,
   we only validate to the flowset level)
   - Could at least iterate over packet and check for truncation?
+
+- make store_flow_ functions thread-safe
