@@ -9,3 +9,5 @@
 
 - Instead of reading/writing flow logs, store.c functions should format them
  to memory buffers (e.g. so they can be sent over the network)
+
+- Add python docs and help
