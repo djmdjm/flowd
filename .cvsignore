@@ -5,3 +5,6 @@ configure
 config.status
 config.log
 autom4te.cache
+parse.c
+y.tab.c
+Makefile
