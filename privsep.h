@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+/* Privilege separation functions */
+
 #ifndef _PRIVSEP_H
 #define _PRIVSEP_H
 

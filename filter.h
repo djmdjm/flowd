@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+/* Flow filtering system */
+
 #ifndef _FILTER_H
 #define _FILTER_H
 

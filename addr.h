@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+/* Address handling routines */
+
 #ifndef _ADDR_H
 #define _ADDR_H
 
