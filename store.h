@@ -67,6 +67,12 @@ struct store_header {
 	 STORE_FIELD_AGENT_INFO|STORE_FIELD_FLOW_TIMES|\
 	 STORE_FIELD_AS_INFO|STORE_FIELD_FLOW_ENGINE_INFO)
 
+/* Useful combinations for displaying flows */
+#define STORE_DISPLAY_ALL		(0xffffffff)
+#define STORE_DISPLAY_BRIEF		(STORE_FIELD_PROTO_FLAGS_TOS|\
+					 STORE_FIELD_SRCDST_PORT|\
+					 STORE_FIELD_PACKETS_OCTETS)
+
 /* Start of flow record - present for every flow */
 struct store_flow {
 	u_int32_t		fields;
@@ -116,8 +122,8 @@ struct store_flow_FLOW_SRCDST_PORT {
 
 /* Optional flow field - present if STORE_FIELD_PACKETS_OCTETS */
 struct store_flow_PACKETS_OCTETS {
-	u_int32_t		flow_packets;
-	u_int32_t		flow_octets;
+	u_int64_t		flow_packets;
+	u_int64_t		flow_octets;
 } __packed;
 
 /* Optional flow field - present if STORE_FIELD_IF_INDICES */
