@@ -35,6 +35,10 @@ Requires: python
 Summary: Collection of example flowd tools
 Group: Applications/Internet
 
+%package devel
+Summary: C API to access flowd logfiles
+Group: Applications/Internet
+
 %description
 This is flowd, a NetFlow collector daemon intended to be small, fast and secure.
 
@@ -54,6 +58,9 @@ example reader application
 
 %description tools
 A collection of tools for use with flowd
+
+%description devel
+This is a C API to the binary flowd network flow log format.
 
 %prep
 
@@ -153,7 +160,16 @@ fi
 %defattr(-,root,root)
 %doc tools/*
 
+%files devel
+%defattr(-,root,root)
+%dir %attr(0755,root,root) %{_includedir}/flowd
+%attr(0644,root,root) %{_includedir}/flowd/*
+%attr(0644,root,root) %{_libdir}/libflowd.a
+
 %changelog
+* Wed Nov 03 2004 Damien Miller <djm@mindrot.org>
+- Add devel subpackage
+
 * Fri Sep 24 2004 Damien Miller <djm@mindrot.org>
 - Add tools subpackage
 
