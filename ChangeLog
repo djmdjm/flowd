@@ -1,3 +1,6 @@
+20041102
+ - (djm) Crank versions to prepare for release
+
 20041101
  - (djm) Properly clean up Perl module build spoor in "make realclean"
 
