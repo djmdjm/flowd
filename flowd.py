@@ -158,7 +158,8 @@ class flow:
 				raise ValueError, \
 				    "Short read on flow field" + finf[0]
 
-			if self.__class__.__dict__[finf[0]] != flow.CRC32:
+			if self.__class__.__dict__[finf[0]] != flow.CRC32 and \
+			   (fields & flow.CRC32) != 0:
 				self.crc32.update(fdata)
 
 			if finf[2] is None:

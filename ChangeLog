@@ -2,7 +2,9 @@
  - (djm) Reformat README, upgrade from beta to production quality and mention
    PLATFORMS file
  - (djm) Mention FreeBSD and Redhat 7.3 in PLATFORMS file
-
+ - (djm) Skip CRC calculation in Perl and Python code when there is no CRC 
+   in the record. Speeds up processing of CRC-less files considerably
+    
 20040823
  - (djm) NetFlow v.5 allows 30 flows per packet, not 24
  - (djm) Call tzset() so unpriv child gets log timestamps right

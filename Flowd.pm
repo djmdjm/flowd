@@ -212,8 +212,9 @@ sub init {
 		$r = read($store->{handle}, $rawfields{@$fspec[1]}, @$fspec[2]);
 		die "read($store->{filename}): $!" if not defined $r;
 		die "early EOF on $store->{filename}" if $r < @$fspec[2];
-		$crc->update($rawfields{@$fspec[1]}) 
-			unless @$fspec[1] eq "CRC32";
+		if (($fields{fields} & CRC32) && (@$fspec[1] ne "CRC32")) {
+			$crc->update($rawfields{@$fspec[1]}) 
+		}
 	}
 
 	foreach my $field (keys %rawfields) {
