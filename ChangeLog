@@ -1,3 +1,7 @@
+20041201
+ - (djm) Extend flowd-reader to support writing of binary flows and 
+    basic filtering
+
 20041109
  - (djm) Lots of spelling, grammar and text fixes from Tamas Tevesz.
 

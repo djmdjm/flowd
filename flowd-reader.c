@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#define PROGNAME	"flowd-reader"
+
 #include <sys/types.h>
 
 #include <unistd.h>
@@ -25,12 +27,12 @@
 #include <poll.h>
 
 #include "common.h"
+#include "flowd.h"
 #include "store.h"
 #include "atomicio.h"
+#include "flowd_reader.h"
 
 RCSID("$Id$");
-
-#define PROGNAME	"flowd-reader"
 
 static void
 usage(void)
@@ -39,29 +41,108 @@ usage(void)
 	    PROGNAME);
 	fprintf(stderr, "This is %s version %s. Valid commandline options:\n",
 	    PROGNAME, PROGVER);
-	fprintf(stderr, "  -v    Display all available flow information\n");
-	fprintf(stderr, "  -U    Report times in UTC rather than local time\n");
-	fprintf(stderr, "  -h    Display this help\n");
+	fprintf(stderr, "  -q       Don't print flows to stdout (use with -o)\n");
+	fprintf(stderr, "  -d       Print debugging information\n");
+	fprintf(stderr, "  -f path  Filter flows using rule file\n");
+	fprintf(stderr, "  -o path  Write binary log to path (use with -f)\n");
+	fprintf(stderr, "  -v       Display all available flow information\n");
+	fprintf(stderr, "  -U       Report times in UTC rather than local time\n");
+	fprintf(stderr, "  -h       Display this help\n");
 }
+
+static int
+open_start_log(const char *path, int debug)
+{
+	int fd;
+	off_t pos;
+	char ebuf[512];
+
+	if ((fd = open(path, O_RDWR|O_APPEND|O_CREAT, 0600)) == -1) {
+		fprintf(stderr, "open(%s): %s\n", path, strerror(errno));
+		exit(1);
+	}
+
+	/* Only write out the header if we are at the start of the file */
+	switch ((pos = lseek(fd, 0, SEEK_END))) {
+	case 0:
+		/* New file, continue below */
+		break;
+	case -1:
+		fprintf(stderr, "lseek): %s\n", strerror(errno));
+		exit(1);
+	default:
+		/* Logfile exists, don't write new header */
+		if (lseek(fd, 0, SEEK_SET) != 0) {
+			fprintf(stderr, "lseek: %s\n", strerror(errno));
+			exit(1);
+		}
+		if (store_check_header(fd, ebuf, sizeof(ebuf)) != 
+		    STORE_ERR_OK) {
+			fprintf(stderr, "Store error: %s\n", ebuf);
+			exit(1);
+		}
+		if (lseek(fd, 0, SEEK_END) <= 0) {
+			fprintf(stderr, "lseek: %s\n", strerror(errno));
+			exit(1);
+		}
+		if (debug) {
+			fprintf(stderr, "Continuing with existing logfile "
+			    "len %lld\n", (long long)pos);
+		}
+		return (fd);
+	}
+
+	if (debug)
+		fprintf(stderr, "Writing new logfile header\n");
+
+	if (store_put_header(fd, ebuf, sizeof(ebuf)) != STORE_ERR_OK) {
+		fprintf(stderr, "Store error: %s\n", ebuf);
+		exit(1);
+	}
+
+	return (fd);
+}
+
 
 int
 main(int argc, char **argv)
 {
-	int ch, i, fd, utc, r, verbose;
+	int ch, i, fd, utc, r, verbose, debug;
 	extern char *optarg;
 	extern int optind;
 	struct store_flow_complete flow;
 	struct store_header hdr;
 	char buf[2048], ebuf[512];
+	const char *ffile, *ofile;
+	FILE *ffilef;
+	int ofd;
+	struct filter_list filter_list;
+	u_int32_t store_mask, disp_mask;
 
-	utc = verbose = 0;
-	while ((ch = getopt(argc, argv, "Uhv")) != -1) {
+	utc = verbose = debug = 0;
+	ofile = ffile = NULL;
+	ofd = -1;
+	ffilef = NULL;
+	store_mask = STORE_FIELD_ALL;
+	while ((ch = getopt(argc, argv, "Udf:ho:qv")) != -1) {
 		switch (ch) {
 		case 'h':
 			usage();
 			return (0);
 		case 'U':
 			utc = 1;
+			break;
+		case 'd':
+			debug = 1;
+			break;
+		case 'f':
+			ffile = optarg;
+			break;
+		case 'o':
+			ofile = optarg;
+			break;
+		case 'q':
+			verbose = -1;
 			break;
 		case 'v':
 			verbose = 1;
@@ -72,12 +153,26 @@ main(int argc, char **argv)
 			exit(1);
 		}
 	}
+	loginit(PROGNAME, 1, debug);
 
 	if (argc - optind < 1) {
 		fprintf(stderr, "No logfile specified\n");
 		usage();
 		exit(1);
 	}
+
+	if (ffile != NULL) {
+		if ((ffilef = fopen(ffile, "r")) == NULL)
+			logerr("fopen(%s)", ffile);
+		if (parse_filter(ffile, ffilef, debug,
+		    &filter_list, &store_mask) != 0)
+			exit(1);
+		if (debug)
+			dump_filter(&filter_list, store_mask, __func__);
+		fclose(ffilef);
+	}
+	if (ofile != NULL)
+		ofd = open_start_log(ofile, debug);
 
 	for (i = optind; i < argc; i++) {
 		if ((fd = open(argv[i], O_RDONLY)) == -1) {
@@ -91,8 +186,17 @@ main(int argc, char **argv)
 			exit(1);
 		}
 
-		printf("LOGFILE %s started at %s\n", argv[i],
-		    iso_time(ntohl(hdr.start_time), utc));
+		if (verbose >= 0) {
+			printf("LOGFILE %s started at %s\n", argv[i],
+			    iso_time(ntohl(hdr.start_time), utc));
+			fflush(stdout);
+		}
+
+		if (verbose > 0)
+			disp_mask = STORE_DISPLAY_ALL;
+		else
+			disp_mask = STORE_DISPLAY_BRIEF;
+		disp_mask &= store_mask;
 
 		for (;;) {
 			bzero(&flow, sizeof(flow));
@@ -104,14 +208,28 @@ main(int argc, char **argv)
 				fprintf(stderr, "%s\n", ebuf);
 				exit(1);
 			}
-
-			store_format_flow(&flow, buf, sizeof(buf), utc,
-			    verbose ? STORE_DISPLAY_ALL : STORE_DISPLAY_BRIEF);
-			printf("%s\n", buf);
-			fflush(stdout);
+			if (ffile != NULL && filter_flow(&flow,
+			    &filter_list) == FF_ACTION_DISCARD)
+				continue;
+			if (verbose >= 0) {
+				store_format_flow(&flow, buf, sizeof(buf), 
+				    utc, disp_mask);
+				printf("%s\n", buf);
+				fflush(stdout);
+			}
+			if (ofd != -1 && store_put_flow(ofd, &flow, store_mask, 
+			    ebuf, sizeof(ebuf)) == -1) {
+				fprintf(stderr, "%s\n", ebuf);
+				exit(1);
+			}
 		}
 		close(fd);
 	}
+	if (ofd != -1)
+		close(ofd);
+
+	if (ffile != NULL && debug)
+		dump_filter(&filter_list, store_mask, __func__);
 
 	return (0);
 }

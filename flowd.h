@@ -28,7 +28,10 @@
 #include "addr.h"
 #include "filter.h"
 
+#ifndef PROGNAME
 #define PROGNAME			"flowd"
+#endif
+
 #define DEFAULT_CONFIG			SYSCONFDIR "/flowd.conf"
 #define DEFAULT_PIDFILE			PIDFILEDIR "/flowd.pid"
 #define PRIVSEP_USER			"_flowd"

@@ -470,10 +470,13 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 
 	origfields = ntohl(flow->hdr.fields);
 	fields = origfields & fieldmask;
+	flow->hdr.fields = htonl(fields);
 
 	r = store_flow_serialise(flow, buf, sizeof(buf), &len, ebuf, elen);
-	if (r != STORE_ERR_OK)
+	if (r != STORE_ERR_OK) {
+		flow->hdr.fields = htonl(origfields);
 		return (r);
+	}
 
 	r = atomicio(vwrite, fd, buf, len);
 	saved_errno = errno;

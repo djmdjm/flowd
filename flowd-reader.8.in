@@ -19,17 +19,46 @@
 .Os
 .Sh NAME
 .Nm flowd-reader
-.Nd Read binary flowd logfiles
+.Nd Read, filter and concatenate binary flowd logfiles
 .Sh SYNOPSIS
 .Nm flowd-reader
-.Op Fl Uv
+.Op Fl Uvqd
+.Op Fl f Ar filter_file
+.Op Fl o Ar output_file
 .Ar flow_log
 .Op Ar flow_log
+.Op Ar ...
 .Sh DESCRIPTION
 .Nm
-is a program to read
+is a program to read, filter and/or concatenate
 .Xr flowd 8
-binary log files and report their contents to standard output.
+binary log files.
+.Pp
+If only
+.Ar flow_log
+arguments are specified,
+.Nm
+will read each of the log files and print their contents to standard output.
+.Pp
+Filtering may be performed by specifying a 
+.Ar filter_file
+using the
+.Fl f
+option.
+In this mode,
+.Nm
+will filter the flows it reads from the 
+.Ar flow_log
+file(s) before printing them.
+.Pp
+Finally, the
+.Fl o
+option may be used to specify a
+.Ar output_path
+to which all the flows that have been read and passed any filters are written.
+.Pp
+Using a combination of these three flags, binary log files may be displayed, 
+concatenated and filtered.
 .Pp
 The command-line options are as follows:
 .Bl -tag -width Ds
@@ -37,6 +66,34 @@ The command-line options are as follows:
 Causes
 .Nm
 to report all timestamps in UTC rather than the local timezone.
+.It Fl d
+Display debugging information, including the number of filter matches if one 
+has been specified.
+.It Fl f Ar filter_file
+Specify a 
+.Ar filter_file .
+containing filtering and field selection rules to apply to the flows that are
+loaded.
+These rules may contain 
+.Ar store
+directives and filter rules as described in the 
+.Xr flowd.conf 5
+manual (under the
+.Cm Storage field selection
+and 
+.Cm Filter
+sections respectively.)
+.It Fl q
+Operate quietly. If this argment is specified,
+.Nm
+will not display the flows it is processing.
+This may be useful in conjunction with the
+.Fl f
+option.
+.It Fl o Ar output_file
+Specify an
+.Ar output_file
+to which all flows that have been read and have passed any filters are written.
 .It Fl v
 Reports all information in the flow log, rather than the default brief subset.
 .It Fl h

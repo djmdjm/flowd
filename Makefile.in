@@ -45,7 +45,7 @@ LIBFLOWD_HEADERS=	addr.h crc32.h store.h
 FLOWD_OBJS=		flowd.o privsep_fdpass.o privsep.o filter.o \
 			parse.o log.o daemon.o peer.o \
 			closefrom.o setproctitle.o
-FLOWD_READER_OBJS=	flowd-reader.o
+FLOWD_READER_OBJS=	flowd-reader.o filter_parse.o log.o filter.o
 
 libflowd.a: $(LIBFLOWD_OBJS)
 	$(AR) rv $@ $(LIBFLOWD_OBJS)

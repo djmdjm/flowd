@@ -1,6 +1,8 @@
 * indicates things to do before 1.0 release
 
 - Port predicates, e.g. "port 1024-65536"
+- filter match on AF
+- Improve flowd_reader filters (packets, octets, tags, tcpflags, whatever)
 
 - Improve log handling
  - E.g. multiple log files, based on tag?
@@ -13,8 +15,6 @@
 - Add writing of binary flows to perl and python modules	*
 
 - Tools collection:
-  - "flow-filter", a small program to filter and/or re-tag on-disk flows 
-    (reuse or share parse.y filtering code)
   - "flow-send", a small program to take on-disk flows and send them as 
     NetFlow packets to a chosen host
   - (or, patch flow-tools)

@@ -131,15 +131,15 @@ start_log(int monitor_fd)
 		/* New file, continue below */
 		break;
 	case -1:
-		logerr("%s: llseek error, exiting", __func__);
+		logerr("%s: lseek error, exiting", __func__);
 	default:
 		/* Logfile exists, don't write new header */
 		if (lseek(fd, 0, SEEK_SET) != 0)
-			logerr("%s: llseek error, exiting", __func__);
+			logerr("%s: lseek error, exiting", __func__);
 		if (store_check_header(fd, ebuf, sizeof(ebuf)) != STORE_ERR_OK)
 			logerrx("%s: Exiting on %s", __func__, ebuf);
 		if (lseek(fd, 0, SEEK_END) <= 0)
-			logerr("%s: llseek error, exiting", __func__);
+			logerr("%s: lseek error, exiting", __func__);
 		logit(LOG_DEBUG, "Continuing with existing logfile len %lld",
 		    (long long)pos);
 		return (fd);
