@@ -18,3 +18,13 @@
 - Write "flow-send", a small program to take on-disk flows and send them as 
   NetFlow packets to a chosen host
 
+- NetFlow v.7, v.9, sflow, IPFIX
+
+- Speed up perl and python modules
+
+- Add writing of binary flows to perl and python modules
+
+- Add calculation and storage of "normalised" flow timers, correcting for 
+  flow probe clock errors by using difference between header->time_sec and 
+  localtime (assumes flow collector clock is accurate!)
+
