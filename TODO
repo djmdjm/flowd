@@ -18,5 +18,3 @@
  to memory buffers (e.g. so they can be sent over the network)
 
 - manpages
-
-- install a basic config file
