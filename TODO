@@ -8,8 +8,9 @@
    - UDP
    - Unix domain socket (more important)
 
-- Improve Perl and Python documentation
-- Add Perl and Python regress tests
+- Improve Perl and Python documentation				*
+- Add Perl and Python regress tests				*
+- Add writing of binary flows to perl and python modules	*
 
 - Tools collection:
   - "flow-filter", a small program to filter and/or re-tag on-disk flows 
@@ -19,8 +20,6 @@
   - (or, patch flow-tools)
 
 - More protocols: sflow, IPFIX
-
-- Add writing of binary flows to perl and python modules *
 
 - Add calculation and storage of "normalised" flow timers, correcting for 
   flow probe clock errors by using difference between header->time_sec and 
