@@ -25,8 +25,22 @@ AC_PROG_RANLIB
 AC_SYS_LARGEFILE
 AC_C_BIGENDIAN
 
-# This detects bison, which doesn't work
-#AC_PROG_YACC
+# GNU bison doesn't work for us, so try to find a Berkeley yacc
+AC_PATH_PROG(YACC, yacc)
+AC_PATH_PROG(BYACC, byacc)
+
+# Prefer byacc if it is present
+if test "x$BYACC" != "x" ; then
+	YACC=$BYACC
+	AC_SUBST(YACC)
+fi
+
+if test "x$YACC" == "x" ; then
+	AC_MSG_ERROR([yacc not found])
+fi
+if ${YACC} -V 2>&1 | grep -i bison >/dev/null 2>&1 ; then
+	AC_MSG_ERROR([missing Berkeley yacc - GNU bison not supported])
+fi
 
 # Check for some target-specific stuff
 case "$host" in

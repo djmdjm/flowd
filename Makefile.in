@@ -21,7 +21,7 @@ INSTALL=@INSTALL@
 RANLIB=@RANLIB@
 
 # Bison doesn't work
-YACC=yacc
+YACC=@YACC@
 
 TARGETS=flowd flowd-reader
 
