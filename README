@@ -4,7 +4,9 @@ It features some basic filtering to limit or tag the flows that are recorded
 and is privilege separated, to limit security exposure from bugs in flowd 
 itself.
 
-At present this is *alpha* software. Please report problems to djm@mindrot.org
+At present this is *beta* software. Please report problems to djm@mindrot.org
+There is also a Bugzilla at http://bugzilla.mindrot.org/ where bugs may be
+reported.
 
 flowd stores records on disk in a compact binary format, see store.h for a 
 specification in the form of a C header file. Flowd.pm is a PERL module that
@@ -33,3 +35,4 @@ but read the LICENSE file for details.
 Damien Miller <djm@mindrot.org>
 
 $Id$ 
+
