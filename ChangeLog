@@ -1,3 +1,7 @@
+20041202
+ - (djm) Reuse existing config parsing code for flowd-reader's new filtering
+   ability, rather than maintaining a whole other yacc parser
+
 20041201
  - (djm) Extend flowd-reader to support writing of binary flows and 
     basic filtering

@@ -71,9 +71,9 @@ struct flowd_config {
 };
 
 /* parse.y */
-int parse_config(const char *, FILE *, struct flowd_config *);
+int parse_config(const char *, FILE *, struct flowd_config *, int);
 int cmdline_symset(char *);
-void dump_config(struct flowd_config *, const char *);
+void dump_config(struct flowd_config *, const char *, int);
 
 /* log.c */
 void logclose(void);

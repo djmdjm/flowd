@@ -785,7 +785,8 @@ top:
 }
 
 int
-parse_config(const char *path, FILE *f, struct flowd_config *mconf)
+parse_config(const char *path, FILE *f, struct flowd_config *mconf,
+    int filter_only)
 {
 	struct sym		*sym, *next;
 
@@ -793,6 +794,7 @@ parse_config(const char *path, FILE *f, struct flowd_config *mconf)
 
 	TAILQ_INIT(&conf->listen_addrs);
 	TAILQ_INIT(&conf->filter_list);
+	TAILQ_INIT(&conf->allowed_devices);
 
 	lineno = 1;
 	errors = 0;
@@ -801,17 +803,17 @@ parse_config(const char *path, FILE *f, struct flowd_config *mconf)
 
 	yyparse();
 
-	if (conf->log_file == NULL) {
+	if (!filter_only && conf->log_file == NULL) {
 		logit(LOG_ERR, "No log file specified");
 		return (-1);
 	}
-	if (conf->pid_file == NULL && 
+	if (!filter_only && conf->pid_file == NULL && 
 	    (conf->pid_file = strdup(DEFAULT_PIDFILE)) == NULL) {
 		logit(LOG_ERR, "strdup pidfile");
 		return (-1);
 	}
 
-	if (TAILQ_EMPTY(&conf->listen_addrs)) {
+	if (!filter_only && TAILQ_EMPTY(&conf->listen_addrs)) {
 		logit(LOG_ERR, "No listening addresses specified");
 		return (-1);
 	}
@@ -923,18 +925,22 @@ atoul(char *s, u_long *ulvalp)
 }
 
 void
-dump_config(struct flowd_config *c, const char *prefix)
+dump_config(struct flowd_config *c, const char *prefix, int filter_only)
 {
 	struct filter_rule *fr;
 	struct listen_addr *la;
 #define DCPR(a) ((a) == NULL ? "" : a), ((a) == NULL ? "" : ": ")
-	logit(LOG_DEBUG, "%s%slogfile \"%s\"", DCPR(prefix), c->log_file);
+	if (!filter_only)
+		logit(LOG_DEBUG, "%s%slogfile \"%s\"", DCPR(prefix), c->log_file);
 	logit(LOG_DEBUG, "%s%s# store mask %08x", DCPR(prefix), c->store_mask);
-	logit(LOG_DEBUG, "%s%s# opts %08x", DCPR(prefix), c->opts);
-	TAILQ_FOREACH(la, &c->listen_addrs, entry) {
-		logit(LOG_DEBUG, "%s%slisten on [%s]:%d # fd = %d",
-		    DCPR(prefix), addr_ntop_buf(&la->addr), la->port, la->fd);
-	}
+	if (!filter_only)
+		logit(LOG_DEBUG, "%s%s# opts %08x", DCPR(prefix), c->opts);
+
+	if (!filter_only)
+		TAILQ_FOREACH(la, &c->listen_addrs, entry) {
+			logit(LOG_DEBUG, "%s%slisten on [%s]:%d # fd = %d",
+			    DCPR(prefix), addr_ntop_buf(&la->addr), la->port, la->fd);
+		}
 
 	TAILQ_FOREACH(fr, &c->filter_list, entry)
 		logit(LOG_DEBUG, "%s%s%s", DCPR(prefix), format_rule(fr));

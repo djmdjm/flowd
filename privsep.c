@@ -503,7 +503,7 @@ child_get_config(const char *path, struct flowd_config *conf)
 		}
 		if (drop_privs(pw, 0) == -1)
 			exit(1);
-		ok = (parse_config(path, cfg, &newconf) == 0);
+		ok = (parse_config(path, cfg, &newconf, 0) == 0);
 		fclose(cfg);
 		if (atomicio(vwrite, s[1], &ok, sizeof(ok)) != sizeof(ok)) {
 			logitm(LOG_ERR, "%s: write(ok)", __func__);

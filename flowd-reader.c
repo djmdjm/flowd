@@ -30,7 +30,6 @@
 #include "flowd.h"
 #include "store.h"
 #include "atomicio.h"
-#include "flowd_reader.h"
 
 RCSID("$Id$");
 
@@ -116,14 +115,16 @@ main(int argc, char **argv)
 	const char *ffile, *ofile;
 	FILE *ffilef;
 	int ofd;
-	struct filter_list filter_list;
-	u_int32_t store_mask, disp_mask;
+	u_int32_t disp_mask;
+	struct flowd_config filter_config;
 
 	utc = verbose = debug = 0;
 	ofile = ffile = NULL;
 	ofd = -1;
 	ffilef = NULL;
-	store_mask = STORE_FIELD_ALL;
+
+	bzero(&filter_config, sizeof(filter_config));
+
 	while ((ch = getopt(argc, argv, "Udf:ho:qv")) != -1) {
 		switch (ch) {
 		case 'h':
@@ -134,6 +135,7 @@ main(int argc, char **argv)
 			break;
 		case 'd':
 			debug = 1;
+			filter_config.opts |= FLOWD_OPT_VERBOSE;
 			break;
 		case 'f':
 			ffile = optarg;
@@ -164,15 +166,18 @@ main(int argc, char **argv)
 	if (ffile != NULL) {
 		if ((ffilef = fopen(ffile, "r")) == NULL)
 			logerr("fopen(%s)", ffile);
-		if (parse_filter(ffile, ffilef, debug,
-		    &filter_list, &store_mask) != 0)
+		if (parse_config(ffile, ffilef, &filter_config, 1) != 0)
 			exit(1);
-		if (debug)
-			dump_filter(&filter_list, store_mask, __func__);
 		fclose(ffilef);
 	}
 	if (ofile != NULL)
 		ofd = open_start_log(ofile, debug);
+
+	if (filter_config.store_mask == 0)
+		filter_config.store_mask = STORE_FIELD_ALL;
+
+	disp_mask = (verbose > 0) ? STORE_DISPLAY_ALL: STORE_DISPLAY_BRIEF;
+	disp_mask &= filter_config.store_mask;
 
 	for (i = optind; i < argc; i++) {
 		if ((fd = open(argv[i], O_RDONLY)) == -1) {
@@ -192,12 +197,6 @@ main(int argc, char **argv)
 			fflush(stdout);
 		}
 
-		if (verbose > 0)
-			disp_mask = STORE_DISPLAY_ALL;
-		else
-			disp_mask = STORE_DISPLAY_BRIEF;
-		disp_mask &= store_mask;
-
 		for (;;) {
 			bzero(&flow, sizeof(flow));
 
@@ -209,7 +208,7 @@ main(int argc, char **argv)
 				exit(1);
 			}
 			if (ffile != NULL && filter_flow(&flow,
-			    &filter_list) == FF_ACTION_DISCARD)
+			    &filter_config.filter_list) == FF_ACTION_DISCARD)
 				continue;
 			if (verbose >= 0) {
 				store_format_flow(&flow, buf, sizeof(buf), 
@@ -217,8 +216,9 @@ main(int argc, char **argv)
 				printf("%s\n", buf);
 				fflush(stdout);
 			}
-			if (ofd != -1 && store_put_flow(ofd, &flow, store_mask, 
-			    ebuf, sizeof(ebuf)) == -1) {
+			if (ofd != -1 && store_put_flow(ofd, &flow, 
+			    filter_config.store_mask, ebuf, 
+			    sizeof(ebuf)) == -1) {
 				fprintf(stderr, "%s\n", ebuf);
 				exit(1);
 			}
@@ -229,7 +229,7 @@ main(int argc, char **argv)
 		close(ofd);
 
 	if (ffile != NULL && debug)
-		dump_filter(&filter_list, store_mask, __func__);
+		dump_config(&filter_config, "final", 1);
 
 	return (0);
 }
