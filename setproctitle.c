@@ -36,6 +36,11 @@
 #ifndef HAVE_SETPROCTITLE
 
 #include <unistd.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <err.h>
 #ifdef HAVE_SYS_PSTAT_H
 #include <sys/pstat.h>
 #endif
@@ -63,7 +68,7 @@ void
 compat_init_setproctitle(int argc, char ***argvp)
 {
 #if defined(SPT_TYPE) && SPT_TYPE == SPT_REUSEARGV
-	char **argv = *argvp, saved_argv;
+	char **argv = *argvp, **saved_argv;
 	extern char **environ;
 	char *lastargv = NULL;
 	char **envp = environ;
@@ -73,11 +78,13 @@ compat_init_setproctitle(int argc, char ***argvp)
 		return;
 
 	/* Save argv so setproctitle emulation doesn't clobber it */
-	saved_argv = xmalloc(sizeof(*saved_argv) * (argc + 1));
-	for (i = 0; i < ac; i++)
-		saved_argv[i] = xstrdup(argv[i]);
+	if ((saved_argv = malloc(sizeof(*saved_argv) * (argc + 1))) == NULL)
+		errx(1, "setproctitle malloc");
+	for (i = 0; i < argc; i++)
+		if ((saved_argv[i] = strdup(argv[i])) == NULL)
+			errx(1, "setproctitle strdup");
 	saved_argv[i] = NULL;
-        *argv = saved_argv;
+        *argvp = saved_argv;
 
 	/* Fail if we can't allocate room for the new environment */
 	for (i = 0; envp[i] != NULL; i++)
