@@ -156,6 +156,7 @@ start_log(int monitor_fd)
 {
 	int fd;
 	struct store_header hdr;
+	off_t pos;
 
 	if ((fd = client_open_log(monitor_fd)) == -1) {
 		syslog(LOG_CRIT, "Logfile open failed, exiting");
@@ -163,19 +164,30 @@ start_log(int monitor_fd)
 	}
 
 	/* Only write out the header if we are at the start of the file */
-	if (lseek(fd, 0, SEEK_CUR) == 0) {
-		syslog(LOG_DEBUG, "Continuing with existing logfile");
+	switch ((pos = lseek(fd, 0, SEEK_END))) {
+	case 0:
+		/* New file, continue below */
+		break;
+	case -1:
+		syslog(LOG_CRIT, "%s: llseek error, exiting: %s", __func__, 
+		    strerror(errno));
+		exit(1);
+	default:
+		/* Logfile exists, don't write new header */
+		syslog(LOG_DEBUG, "Continuing with existing logfile len %lld", 
+		    (long long)pos);
 		return (fd);
 	}
 
 	syslog(LOG_DEBUG, "Writing new logfile header");
+
 	bzero(&hdr, sizeof(hdr));
 	hdr.magic = htonl(STORE_MAGIC);
 	hdr.version = htonl(STORE_VERSION);
 	hdr.start_time = htonl(time(NULL));
 	hdr.flags = htonl(0);
 
-	if (atomicio(vwrite, fd, &hdr, sizeof(hdr)) != sizeof(sizeof(hdr))) {
+	if (atomicio(vwrite, fd, &hdr, sizeof(hdr)) != sizeof(hdr)) {
 		syslog(LOG_CRIT, "%s: write log header failed, exiting: %s",
 		    __func__, strerror(errno));
 		exit(1);
@@ -195,6 +207,8 @@ store_flow(int fd, struct store_flow_complete *flow)
 	struct store_flow_GATEWAY_ADDR_V6 gwa6;
 	u_int32_t fieldspec;
 	off_t startpos;
+
+	syslog(LOG_DEBUG, "%s: entering", __func__);
 
 	/* Remember where we started, so we can back errors out */	
 	if ((startpos = lseek(fd, 0, SEEK_CUR)) == -1) {
@@ -268,7 +282,10 @@ store_flow(int fd, struct store_flow_complete *flow)
 	    sizeof(flow->hdr))
 		goto fail;
 
+	syslog(LOG_DEBUG, "%s: write fields %x", __func__, fieldspec);
+
 #define WRITEOUT(spec, what, len) do {  \
+		syslog(LOG_DEBUG, "writing %s len %d", #spec, len); \
 		if ((fieldspec & (spec)) && atomicio(vwrite, fd, (what), \
 		    (len)) != len)  \
 			goto fail; \
@@ -315,6 +332,8 @@ static void
 process_flow(struct store_flow_complete *flow, struct flowd_config *conf,
     int log_fd)
 {
+	syslog(LOG_DEBUG, "%s: entering", __func__);
+
 	/* Another sanity check */
 	if (flow->src_addr.af != flow->dst_addr.af) {
 		syslog(LOG_WARNING, "%s: flow src(%d)/dst(%d) AF mismatch",
@@ -358,7 +377,7 @@ process_netflow_v1(u_int8_t *pkt, size_t len, struct sockaddr *from,
 		return;
 	}
 
-	syslog(LOG_DEBUG, "Valid netflow v.1 packet");
+	syslog(LOG_DEBUG, "Valid netflow v.1 packet %d flows", nflows);
 
 	for (i = 0; i < nflows; i++) {
 		offset = NF1_PACKET_SIZE(i);
@@ -438,7 +457,7 @@ process_netflow_v5(u_int8_t *pkt, size_t len, struct sockaddr *from,
 		return;
 	}
 
-	syslog(LOG_DEBUG, "Valid netflow v.5 packet");
+	syslog(LOG_DEBUG, "Valid netflow v.5 packet %d flows", nflows);
 
 	for (i = 0; i < nflows; i++) {
 		offset = NF5_PACKET_SIZE(i);
