@@ -37,21 +37,24 @@ usage(void)
 int
 main(int argc, char **argv)
 {
-	int ch, i, fd, utc, r;
+	int ch, i, fd, utc, r, verbose;
 	extern char *optarg;
 	extern int optind;
 	struct store_flow_complete flow;
 	struct store_header hdr;
 	char *e, buf[2048];
 
-	utc = 0;
-	while ((ch = getopt(argc, argv, "hU")) != -1) {
+	utc = verbose = 0;
+	while ((ch = getopt(argc, argv, "Uhv")) != -1) {
 		switch (ch) {
 		case 'h':
 			usage();
 			return (0);
 		case 'U':
 			utc = 1;
+			break;
+		case 'v':
+			verbose = 1;
 			break;
 		default:
 			fprintf(stderr, "Invalid commandline option.\n");
@@ -83,7 +86,8 @@ main(int argc, char **argv)
 			if (r == 0) /* EOF */
 				break;
 
-			store_format_flow(&flow, buf, sizeof(buf), utc);
+			store_format_flow(&flow, buf, sizeof(buf), utc,
+			    verbose ? STORE_DISPLAY_ALL : STORE_DISPLAY_BRIEF);
 			printf("%s\n", buf);
 			fflush(stdout);
 		}

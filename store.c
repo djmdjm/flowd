@@ -372,14 +372,14 @@ interval_time(time_t t)
 
 void
 store_format_flow(struct store_flow_complete *flow, char *buf, size_t len, 
-    int utc_flag)
+    int utc_flag, u_int32_t display_mask)
 {
 	char tmp[256];
 	u_int32_t fields;
 
 	*buf = '\0';
 
-	fields = ntohl(flow->hdr.fields);
+	fields = ntohl(flow->hdr.fields) & display_mask;
 
 	printf("FLOW tag %u %s ", ntohl(flow->hdr.tag),
 	    iso_time(ntohl(flow->hdr.recv_secs), utc_flag));

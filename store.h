@@ -189,6 +189,6 @@ int store_put_flow(int fd, struct store_flow_complete *flow, char **errptr);
 const char *iso_time(time_t t, int utc_flag);
 const char *interval_time(time_t t);
 void store_format_flow(struct store_flow_complete *flow, char *buf,
-    size_t len, int utc_flag);
+    size_t len, int utc_flag, u_int32_t display_mask);
 
 #endif /* _STORE_H */
