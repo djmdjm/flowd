@@ -17,7 +17,8 @@ need the Socket6 module, which is available from CPAN:
 
 http://search.cpan.org/~umemoto/Socket6-0.17/Socket6.pm
 
-The Python module doesn't have any special dependencies.
+The Python module doesn't have any special dependencies. To install it, run
+"./setup.py install"
 
 Please report any problems to me.
 
