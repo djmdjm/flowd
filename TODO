@@ -31,3 +31,5 @@
   flow probe clock errors by using difference between header->time_sec and 
   localtime (assumes flow collector clock is accurate!) *
 
+- Rewrite parsing components of Flowd.pm to be as nice as the Python
+  implementation (or just make them both layers of the C library) *
