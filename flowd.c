@@ -75,6 +75,19 @@ host_ntop(struct xaddr *a)
 	return (hbuf);
 }
 
+static const char *
+from_ntop(struct sockaddr_storage *s)
+{
+	static char hbuf[64], sbuf[32], ret[128];
+
+	if (addr_ss_ntop(s, hbuf, sizeof(hbuf), sbuf, sizeof(sbuf)) == -1)
+		return ("error");
+
+	snprintf(ret, sizeof(ret), "[%s]:%s", hbuf, sbuf);
+
+	return (ret);
+}
+
 void
 dump_config(struct flowd_config *c)
 {
@@ -138,12 +151,17 @@ setup_listener(struct xaddr *addr, u_int16_t port)
 	int fd, fl;
 	struct sockaddr_storage ss;
 
-	if (addr_xaddr_to_ss(addr, &ss) == -1)
+	if (addr_xaddr_to_ss(addr, &ss, port) == -1)
 		errx(1, "addr_xaddr_to_ss");
 	if ((fd = socket(addr->af, SOCK_DGRAM, 0)) == -1)
 		err(1, "socket");
-	if ((fd = bind(fd, (struct sockaddr *)&ss,
-	    SA_LEN((struct sockaddr *)&ss))) == -1)
+
+	fl = 1;
+	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &fl, sizeof(fl)) == -1)
+		err(1, "setsockopt");
+
+	if (bind(fd, (struct sockaddr *)&ss, 
+	    SA_LEN((struct sockaddr *)&ss)) == -1)
 		err(1, "bind");
 
 	/* Set non-blocking */
@@ -162,17 +180,17 @@ listen_init(struct flowd_config *conf)
 	struct listen_addr *la;
 
 	TAILQ_FOREACH(la, &conf->listen_addrs, entry) {
-		if (conf->opts & FLOWD_OPT_VERBOSE) {
-			fprintf(stderr, "Listener for [%s]:%d\n",
-			    host_ntop(&la->addr), la->port);
-		}
 		if (la->fd != -1)
 			close(la->fd);
 
-		la->fd = setup_listener(&la->addr, htons(la->port));
+		la->fd = setup_listener(&la->addr, la->port);
 		if (la->fd == -1) {
 			errx(1, "Listener setup of [%s]:%d failed", 
 			    host_ntop(&la->addr), la->port);
+		}
+		if (conf->opts & FLOWD_OPT_VERBOSE) {
+			fprintf(stderr, "Listener for [%s]:%d fd = %d\n",
+			    host_ntop(&la->addr), la->port, la->fd);
 		}
 	}
 }
@@ -180,7 +198,23 @@ listen_init(struct flowd_config *conf)
 static void
 process_input(struct flowd_config *conf, int fd)
 {
-	syslog(LOG_INFO, "woot XXX");
+	struct sockaddr_storage from;
+	socklen_t fromlen;
+	u_int8_t buf[2048];
+	ssize_t len;
+
+ retry:
+	fromlen = sizeof(from);
+	if ((len = recvfrom(fd, buf, sizeof(buf), 0, 
+	    (struct sockaddr *)&from, &fromlen)) == -1) {
+		if (errno == EINTR)
+			goto retry;
+		if (errno != EAGAIN)
+			syslog(LOG_ERR, "recvfrom: %s", strerror(errno));
+		/* XXX ratelimit errors */
+		return;
+	}
+	syslog(LOG_INFO, "recv %d bytes from %s", len, from_ntop(&from));
 }
 
 static void
@@ -203,12 +237,12 @@ flowd_mainloop(struct flowd_config *conf, int monitor_fd)
 	}
 
 	pfd[0].fd = monitor_fd;
-	pfd[0].fd = POLLIN;
+	pfd[0].events = POLLIN;
 
 	i = 1;
 	TAILQ_FOREACH(la, &conf->listen_addrs, entry) {
 		pfd[i].fd = la->fd;
-		pfd[i].fd = POLLIN;
+		pfd[i].events = POLLIN;
 		i++;
 	}
 
@@ -225,23 +259,31 @@ flowd_mainloop(struct flowd_config *conf, int monitor_fd)
 			exit(1);
 		}
 		
-		if ((i = poll(pfd, num_fds, INFTIM)) <= 0) {
+		syslog(LOG_DEBUG, "%s: poll(%d) entering", __func__, num_fds);
+		i = poll(pfd, num_fds, INFTIM);
+		syslog(LOG_DEBUG, "%s: poll(%d) = %d", __func__, num_fds, i);
+		if (i <= 0) {
 			if (i == 0 || errno == EINTR)
 				continue;
 			syslog(LOG_ERR, "%s: poll: %s", __func__,
 			    strerror(errno));
 			exit(1);
 		}
+
 		/* monitor exited */
-		if ((pfd[0].revents & POLLHUP) != 0) {
+		if (pfd[0].revents != 0) {
 			syslog(LOG_DEBUG, "%s: monitor closed", __func__);
 			break;
 		}
 
 		i = 1;
 		TAILQ_FOREACH(la, &conf->listen_addrs, entry) {
-			if ((pfd[i].revents & POLLIN) != 0)
+			if ((pfd[i].revents & POLLIN) != 0) {
+				syslog(LOG_DEBUG, "%s: event on listener #%d "
+				    "fd %d 0x%x", __func__, i - 1, pfd[i].fd, 
+				    pfd[i].revents);
 				process_input(conf, pfd[i].fd);
+			}
 			i++;
 		}
 	}
