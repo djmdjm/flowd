@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+/* Peer tracking and state holding code, see peer.h for details */
+
 #include <sys/types.h>
 #include <sys/time.h>
 

@@ -48,6 +48,8 @@
  * NB. The peer.c routines are not responsible for filling in the template 
  * record structures, just for housekeeping such as allocation and lookup.
  * The filling-in is performed by the netflow v.9 template flowset handler
+ *
+ * XXX - share these structures with IPFIX in the future
  */
 
 /* A record in a NetFlow v.9 template record */
