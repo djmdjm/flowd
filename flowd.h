@@ -28,11 +28,17 @@
 #include "addr.h"
 #include "filter.h"
 
-#define PROGNAME		"flowd"
-#define DEFAULT_CONFIG		SYSCONFDIR "/flowd.conf"
-#define DEFAULT_PIDFILE		PIDFILEDIR "/flowd.pid"
-#define PRIVSEP_USER		"_flowd"
-#define DEFAULT_MAX_PEERS	1024
+#define PROGNAME			"flowd"
+#define DEFAULT_CONFIG			SYSCONFDIR "/flowd.conf"
+#define DEFAULT_PIDFILE			PIDFILEDIR "/flowd.pid"
+#define PRIVSEP_USER			"_flowd"
+
+/* Initial stateholding limits */
+/* XXX these are not actually tunable yet */
+#define DEFAULT_MAX_PEERS		128
+#define DEFAULT_MAX_TEMPLATES		8
+#define DEFAULT_MAX_TEMPLATE_LEN	1024
+#define DEFAULT_MAX_SOURCES		64
 
 struct allowed_device {
 	struct xaddr			addr;

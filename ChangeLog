@@ -1,3 +1,7 @@
+2004091
+ - (djm) Implement NetFlow v.9 support. Some more work to do yet, but it is 
+   basically functional
+
 20040920
  - (djm) Add new "flow source" directive, to specify hosts that we are willing
    to receive flows from

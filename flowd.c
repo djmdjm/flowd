@@ -43,8 +43,13 @@ RCSID("$Id$");
 /* Dump unknown packet types */
 /* #define DEBUG_UNKNOWN */
 
-/* Flags set by signal handlers */
+/* Reams of netflow v.9 verbosity */
+/* #define DEBUG_NF9 */
 
+/* Prototype this (can't make it static because it only #ifdef DEBUG_UNKNOWN) */
+void dump_packet(const char *tag, const u_int8_t *p, int len);
+
+/* Flags set by signal handlers */
 static sig_atomic_t exit_flag = 0;
 static sig_atomic_t reconf_flag = 0;
 static sig_atomic_t reopen_flag = 0;
@@ -95,11 +100,11 @@ usage(void)
 }
 
 /* Dump a packet */
-#ifdef DEBUG_UNKNOWN
-static void
-dump_packet(const u_int8_t *p, int len)
+static const char *
+data_ntoa(const u_int8_t *p, int len)
 {
-	char buf[1024], tmp[3];
+	static char buf[2048];
+	char tmp[3];
 	int i;
 
 	for (*buf = '\0', i = 0; i < len; i++) {
@@ -109,9 +114,19 @@ dump_packet(const u_int8_t *p, int len)
 			break;
 		}
 	}
-	logit(LOG_INFO, "packet len %d: %s", len, buf);
+	return (buf);
 }
-#endif
+
+void
+dump_packet(const char *tag, const u_int8_t *p, int len)
+{
+	if (tag == NULL)
+		logit(LOG_INFO, "packet len %d: %s", len, data_ntoa(p, len));
+	else {
+		logit(LOG_INFO, "%s: packet len %d: %s", 
+		    tag, len, data_ntoa(p, len));
+	}
+}
 
 static int
 start_log(int monitor_fd)
@@ -471,6 +486,474 @@ process_netflow_v7(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
 	}
 }
 
+static int
+nf9_rec_to_flow(struct peer_nf9_record *rec, struct store_flow_complete *flow,
+    u_int8_t *data)
+{
+/* Copy an int (possibly shorter than the target) keeping their LSBs aligned */
+#define BE_COPY(a) memcpy((u_char*)&a + (sizeof(a) - rec->len), data, rec->len);
+	/* XXX: use a table-based interpreter */
+	switch (rec->type) {
+	case NF9_IN_BYTES:
+		flow->hdr.fields |= STORE_FIELD_OCTETS;
+		BE_COPY(flow->octets.flow_octets);
+		break;
+	case NF9_IN_PACKETS:
+		flow->hdr.fields |= STORE_FIELD_PACKETS;
+		BE_COPY(flow->packets.flow_packets);
+		break;
+	case NF9_IN_PROTOCOL:
+		flow->hdr.fields |= STORE_FIELD_PROTO_FLAGS_TOS;
+		BE_COPY(flow->pft.protocol);
+		break;
+	case NF9_SRC_TOS:
+		flow->hdr.fields |= STORE_FIELD_PROTO_FLAGS_TOS;
+		BE_COPY(flow->pft.tos);
+		break;
+	case NF9_TCP_FLAGS:
+		flow->hdr.fields |= STORE_FIELD_PROTO_FLAGS_TOS;
+		BE_COPY(flow->pft.tcp_flags);
+		break;
+	case NF9_L4_SRC_PORT:
+		flow->hdr.fields |= STORE_FIELD_SRCDST_PORT;
+		BE_COPY(flow->ports.src_port);
+		break;
+	case NF9_IPV4_SRC_ADDR:
+		flow->hdr.fields |= STORE_FIELD_SRC_ADDR4;
+		memcpy(&flow->src_addr.v4, data, rec->len);
+		flow->src_addr.af = AF_INET;
+		break;
+	case NF9_SRC_MASK:
+		flow->hdr.fields |= STORE_FIELD_AS_INFO;
+		BE_COPY(flow->asinf.src_mask);
+		break;
+	case NF9_INPUT_SNMP:
+		flow->hdr.fields |= STORE_FIELD_IF_INDICES;
+		BE_COPY(flow->ifndx.if_index_in);
+		break;
+	case NF9_L4_DST_PORT:
+		flow->hdr.fields |= STORE_FIELD_SRCDST_PORT;
+		BE_COPY(flow->ports.dst_port);
+		break;
+	case NF9_IPV4_DST_ADDR:
+		flow->hdr.fields |= STORE_FIELD_DST_ADDR4;
+		memcpy(&flow->dst_addr.v4, data, rec->len);
+		flow->dst_addr.af = AF_INET;
+		break;
+	case NF9_DST_MASK:
+		flow->hdr.fields |= STORE_FIELD_AS_INFO;
+		BE_COPY(flow->asinf.dst_mask);
+		break;
+	case NF9_OUTPUT_SNMP:
+		flow->hdr.fields |= STORE_FIELD_IF_INDICES;
+		BE_COPY(flow->ifndx.if_index_out);
+		break;
+	case NF9_IPV4_NEXT_HOP:
+		flow->hdr.fields |= STORE_FIELD_GATEWAY_ADDR4;
+		memcpy(&flow->gateway_addr.v4, data, rec->len);
+		flow->gateway_addr.af = AF_INET;
+		break;
+	case NF9_SRC_AS:
+		flow->hdr.fields |= STORE_FIELD_AS_INFO;
+		BE_COPY(flow->asinf.src_as);
+		break;
+	case NF9_DST_AS:
+		flow->hdr.fields |= STORE_FIELD_AS_INFO;
+		BE_COPY(flow->asinf.dst_as);
+		break;
+	case NF9_LAST_SWITCHED:
+		flow->hdr.fields |= STORE_FIELD_FLOW_TIMES;
+		BE_COPY(flow->ftimes.flow_start);
+		break;
+	case NF9_FIRST_SWITCHED:
+		flow->hdr.fields |= STORE_FIELD_FLOW_TIMES;
+		BE_COPY(flow->ftimes.flow_finish);
+		break;
+	case NF9_IPV6_SRC_ADDR:
+		flow->hdr.fields |= STORE_FIELD_SRC_ADDR6;
+		memcpy(&flow->src_addr.v6, data, rec->len);
+		flow->src_addr.af = AF_INET6;
+		break;
+	case NF9_IPV6_DST_ADDR:
+		flow->hdr.fields |= STORE_FIELD_DST_ADDR6;
+		memcpy(&flow->dst_addr.v6, data, rec->len);
+		flow->dst_addr.af = AF_INET6;
+		break;
+	case NF9_IPV6_SRC_MASK:
+		flow->hdr.fields |= STORE_FIELD_AS_INFO;
+		BE_COPY(flow->asinf.src_mask);
+		break;
+	case NF9_IPV6_DST_MASK:
+		flow->hdr.fields |= STORE_FIELD_AS_INFO;
+		BE_COPY(flow->asinf.dst_mask);
+		break;
+	case NF9_ENGINE_TYPE:
+		flow->hdr.fields |= STORE_FIELD_FLOW_ENGINE_INFO;
+		BE_COPY(flow->finf.engine_type);
+		break;
+	case NF9_ENGINE_ID:
+		flow->hdr.fields |= STORE_FIELD_FLOW_ENGINE_INFO;
+		BE_COPY(flow->finf.engine_id);
+		break;
+	case NF9_IPV6_NEXT_HOP:
+		flow->hdr.fields |= STORE_FIELD_GATEWAY_ADDR6;
+		memcpy(&flow->gateway_addr.v6, data, rec->len);
+		flow->gateway_addr.af = AF_INET6;
+		break;
+	}
+#undef BE_COPY
+	return (0);
+}
+
+static int
+nf9_check_rec_len(u_int type, u_int len)
+{
+	/* Sanity check */
+	if (len == 0 || len > 0x4000)
+		return (0);
+
+#define IS_POW2(n) ((n & (n - 1)) == 0)
+	/* XXX: use a table-based interpreter */
+	switch (type) {
+	case NF9_IN_BYTES:
+		return (IS_POW2(len) && len <= 8);
+	case NF9_IN_PACKETS:
+		return (IS_POW2(len) && len <= 8);
+	case NF9_IN_PROTOCOL:
+		return (len == 1);
+	case NF9_SRC_TOS:
+		return (len == 1);
+	case NF9_TCP_FLAGS:
+		return (len == 1);
+	case NF9_L4_SRC_PORT:
+		return (len == 2);
+	case NF9_IPV4_SRC_ADDR:
+		return (len == 4);
+	case NF9_SRC_MASK:
+		return (len == 1);
+	case NF9_INPUT_SNMP:
+		return (IS_POW2(len) && len <= 2);
+	case NF9_L4_DST_PORT:
+		return (len == 2);
+	case NF9_IPV4_DST_ADDR:
+		return (len == 4);
+	case NF9_DST_MASK:
+		return (len == 1);
+	case NF9_OUTPUT_SNMP:
+		return (IS_POW2(len) && len <= 2);
+	case NF9_IPV4_NEXT_HOP:
+		return (len == 4);
+	case NF9_SRC_AS:
+		return (IS_POW2(len) && len <= 2);
+	case NF9_DST_AS:
+		return (IS_POW2(len) && len <= 2);
+	case NF9_LAST_SWITCHED:
+		return (IS_POW2(len) && len <= 4);
+	case NF9_FIRST_SWITCHED:
+		return (IS_POW2(len) && len <= 4);
+	case NF9_IPV6_SRC_ADDR:
+		return (len == 16);
+	case NF9_IPV6_DST_ADDR:
+		return (len == 16);
+	case NF9_IPV6_SRC_MASK:
+		return (len == 1);
+	case NF9_IPV6_DST_MASK:
+		return (len == 1);
+	case NF9_ENGINE_TYPE:
+		return (len == 1);
+	case NF9_ENGINE_ID:
+		return (len == 1);
+	case NF9_IPV6_NEXT_HOP:
+		return (len == 16);
+	default: 
+		return (1);
+	}
+#undef IS_POW2
+}
+
+static int
+process_netflow_v9_template(u_int8_t *pkt, size_t len, struct peer_state *peer,
+     struct peers *peers, struct xaddr *flow_source, u_int source_id)
+{
+	struct NF9_TEMPLATE_FLOWSET_HEADER *tmplh;
+	struct NF9_TEMPLATE_FLOWSET_RECORD *tmplr;
+	u_int i, count, offset, template_id, total_size;
+	struct peer_nf9_record *recs;
+	struct peer_nf9_template *template;
+
+	logit(LOG_DEBUG, "netflow v.9 tempate flowset");
+	/* dump_packet(__func__, pkt, len); */
+
+	tmplh = (struct NF9_TEMPLATE_FLOWSET_HEADER *)pkt;
+	if (len < sizeof(*tmplh)) {
+		peer->ninvalid++;
+		logit(LOG_WARNING, "short netflow v.9 flowset template header "
+		    "%d bytes from %s", len, addr_ntop_buf(flow_source));
+		/* XXX ratelimit */
+		return (-1);
+	}
+
+	template_id = ntohs(tmplh->template_id);
+	count = ntohs(tmplh->count);
+
+	if ((recs = calloc(count, sizeof(*recs))) == NULL) {
+		logerrx("%s: calloc failed (num %d)",
+		    __func__, count);
+	}
+	logit(LOG_DEBUG, "Template with %d records:", count);
+	offset = sizeof(*tmplh);
+	total_size = 0;
+	for (i = 0; i < count; i++) {
+		if (offset >= len) {
+			free(recs);
+			peer->ninvalid++;
+			logit(LOG_WARNING, "short netflow v.9 flowset template "
+			    "packet %d bytes from %s", len, 
+			    addr_ntop_buf(flow_source));
+			/* XXX ratelimit */
+			return (-1);
+		}
+		tmplr = (struct NF9_TEMPLATE_FLOWSET_RECORD *)(pkt + offset);
+		
+		recs[i].type = ntohs(tmplr->type);
+		recs[i].len = ntohs(tmplr->length);
+#ifdef DEBUG_NF9
+		logit(LOG_DEBUG, "  record %d: type %d len %d",
+		    i, recs[i].type, recs[i].len);
+#endif
+		total_size += recs[i].len;
+		if (total_size > peers->max_template_len) {
+			free(recs);
+			peer->ninvalid++;
+			logit(LOG_WARNING, "netflow v.9 flowset template "
+			    "from %s too large len %d > max %d", 
+			    addr_ntop_buf(flow_source), total_size, 
+			    peers->max_template_len);
+			/* XXX ratelimit */
+			return (-1);
+		}
+		if (!nf9_check_rec_len(recs[i].type, recs[i].len)) {
+			free(recs);
+			peer->ninvalid++;
+			logit(LOG_WARNING, "Invalid field length in netflow v.9 "
+			    "flowset template %d from %s/%08x type %d len %d", 
+			    template_id, addr_ntop_buf(flow_source), source_id,
+			    recs[i].type, recs[i].len);
+			/* XXX ratelimit */
+			return (-1);
+		}
+		/* XXX kill existing template on error! */
+		offset += sizeof(*tmplr);
+	}
+
+	if ((template = peer_nf9_find_template(peer, source_id, 
+	    template_id)) == NULL) {
+		template = peer_nf9_new_template(peer, peers,
+		    source_id, template_id);
+	}
+
+	if (template->records != NULL)
+		free(template->records);
+
+	template->records = recs;
+	template->num_records = i;
+	template->total_len = total_size;
+
+	return (0);
+}
+
+static int
+process_netflow_v9_options(u_int8_t *pkt, size_t len, struct peer_state *peer)
+{
+	logit(LOG_DEBUG, "netflow v.9 options flowset");
+	/* dump_packet(__func__, pkt, len); */
+	return (0);
+}
+
+static int
+process_netflow_v9_data(u_int8_t *pkt, size_t len, struct peer_state *peer,
+    struct peers *peers, struct xaddr *flow_source, u_int source_id, 
+    struct NF9_HEADER *nf9_hdr, struct flowd_config *conf, int log_fd,
+    u_int *num_flows)
+{
+	struct store_flow_complete flow;
+	struct peer_nf9_template *template;
+	struct NF9_DATA_FLOWSET_HEADER *dath;
+	u_int flowset_id, i, j, offset, rec_offset, num_flowsets;
+
+	*num_flows = 0;
+
+	logit(LOG_DEBUG, "netflow v.9 data flowset");
+
+	dath = (struct NF9_DATA_FLOWSET_HEADER *)pkt;
+	if (len < sizeof(*dath)) {
+		peer->ninvalid++;
+		logit(LOG_WARNING, "short netflow v.9 data flowset header "
+		    "%d bytes from %s", len, addr_ntop_buf(flow_source));
+		/* XXX ratelimit */
+		return (-1);
+	}
+
+	flowset_id = ntohs(dath->c.flowset_id);
+
+	if ((template = peer_nf9_find_template(peer, source_id, 
+	    flowset_id)) == NULL) {
+	    	peer->no_template++;
+		logit(LOG_DEBUG, "netflow v.9 data flowset without template "
+		    "%s/%08x/%04x", addr_ntop_buf(flow_source), source_id, 
+		    flowset_id);
+		return (0);
+	}
+
+	if (template->records == NULL)
+		logerrx("%s: template->records == NULL", __func__);
+
+	offset = sizeof(*dath);
+	num_flowsets = (len - offset) / template->total_len;
+
+	for (i = 0; i < num_flowsets; i++) {
+		if (offset + template->total_len > len) {
+			peer->ninvalid++;
+			logit(LOG_WARNING, "short netflow v.9 data flowset "
+			    "packet %d bytes from %s", len, 
+			    addr_ntop_buf(flow_source));
+			/* XXX ratelimit */
+			return (-1);
+		}
+		bzero(&flow, sizeof(flow));
+#ifdef DEBUG_NF9
+		logit(LOG_DEBUG, "  flowset %d (offset %d len %d):", 
+		    i, offset, template->total_len);
+#endif
+
+		flow.hdr.fields = STORE_FIELD_RECV_TIME|STORE_FIELD_AGENT_INFO;
+		flow.ainfo.sys_uptime_ms = nf9_hdr->uptime_ms;
+		flow.ainfo.time_sec = nf9_hdr->time_sec;
+		flow.ainfo.netflow_version = nf9_hdr->c.version;
+		flow.finf.flow_sequence = nf9_hdr->package_sequence;
+		flow.recv_time.recv_secs = time(NULL);
+		memcpy(&flow.agent_addr, flow_source, sizeof(flow.agent_addr));
+		
+
+		rec_offset = offset;
+		for (j = 0; j < template->num_records; j++) {
+#ifdef DEBUG_NF9
+			logit(LOG_DEBUG, "    record %d: type %d len %d: %s", 
+			    j, template->records[j].type, 
+			    template->records[j].len, 
+			    data_ntoa(pkt + rec_offset, 
+			    template->records[j].len));
+#endif
+			nf9_rec_to_flow(&template->records[j],
+			    &flow, pkt + rec_offset);
+			rec_offset += template->records[j].len;
+		}
+
+		/* XXX: this processes some flows in a dud packet - fix */
+		process_flow(&flow, conf, log_fd);
+
+		offset += template->total_len;
+	}
+
+	return (0);
+}
+
+static void 
+process_netflow_v9(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
+    struct flowd_config *conf, struct peer_state *peer, struct peers *peers, 
+    int log_fd)
+{
+	struct NF9_HEADER *nf9_hdr = (struct NF9_HEADER *)pkt;
+	struct NF9_FLOWSET_HEADER_COMMON *flowset;
+	size_t offset;
+	u_int i, count, flowset_id, flowset_len, flowset_flows, total_flows;
+	u_int source_id;
+
+	if (len < sizeof(*nf9_hdr)) {
+		peer->ninvalid++;
+		logit(LOG_WARNING, "short netflow v.9 header %d bytes from %s",
+		    len, addr_ntop_buf(flow_source));
+		return;
+	}
+
+	count = ntohs(nf9_hdr->c.flows);
+	source_id = ntohl(nf9_hdr->source_id);
+
+	/* dump_packet(__func__, pkt, len); */
+
+	offset = sizeof(*nf9_hdr);
+	total_flows = 0;
+	for (i = 0;; i++) {
+		/* Make sure we don't run off the end of the flow */
+		if (offset >= len) {
+			peer->ninvalid++;
+			logit(LOG_WARNING,
+			    "short netflow v.9 flowset header %d bytes from %s",
+			    len, addr_ntop_buf(flow_source));
+			return;
+		}
+
+		flowset = (struct NF9_FLOWSET_HEADER_COMMON *)(pkt + offset);
+		flowset_id = ntohs(flowset->flowset_id);
+		flowset_len = ntohs(flowset->length);
+
+		/*
+		 * Yes, this is a near duplicate of the short packet check 
+		 * above, but this one validates the flowset length from in
+		 * the packet before we pass it to the flowset-specific 
+		 * handlers below.
+		 */
+		if (offset + flowset_len > len) {
+			peer->ninvalid++;
+			logit(LOG_WARNING,
+			    "short netflow v.9 flowset length %d bytes from %s",
+			    len, addr_ntop_buf(flow_source));
+			return;
+		}
+
+#ifdef DEBUG_NF9
+		logit(LOG_DEBUG, "offset=%d i=%d len=%d count=%d", offset, i, len, count);
+		logit(LOG_DEBUG, "netflow v.9 flowset %d: type %d len %d",
+		    i, flowset_id, flowset_len);
+#endif
+		
+		switch (flowset_id) {
+		case NF9_TEMPLATE_FLOWSET_ID:
+			if (process_netflow_v9_template(pkt + offset,
+			    flowset_len, peer, peers, flow_source, 
+			    source_id) != 0)
+				return;
+			break;
+		case NF9_OPTIONS_FLOWSET_ID:
+			if (process_netflow_v9_options(pkt + offset,
+			    flowset_len, peer) != 0)				return;
+				return;
+			break;
+		default:
+			if (flowset_id < NF9_MIN_RECORD_FLOWSET_ID) {
+				logit(LOG_WARNING, "Received unknown netflow "
+				    "v.9 reserved flowset type %d from %s",
+				    flowset_id, addr_ntop_buf(flow_source));
+				/* XXX ratelimit */
+				break;
+			}
+			if (process_netflow_v9_data(pkt + offset,
+			    flowset_len, peer, peers, flow_source, source_id, 
+			    nf9_hdr, conf, log_fd, &flowset_flows) != 0)
+				return;
+			total_flows += flowset_flows;
+			break;
+		}
+		offset += flowset_len;
+		if (offset == len)
+			break;
+		/* XXX check header->count against what we got */
+	}
+
+	if (total_flows > 0)
+		update_peer(peers, peer, total_flows, 9);
+}
+
 static void
 process_input(struct flowd_config *conf, struct peers *peers, 
     int net_fd, int log_fd)
@@ -530,11 +1013,15 @@ process_input(struct flowd_config *conf, struct peers *peers,
 		process_netflow_v7(buf, len, &flow_source, conf, peer, 
 		    peers, log_fd);
 		break;
+	case 9:
+		process_netflow_v9(buf, len, &flow_source, conf, peer, 
+		    peers, log_fd);
+		break;
 	default:
 		logit(LOG_INFO, "Unsupported netflow version %u from %s",
 		    ntohs(hdr->version), addr_ntop_buf(&flow_source));
 #ifdef DEBUG_UNKNOWN
-		dump_packet(buf, len);
+		dump_packet("Unknown packet type", buf, len);
 #endif
 		return;
 	}
@@ -679,6 +1166,9 @@ main(int argc, char **argv)
 	bzero(&conf, sizeof(conf));
 	bzero(&peers, sizeof(peers));
 	peers.max_peers = DEFAULT_MAX_PEERS;
+	peers.max_templates = DEFAULT_MAX_TEMPLATES;
+	peers.max_sources = DEFAULT_MAX_SOURCES;
+	peers.max_template_len = DEFAULT_MAX_TEMPLATE_LEN;
 	SPLAY_INIT(&peers.peer_tree);
 	TAILQ_INIT(&peers.peer_list);
 

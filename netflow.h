@@ -109,6 +109,61 @@ struct NF7_FLOW {
 				((nflows) * sizeof(struct NF7_FLOW)))
 #define NF7_MAXPACKET_SIZE	(NF7_PACKET_SIZE(NF7_MAXFLOWS))
 
+/* Netflow v.9 */
+struct NF9_HEADER {
+	struct NF_HEADER_COMMON c;
+	u_int32_t uptime_ms, time_sec;
+	u_int32_t package_sequence, source_id;
+} __packed;
+struct NF9_FLOWSET_HEADER_COMMON {
+	u_int16_t flowset_id, length;
+} __packed;
+struct NF9_TEMPLATE_FLOWSET_HEADER {
+	struct NF9_FLOWSET_HEADER_COMMON c;
+	u_int16_t template_id, count;
+} __packed;
+struct NF9_TEMPLATE_FLOWSET_RECORD {
+	u_int16_t type, length;
+} __packed;
+struct NF9_DATA_FLOWSET_HEADER {
+	struct NF9_FLOWSET_HEADER_COMMON c;
+} __packed;
+#define NF9_TEMPLATE_FLOWSET_ID		0
+#define NF9_OPTIONS_FLOWSET_ID		1
+#define NF9_MIN_RECORD_FLOWSET_ID	256
+
+/* Flowset record types the we care about */
+#define NF9_IN_BYTES			1
+#define NF9_IN_PACKETS			2
+/* ... */
+#define NF9_IN_PROTOCOL			4
+#define NF9_SRC_TOS			5
+#define NF9_TCP_FLAGS			6
+#define NF9_L4_SRC_PORT			7
+#define NF9_IPV4_SRC_ADDR		8
+#define NF9_SRC_MASK			9
+#define NF9_INPUT_SNMP			10
+#define NF9_L4_DST_PORT			11
+#define NF9_IPV4_DST_ADDR		12
+#define NF9_DST_MASK			13
+#define NF9_OUTPUT_SNMP			14
+#define NF9_IPV4_NEXT_HOP		15
+#define NF9_SRC_AS			16
+#define NF9_DST_AS			17
+/* ... */
+#define NF9_LAST_SWITCHED		21
+#define NF9_FIRST_SWITCHED		22
+/* ... */
+#define NF9_IPV6_SRC_ADDR		27
+#define NF9_IPV6_DST_ADDR		28
+#define NF9_IPV6_SRC_MASK		29
+#define NF9_IPV6_DST_MASK		30
+/* ... */
+#define NF9_ENGINE_TYPE			38
+#define NF9_ENGINE_ID			39
+/* ... */
+#define NF9_IPV6_NEXT_HOP		62
+
 
 #endif /* _NETFLOW_H */
 

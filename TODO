@@ -36,3 +36,9 @@
   localtime (assumes flow collector clock is accurate!)
 
 - Track sequence per peer and alert on flow drops
+
+- Define net store.h types for:
+  - min/max_pkt_lngth
+  - source_id (important!)
+
+- src/dst AS should be increased in size to 4 bytes
