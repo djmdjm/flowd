@@ -1,0 +1,2 @@
+- support relaying of pre/post-filter packets to another agent (via UDP)
+- runtime reconfigure

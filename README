@@ -1,0 +1,17 @@
+This is flowd, a NetFlow collector daemon.
+
+It is intended to be small, fast and secure.
+
+It features some basic filtering to limit or tag the flows that are recorded
+and is privilege separated, to limit security exposure to any mistakes I may 
+have made.
+
+flowd stores records on disk in a compact binary format, see XXX.h for a 
+specification in the form of a C header file or XXX.pl for an example
+reader application. It supports NetFlow v.1 and NetFlow v.5 packet formats 
+and both IPv4 and IPv6 transports.
+
+Large parts of this code have been shamelessly taken from OpenBSD, 
+in particular bgpd (the configuration parser) and OpenSSH (the privsep fd
+passing). All of this code is under a BSD-like license, but read the LICENSE
+file for details.
