@@ -4,6 +4,8 @@ It features some basic filtering to limit or tag the flows that are recorded
 and is privilege separated, to limit security exposure from bugs in flowd 
 itself.
 
+At present this is *alpha* software. Please report problems to djm@mindrot.org
+
 flowd stores records on disk in a compact binary format, see store.h for a 
 specification in the form of a C header file. Flowd.pm is a PERL module that
 understands this format too. See the flowd-reader and reader.pl applications
@@ -19,10 +21,6 @@ At present, flowd supports NetFlow v.1 and NetFlow v.5 packet formats over both
 IPv4 and IPv6 transports. This will be extended to include an IPv6 flowd export
 format, either using sflow, the IPFIX standard or an extension to NetFlow v.5 
 in the near future.
-
-Building flowd requires yacc. The perl interface to the on-disk format requires
-the Socket6 module, which is available at:
-http://search.cpan.org/~umemoto/Socket6-0.17/Socket6.pm
 
 flowd is tested on OpenBSD and Linux. It may work on other platforms, but
 will likely need some adjusting.

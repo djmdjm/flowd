@@ -1,0 +1,27 @@
+flowd is tested on OpenBSD and Linux (Debian and Fedora Core 2). It may work
+on other platforms, but may need some adjusting. 
+
+To build flowd, you will need Berkeley yacc. Right now, GNU bison's doesn't 
+work for flowd (patches welcome). Berkeley yacc is installed by default on 
+BSD based systems and is available on most Linux systems in a package called 
+"byacc".
+
+To build flowd, follow the familiar incantation:
+
+./configure [options]
+make
+make install
+
+Note that you will have to supply your own configuration file right now, until
+I come up with some sensible defaults.
+
+If you want to use the perl interface to the binary flow logs, then you will 
+need the Socket6 module, which is available from CPAN: 
+
+http://search.cpan.org/~umemoto/Socket6-0.17/Socket6.pm
+
+Please report any problems to me.
+
+Damien Miller <djm@mindrot.org>
+
+$Id$
