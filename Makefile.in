@@ -1,6 +1,6 @@
 # $Id$
 
-PROGVER=0.4
+PROGVER=0.4.1
 
 prefix=@prefix@
 exec_prefix=@exec_prefix@
@@ -59,10 +59,12 @@ flowd-reader: $(FLOWD_READER_OBJS) libflowd.a
 
 clean:
 	rm -f $(TARGETS) *.o core *.core y.tab.* parse.c libflowd.a
+	rm -f flowd.pyc flowd.pyo
 
 realclean: clean
 	rm -rf autom4te.cache Makefile config.log config.status
 	rm -f flowd.8 flowd-reader.8 flowd.conf.5
+	rm -rf build
 
 distclean: realclean
 	rm -f config.h* configure

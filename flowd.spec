@@ -1,5 +1,5 @@
-%define ver 0.4
-%define rel 1fc2
+%define ver 0.4.1
+%define rel 1
 
 # Python < 2.3 (e.g. Redhat 9) doesn't have everything we need, so it may be
 # necessary to turn off the python package on older systems
