@@ -16,14 +16,19 @@
 
 
 import sys
-from distutils.core import setup
+from distutils.core import setup, Extension
 
 if __name__ == '__main__':
 	if sys.hexversion < 0x02030000:
 		print >> sys.stderr, "error: " + \
-		    "flowd.py doesn't work on python < 2.3 (missing inet_ntop)"
+		    "flowd.py requires python < 2.3"
 		sys.exit(1)
 
+	flowd_serialiser = Extension('flowd_serialiser',
+		sources = ['flowd_python.c'],
+		define_macros = [('PROGVER', '"@PROGVER@"')],
+		libraries = ['flowd'],
+		library_dirs = ['.', '../..'])
 	setup(	name = "flowd",
 		version = "@PROGVER@",
 		author = "Damien Miller",
@@ -35,6 +40,6 @@ This is an API to parse the binary flow logs written by the flowd network flow
 collector.
 """,
 		license = "BSD",
-		py_modules = ['flowd']
+		py_modules = ['flowd'],
+		ext_modules = [flowd_serialiser]
 	     )
-

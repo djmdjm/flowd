@@ -1,6 +1,7 @@
 20041030
  - (djm) Fix a few bugs in the store code: calculate lengths correctly and 
    error when we encounter unsupported fields
+ - (djm) Implement most of the Python API in native code, using the C API
 
 20041030
  - (djm) Rework flow reading C API to be more friendly to wrapping into Perl

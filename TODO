@@ -19,11 +19,7 @@
 
 - More protocols: sflow, IPFIX
 
-- Speed up perl and python modules
-  - CRC is especially slow
-  - Making these clients of the C library would be best, the C library 
-    is now ready for this
-  - A Python implementation of our CRC code would be easy
+- Make Perl lib a client of the C API like the python module
 
 - Add writing of binary flows to perl and python modules *
 
