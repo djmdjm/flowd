@@ -595,7 +595,7 @@ static int
 answer_reconfigure(struct flowd_config *conf, int client_fd,
     const char *config_path)
 {
-	u_int ok;
+	u_int ok, rewrite_pidfile;
 	struct flowd_config newconf;
 	struct listen_addr *la;
 
@@ -638,11 +638,11 @@ answer_reconfigure(struct flowd_config *conf, int client_fd,
 	}
 
 	/* Cleanup old config and move new one into place */
-	unlink(conf->pid_file);
+	rewrite_pidfile = (strcmp(conf->pid_file, newconf.pid_file) != 0);
 
 	replace_conf(conf, &newconf);
 
-	if (write_pid_file(conf->pid_file) == -1)
+	if (rewrite_pidfile && write_pid_file(conf->pid_file) == -1)
 		return (-1);
 
 	logit(LOG_DEBUG, "%s: done", __func__);

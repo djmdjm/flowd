@@ -1,6 +1,8 @@
 20040817
  - (djm) Make sure we reinstate signal handers after invocation, fixes 
    exit on 2nd reconfigure on Solaris
+ - (djm) Don't rewrite pidfile if its path hasn't changed - avoids race 
+   condition false-failures in "while [ 1 ] ; do kill ... ; done" stress test
 
 20040816
  - (djm) Pull in some portability fixes from portable OpenSSH
