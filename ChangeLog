@@ -2,7 +2,7 @@
  - (djm) Move Perl library from Flowd to Flowd-perl because Mac OS X's 
    filesystem is (idiotically) case independant, resulting in breakage when 
    trying to build the 'flowd' binary; reported by Jakob Schlyter
-- (djm) Extend Python API to suppor writing of flows. Written between Melbourne
+- (djm) Extend Python API to support writing of flows. Written between Melbourne
   and Tokyo
 - (djm) Add support for filtering on TCP flags and flow address family. Written
   over Siberia enroute to Paris
