@@ -123,6 +123,10 @@ receive_fd(int sock)
 	}
 
 	cmsg = CMSG_FIRSTHDR(&msg);
+	if (cmsg == NULL) {
+		syslog(LOG_ERR, "%s: no message header", __func__);
+		return (-1);
+	}
 	if (cmsg->cmsg_type != SCM_RIGHTS) {
 		syslog(LOG_ERR, "%s: expected type %d got %d", 
 		    __func__, SCM_RIGHTS, cmsg->cmsg_type);

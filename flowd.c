@@ -374,8 +374,10 @@ process_input(struct flowd_config *conf, int net_fd, int log_fd)
 	    (struct sockaddr *)&from, &fromlen)) < 0) {
 		if (errno == EINTR)
 			goto retry;
-		if (errno != EAGAIN)
-			syslog(LOG_ERR, "recvfrom: %s", strerror(errno));
+		if (errno != EAGAIN) {
+			syslog(LOG_ERR, "recvfrom(fd = %d): %s",
+			    net_fd, strerror(errno));
+		}
 		/* XXX ratelimit errors */
 		return;
 	}
@@ -402,25 +404,30 @@ process_input(struct flowd_config *conf, int net_fd, int log_fd)
 }
 
 static void
-flowd_mainloop(struct flowd_config *conf, int monitor_fd)
+init_pfd(struct flowd_config *conf, struct pollfd **pfdp, int mfd, int *num_fds)
 {
-	int num_fds, i, log_fd;
+	struct pollfd *pfd = *pfdp;
 	struct listen_addr *la;
-	struct pollfd *pfd;
+	int i;
 
-	num_fds = 1; /* fd to monitor */
+	syslog(LOG_ERR, "%s: entering (num_fds = %d)", __func__, *num_fds);
+
+	if (pfd != NULL)
+		free(pfd);
+
+	*num_fds = 1; /* fd to monitor */
 
 	/* Count socks */
 	TAILQ_FOREACH(la, &conf->listen_addrs, entry)
-		num_fds++;
+		(*num_fds)++;
 
-	if ((pfd = calloc(num_fds + 1, sizeof(*pfd))) == NULL) {
+	if ((pfd = calloc((*num_fds) + 1, sizeof(*pfd))) == NULL) {
 		syslog(LOG_ERR, "%s: calloc failed (num %d)",
-		    __func__, num_fds + 1);
+		    __func__, *num_fds + 1);
 		exit(1);
 	}
 
-	pfd[0].fd = monitor_fd;
+	pfd[0].fd = mfd;
 	pfd[0].events = POLLIN;
 
 	i = 1;
@@ -430,6 +437,20 @@ flowd_mainloop(struct flowd_config *conf, int monitor_fd)
 		i++;
 	}
 
+	*pfdp = pfd;
+
+	syslog(LOG_ERR, "%s: done (num_fds = %d)", __func__, *num_fds);
+}
+
+static void
+flowd_mainloop(struct flowd_config *conf, int monitor_fd)
+{
+	int i, log_fd, num_fds = 0;
+	struct listen_addr *la;
+	struct pollfd *pfd = NULL;
+
+	init_pfd(conf, &pfd, monitor_fd, &num_fds);
+
 	/* Main loop */
 	log_fd = -1;
 	for(;exit_flag == 0;) {
@@ -438,13 +459,11 @@ flowd_mainloop(struct flowd_config *conf, int monitor_fd)
 				close(log_fd);
 				log_fd = -1;
 			}
-#ifdef notyet
-	/* This has memory leaks */
 			if (client_reconfigure(monitor_fd, conf) == -1) {
 				syslog(LOG_ERR, "reconfigure failed, exiting");
 				exit(1);
 			}
-#endif
+			init_pfd(conf, &pfd, monitor_fd, &num_fds);
 			reconf_flag = 0;
 		}
 		if (log_fd == -1)
@@ -505,27 +524,25 @@ main(int argc, char **argv)
 	extern char *optarg;
 	extern int optind;
 	const char *config_file = DEFAULT_CONFIG;
-	struct flowd_config conf = {
-		NULL, NULL, 0, 0, 
-		TAILQ_HEAD_INITIALIZER(conf.listen_addrs),
-		TAILQ_HEAD_INITIALIZER(conf.filter_list)
-	};
+	struct flowd_config conf;
 	int monitor_fd;
 
 #ifndef HAVE_SETPROCTITLE
 	compat_init_setproctitle(argc, &argv);
 #endif
 	umask(0077);
-
 	closefrom(STDERR_FILENO + 1);
 
 	openlog(PROGNAME, LOG_NDELAY|LOG_PERROR, LOG_DAEMON);
+	setlogmask(LOG_UPTO(LOG_INFO));
 
+	bzero(&conf, sizeof(conf));
 	while ((ch = getopt(argc, argv, "dhD:f:")) != -1) {
 		switch (ch) {
 		case 'd':
 			conf.opts |= FLOWD_OPT_DONT_FORK;
 			conf.opts |= FLOWD_OPT_VERBOSE;
+			setlogmask(LOG_UPTO(LOG_DEBUG));
 			break;
 		case 'h':
 			usage();

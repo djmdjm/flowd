@@ -1,6 +1,3 @@
-- runtime reconfigure
-  - done, but disabled until I kill the last of the memory leaks
-
 - Per-peer statistics, esp. errors
   - Does this make sense?
 

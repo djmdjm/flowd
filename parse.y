@@ -744,27 +744,36 @@ top:
 }
 
 int
-parse_config(const char *filename, struct flowd_config *mconf)
+parse_config(const char *path, FILE *f, struct flowd_config *mconf)
 {
 	struct sym		*sym, *next;
 
 	conf = mconf;
 
 	TAILQ_INIT(&conf->listen_addrs);
+	TAILQ_INIT(&conf->filter_list);
 
 	lineno = 1;
 	errors = 0;
-
-	if ((fin = fopen(filename, "r")) == NULL) {
-		warn("%s", filename);
-		return (-1);
-	}
-	infile = filename;
+	fin = f;
+	infile = path;
 
 	yyparse();
 
-	fclose(fin);
+	if (conf->log_file == NULL) {
+		syslog(LOG_ERR, "No log file specified");
+		return (-1);
+	}
+	if (conf->pid_file == NULL && 
+	    (conf->pid_file = strdup(DEFAULT_PIDFILE)) == NULL) {
+		syslog(LOG_ERR, "strdup pidfile");
+		return (-1);
+	}
 
+	if (TAILQ_EMPTY(&conf->listen_addrs)) {
+		syslog(LOG_ERR, "No listening addresses specified");
+		return (-1);
+	}
 	/* Free macros and check which have not been used. */
 	for (sym = TAILQ_FIRST(&symhead); sym != NULL; sym = next) {
 		next = TAILQ_NEXT(sym, entry);
@@ -873,20 +882,21 @@ atoul(char *s, u_long *ulvalp)
 }
 
 void
-dump_config(struct flowd_config *c)
+dump_config(struct flowd_config *c, const char *prefix)
 {
 	struct filter_rule *fr;
 	struct listen_addr *la;
-
-	syslog(LOG_DEBUG, "logfile \"%s\"", c->log_file);
-	syslog(LOG_DEBUG, "# store mask %08x", c->store_mask);
-	syslog(LOG_DEBUG, "# opts %08x", c->opts);
+#define DCPR(a) ((a) == NULL ? "" : a), ((a) == NULL ? "" : ": ")
+	syslog(LOG_DEBUG, "%s%slogfile \"%s\"", DCPR(prefix), c->log_file);
+	syslog(LOG_DEBUG, "%s%s# store mask %08x", DCPR(prefix), c->store_mask);
+	syslog(LOG_DEBUG, "%s%s# opts %08x", DCPR(prefix), c->opts);
 	TAILQ_FOREACH(la, &c->listen_addrs, entry) {
-		syslog(LOG_DEBUG, "listen on [%s]:%d",
-		    addr_ntop_buf(&la->addr), la->port);
+		syslog(LOG_DEBUG, "%s%slisten on [%s]:%d # fd = %d",
+		    DCPR(prefix), addr_ntop_buf(&la->addr), la->port, la->fd);
 	}
 
 	TAILQ_FOREACH(fr, &c->filter_list, entry)
-		syslog(LOG_DEBUG, "%s", format_rule(fr));
+		syslog(LOG_DEBUG, "%s%s%s", DCPR(prefix), format_rule(fr));
+#undef DCPR
 }
 

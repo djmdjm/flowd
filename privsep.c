@@ -30,6 +30,7 @@
 #include <grp.h>
 #include <syslog.h>
 #include <paths.h>
+#include <netdb.h>
 
 #include "flowd.h"
 #include "privsep.h"
@@ -45,6 +46,18 @@ static int monitor_to_child_sock = -1;
 #define C2M_MSG_RECONFIGURE	2	/* send: nothing   ret: conf+fdpass */
 
 /* Utility functions */
+static void
+log_reinit(u_int32_t logopts)
+{
+	closelog();
+	openlog(PROGNAME, LOG_NDELAY|LOG_PID|
+	    (logopts & FLOWD_OPT_DONT_FORK ? LOG_PERROR : 0), LOG_DAEMON);
+	if (logopts & FLOWD_OPT_VERBOSE)
+		setlogmask(LOG_UPTO(LOG_DEBUG));
+	else
+		setlogmask(LOG_UPTO(LOG_INFO));
+}
+
 static char *
 privsep_read_string(int fd)
 {
@@ -109,34 +122,6 @@ write_pid_file(const char *path)
 }
 
 int
-read_config(const char *path, struct flowd_config *conf)
-{
-	syslog(LOG_DEBUG, "%s: entering", __func__);
-
-	if (parse_config(path, conf))
-		return (-1);
-
-	if (TAILQ_EMPTY(&conf->listen_addrs)) {
-		syslog(LOG_ERR, "No listening addresses specified");
-		return (-1);
-	}
-	if (conf->log_file == NULL) {
-		syslog(LOG_ERR, "No log file specified");
-		return (-1);
-	}
-	if (conf->pid_file == NULL && 
-	    (conf->pid_file = strdup(DEFAULT_PIDFILE)) == NULL) {
-		syslog(LOG_ERR, "strdup pidfile");
-		return (-1);
-	}
-
-	if (conf->opts & FLOWD_OPT_VERBOSE)
-		dump_config(conf); 
-
-	return (0);
-}
-
-int
 open_listener(struct xaddr *addr, u_int16_t port)
 {
 	int fd, fl;
@@ -185,6 +170,366 @@ open_listener(struct xaddr *addr, u_int16_t port)
 	return (fd);
 }
 
+static void
+replace_conf(struct flowd_config *conf, struct flowd_config *newconf)
+{
+	struct listen_addr *la;
+	struct filter_rule *fr;
+
+	free(conf->log_file);
+	free(conf->pid_file);
+	while ((la = TAILQ_FIRST(&conf->listen_addrs)) != NULL) {
+		if (la->fd != -1)
+			close(la->fd);
+		TAILQ_REMOVE(&conf->listen_addrs, la, entry);
+		free(la);
+	}
+	while ((fr = TAILQ_FIRST(&conf->filter_list)) != NULL) {
+		TAILQ_REMOVE(&conf->filter_list, fr, entry);
+		free(fr);
+	}
+
+	memcpy(conf, newconf, sizeof(*conf));
+	TAILQ_INIT(&conf->listen_addrs);
+	TAILQ_INIT(&conf->filter_list);
+
+	while ((la = TAILQ_LAST(&newconf->listen_addrs, listen_addrs)) != NULL) {
+		TAILQ_REMOVE(&newconf->listen_addrs, la, entry);
+		TAILQ_INSERT_HEAD(&conf->listen_addrs, la, entry);
+	}
+
+	while ((fr = TAILQ_LAST(&newconf->filter_list, filter_list)) != NULL) {
+		TAILQ_REMOVE(&newconf->filter_list, fr, entry);
+		TAILQ_INSERT_HEAD(&conf->filter_list, fr, entry);
+	}
+
+	bzero(newconf, sizeof(*newconf));
+}
+
+static int
+recv_config(int fd, struct flowd_config *conf)
+{
+	u_int n, i;
+	struct listen_addr *la;
+	struct filter_rule *fr;
+	struct flowd_config newconf;
+
+	syslog(LOG_DEBUG, "%s: entering fd = %d", __func__, fd);
+
+	bzero(&newconf, sizeof(newconf));
+	TAILQ_INIT(&newconf.listen_addrs);
+	TAILQ_INIT(&newconf.filter_list);
+
+	syslog(LOG_DEBUG, "%s: ready to receive config", __func__);
+
+	if ((newconf.log_file = privsep_read_string(fd)) == NULL) {
+		syslog(LOG_ERR, "%s: Couldn't read conf.log_file", __func__);
+		return (-1);
+	}
+	if ((newconf.pid_file = privsep_read_string(fd)) == NULL) {
+		syslog(LOG_ERR, "%s: Couldn't read conf.pid_file", __func__);
+		return (-1);
+	}
+		
+	if (atomicio(read, fd, &newconf.store_mask,
+	    sizeof(newconf.store_mask)) != sizeof(newconf.store_mask)) {
+		syslog(LOG_ERR, "%s: read(conf.store_mask): %s", __func__,
+		    strerror(errno));
+		return (-1);
+	}
+
+	if (atomicio(read, fd, &newconf.opts, sizeof(newconf.opts)) !=
+	    sizeof(newconf.opts)) {
+		syslog(LOG_ERR, "%s: read(conf.opts): %s", __func__,
+		    strerror(errno));
+		return (-1);
+	}
+
+	/* Read Listen Addrs */
+	if (atomicio(read, fd, &n, sizeof(n)) != sizeof(n)) {
+		syslog(LOG_ERR, "%s: read(num listen_addrs): %s", __func__,
+		    strerror(errno));
+		return (-1);
+	}
+	if (n == 0 || n > 8192) {
+		syslog(LOG_ERR, "%s: silly number of listen_addrs: %d",
+		    __func__, n);
+		return (-1);
+	}
+	for (i = 0; i < n; i++) {
+		if ((la = calloc(1, sizeof(*la))) == NULL) {
+			syslog(LOG_ERR, "%s: calloc", __func__);
+			return (-1);
+		}
+		if (atomicio(read, fd, la,
+		    sizeof(*la)) != sizeof(*la)) {
+			syslog(LOG_ERR, "%s: read(listen_addr): %s", __func__,
+			    strerror(errno));
+			return (-1);
+		}
+		if (la->fd != -1 && (la->fd = receive_fd(fd)) == -1)
+			return (-1);
+		TAILQ_INSERT_TAIL(&newconf.listen_addrs, la, entry);
+	}
+
+	/* Read Filter Rules */
+	if (atomicio(read, fd, &n, sizeof(n)) != sizeof(n)) {
+		syslog(LOG_ERR, "%s: read(num filter_rules): %s", __func__,
+		    strerror(errno));
+		return (-1);
+	}
+	if (n == 0 || n > 1024*1024) {
+		syslog(LOG_ERR, "%s: silly number of filter_rules: %d",
+		    __func__, n);
+		return (-1);
+	}
+	for (i = 0; i < n; i++) {
+		if ((fr = calloc(1, sizeof(*fr))) == NULL) {
+			syslog(LOG_ERR, "%s: calloc", __func__);
+			return (-1);
+		}
+		if (atomicio(read, fd, fr,
+		    sizeof(*fr)) != sizeof(*fr)) {
+			syslog(LOG_ERR, "%s: read(filter_rule): %s", __func__,
+			    strerror(errno));
+			return (-1);
+		}
+		TAILQ_INSERT_TAIL(&newconf.filter_list, fr, entry);
+	}
+
+	replace_conf(conf, &newconf);
+
+	return (0);
+}
+
+static int
+send_config(int fd, struct flowd_config *conf)
+{
+	u_int n;
+	struct listen_addr *la;
+	struct filter_rule *fr;
+
+	syslog(LOG_DEBUG, "%s: entering fd = %d", __func__, fd);
+
+	if (privsep_write_string(fd, conf->log_file) == -1) {
+		syslog(LOG_ERR, "%s: Couldn't write conf.log_file",
+		    __func__);
+		return (-1);
+	}
+	if (privsep_write_string(fd, conf->pid_file) == -1) {
+		syslog(LOG_ERR, "%s: Couldn't write conf.pid_file",
+		    __func__);
+		return (-1);
+	}
+		
+	if (atomicio(vwrite, fd, &conf->store_mask,
+	    sizeof(conf->store_mask)) != sizeof(conf->store_mask)) {
+		syslog(LOG_ERR, "%s: write(conf.store_mask): %s", __func__,
+		    strerror(errno));
+		return (-1);
+	}
+
+	if (atomicio(vwrite, fd, &conf->opts,
+	    sizeof(conf->opts)) != sizeof(conf->opts)) {
+		syslog(LOG_ERR, "%s: write(conf.opts): %s", __func__,
+		    strerror(errno));
+		return (-1);
+	}
+
+	/* Write Listen Addrs */
+	n = 0;
+	TAILQ_FOREACH(la, &conf->listen_addrs, entry)
+		n++;
+	if (atomicio(vwrite, fd, &n, sizeof(n)) != sizeof(n)) {
+		syslog(LOG_ERR, "%s: write(num listen_addrs): %s", __func__,
+		    strerror(errno));
+		return (-1);
+	}
+	TAILQ_FOREACH(la, &conf->listen_addrs, entry) {
+		if (atomicio(vwrite, fd, la,
+		    sizeof(*la)) != sizeof(*la)) {
+			syslog(LOG_ERR, "%s: write(listen_addr): %s", __func__,
+			    strerror(errno));
+			return (-1);
+		}
+		if (la->fd != -1 && send_fd(fd, la->fd) == -1)
+			return (-1);
+	}
+
+	/* Write Filter Rules */
+	n = 0;
+	TAILQ_FOREACH(fr, &conf->filter_list, entry)
+		n++;
+	if (atomicio(vwrite, fd, &n, sizeof(n)) != sizeof(n)) {
+		syslog(LOG_ERR, "%s: write(num filter_rules): %s", __func__,
+		    strerror(errno));
+		return (-1);
+	}
+	TAILQ_FOREACH(fr, &conf->filter_list, entry) {
+		if (atomicio(vwrite, fd, fr,
+		    sizeof(*fr)) != sizeof(*fr)) {
+			syslog(LOG_ERR, "%s: write(filter_rule): %s", __func__,
+			    strerror(errno));
+			return (-1);
+		}
+	}
+
+	syslog(LOG_DEBUG, "%s: done", __func__);
+
+	return (0);
+}
+
+static int
+drop_privs(struct passwd *pw, int do_chroot)
+{
+	if (setsid() == -1) {
+		syslog(LOG_ERR, "setsid: %s", strerror(errno));
+		return (-1);
+	}
+	if (do_chroot) {
+		if (chdir(pw->pw_dir) == -1) {
+			syslog(LOG_ERR, "chdir(%s): %s", pw->pw_dir,
+			    strerror(errno));
+			return (-1);
+		}
+		if (chroot(pw->pw_dir) == -1) {
+			syslog(LOG_ERR, "chroot(%s): %s", pw->pw_dir,
+			    strerror(errno));
+			return (-1);
+		}
+	}
+	if (chdir("/") == -1) {
+		syslog(LOG_ERR, "chdir(/): %s", strerror(errno));
+		return (-1);
+	}
+	if (setgroups(1, &pw->pw_gid) == -1) {
+		syslog(LOG_ERR, "setgroups: %s", strerror(errno));
+		return (-1);
+	}
+	if (setresgid(pw->pw_gid, pw->pw_gid, pw->pw_gid) == -1) {
+		syslog(LOG_ERR, "setresgid: %s", strerror(errno));
+		return (-1);
+	}
+	if (setresuid(pw->pw_uid, pw->pw_uid, pw->pw_uid) == -1) {
+		syslog(LOG_ERR, "setresuid: %s", strerror(errno));
+		return (-1);
+	}
+	return (0);
+}
+
+static int
+child_get_config(const char *path, struct flowd_config *conf)
+{
+	int s[2], ok, status;
+	pid_t ccpid;
+	void (*oldsigchld)(int);
+	FILE *cfg;
+	struct passwd *pw;
+	struct flowd_config newconf = {
+		NULL, NULL, 0, 0, 
+		TAILQ_HEAD_INITIALIZER(newconf.listen_addrs),
+		TAILQ_HEAD_INITIALIZER(newconf.filter_list)
+	};
+
+	syslog(LOG_DEBUG, "%s: entering", __func__);
+
+	if ((pw = getpwnam(PRIVSEP_USER)) == NULL) {
+		syslog(LOG_ERR, "Privilege separation user %s doesn't exist",
+		    PRIVSEP_USER);
+	}
+	endpwent();
+
+	if (socketpair(AF_LOCAL, SOCK_STREAM, PF_UNSPEC, s) == -1) {
+		syslog(LOG_ERR, "%s: socketpair: %s", __func__,
+		    strerror(errno));
+		return (-1);
+	}
+
+	oldsigchld = signal(SIGCHLD, SIG_DFL);
+	switch (ccpid = fork()) {
+	case -1:
+		syslog(LOG_ERR, "%s: fork: %s", __func__,
+		    strerror(errno));
+		return (-1);
+	case 0: /* Child */
+		close(s[0]);
+		setproctitle("config");
+
+		if ((cfg = fopen(path, "r")) == NULL) {
+			syslog(LOG_ERR, "fopen(%s): %s", path, strerror(errno));
+			exit(1);
+		}
+		if (drop_privs(pw, 0) == -1)
+			exit(1);
+		ok = (parse_config(path, cfg, &newconf) == 0);
+		fclose(cfg);
+		if (atomicio(vwrite, s[1], &ok, sizeof(ok)) != sizeof(ok)) {
+			syslog(LOG_ERR, "%s: write(ok): %s", __func__,
+			    strerror(errno));
+			exit(1);
+		}
+		if (!ok)
+			exit(1);
+		if (send_config(s[1], &newconf) == -1)
+			exit(1);
+		syslog(LOG_DEBUG, "%s: child config done", __func__);
+
+		exit(0);
+	default: /* Parent */
+		close(s[1]);
+		break;
+	}
+
+	/* Parent */
+	if (atomicio(read, s[0], &ok, sizeof(ok)) != sizeof(ok)) {
+		syslog(LOG_ERR, "%s: read(ok): %s", __func__,
+		    strerror(errno));
+		return (-1);
+	}
+	if (!ok)
+		return (-1);
+	if (recv_config(s[0], conf) == -1)
+		return (-1);
+	close(s[0]);
+
+	if (waitpid(ccpid, &status, 0) == -1) {
+		syslog(LOG_ERR, "%s: waitpid: %s", __func__,
+		    strerror(errno));
+		return (-1);
+	}	
+	if (!WIFEXITED(status)) { 
+		syslog(LOG_ERR, "child exited abnormally");
+		return (-1);
+	}
+	if (WEXITSTATUS(status) != 0) {
+		syslog(LOG_ERR, "child exited with status %d",
+		    WEXITSTATUS(status));
+		return (-1);
+	}
+
+	signal(SIGCHLD, oldsigchld);
+
+	return (0);
+}
+
+int
+read_config(const char *path, struct flowd_config *conf)
+{
+	u_int32_t opts;
+
+	syslog(LOG_DEBUG, "%s: entering", __func__);
+
+	/* Preserve options not set in config file */
+	opts = (conf->opts & (FLOWD_OPT_DONT_FORK|FLOWD_OPT_VERBOSE));
+
+	if (child_get_config(path, conf))
+		return (-1);
+
+	conf->opts |= opts;
+
+	return (0);
+}
+
 /* Client functions */
 int
 client_open_log(int monitor_fd)
@@ -208,33 +553,21 @@ client_open_log(int monitor_fd)
 int
 client_reconfigure(int monitor_fd, struct flowd_config *conf)
 {
-	u_int msg = C2M_MSG_RECONFIGURE, n, i, ok;
+	u_int msg = C2M_MSG_RECONFIGURE, ok;
 	struct listen_addr *la;
-	struct filter_rule *fr;
 
 	syslog(LOG_DEBUG, "%s: entering", __func__);
+
+	TAILQ_FOREACH(la, &conf->listen_addrs, entry) {
+		if (la->fd != -1)
+			close(la->fd);
+		la->fd = -1;
+	}
 
 	if (atomicio(vwrite, monitor_fd, &msg, sizeof(msg)) != sizeof(msg)) {
 		syslog(LOG_ERR, "%s: write: %s", __func__, strerror(errno));
 		return (-1);
 	}
-
-	free(conf->log_file);
-	free(conf->pid_file);
-	while ((la = TAILQ_FIRST(&conf->listen_addrs)) != NULL) {
-		close(la->fd);
-		TAILQ_REMOVE(&conf->listen_addrs, la, entry);
-		free(la);
-	}
-	while ((fr = TAILQ_FIRST(&conf->filter_list)) != NULL) {
-		TAILQ_REMOVE(&conf->filter_list, fr, entry);
-		free(fr);
-	}
-	bzero(conf, sizeof(*conf));
-	TAILQ_INIT(&conf->listen_addrs);
-	TAILQ_INIT(&conf->filter_list);
-
-	syslog(LOG_DEBUG, "%s: ready to receive config", __func__);
 
 	if (atomicio(read, monitor_fd, &ok, sizeof(ok)) != sizeof(ok)) {
 		syslog(LOG_ERR, "%s: read(ok): %s", __func__,
@@ -246,86 +579,10 @@ client_reconfigure(int monitor_fd, struct flowd_config *conf)
 		return (-1);
 	}
 
-	if ((conf->log_file = privsep_read_string(monitor_fd)) == NULL) {
-		syslog(LOG_ERR, "%s: Couldn't read conf.log_file", __func__);
+	if (recv_config(monitor_fd, conf) == -1)
 		return (-1);
-	}
-	if ((conf->pid_file = privsep_read_string(monitor_fd)) == NULL) {
-		syslog(LOG_ERR, "%s: Couldn't read conf.pid_file", __func__);
-		return (-1);
-	}
-		
-	if (atomicio(read, monitor_fd, &conf->store_mask,
-	    sizeof(conf->store_mask)) != sizeof(conf->store_mask)) {
-		syslog(LOG_ERR, "%s: read(conf.store_mask): %s", __func__,
-		    strerror(errno));
-		return (-1);
-	}
 
-	if (atomicio(read, monitor_fd, &conf->opts, sizeof(conf->opts)) !=
-	    sizeof(conf->opts)) {
-		syslog(LOG_ERR, "%s: read(conf.opts): %s", __func__,
-		    strerror(errno));
-		return (-1);
-	}
-
-	/* Read Listen Addrs */
-	if (atomicio(read, monitor_fd, &n, sizeof(n)) != sizeof(n)) {
-		syslog(LOG_ERR, "%s: read(num listen_addrs): %s", __func__,
-		    strerror(errno));
-		return (-1);
-	}
-	if (n == 0 || n > 8192) {
-		syslog(LOG_ERR, "%s: silly number of listen_addrs: %d",
-		    __func__, n);
-		return (-1);
-	}
-	syslog(LOG_DEBUG, "%s: reading %u listen_addrs", __func__, n);
-	for (i = 0; i < n; i++) {
-		if ((la = calloc(1, sizeof(*la))) == NULL) {
-			syslog(LOG_ERR, "%s: calloc", __func__);
-			return (-1);
-		}
-		if (atomicio(read, monitor_fd, la,
-		    sizeof(*la)) != sizeof(*la)) {
-			syslog(LOG_ERR, "%s: read(listen_addr): %s", __func__,
-			    strerror(errno));
-			return (-1);
-		}
-		if ((la->fd = receive_fd(monitor_fd)) == -1) {
-			free(la);
-			return (-1);
-		}
-		TAILQ_INSERT_TAIL(&conf->listen_addrs, la, entry);
-	}
-
-	/* Read Filter Rules */
-	if (atomicio(read, monitor_fd, &n, sizeof(n)) != sizeof(n)) {
-		syslog(LOG_ERR, "%s: read(num filter_rules): %s", __func__,
-		    strerror(errno));
-		return (-1);
-	}
-	if (n == 0 || n > 1024*1024) {
-		syslog(LOG_ERR, "%s: silly number of filter_rules: %d",
-		    __func__, n);
-		return (-1);
-	}
-	syslog(LOG_DEBUG, "%s: reading %u filter_rules", __func__, n);
-	for (i = 0; i < n; i++) {
-		if ((fr = calloc(1, sizeof(*fr))) == NULL) {
-			syslog(LOG_ERR, "%s: calloc", __func__);
-			return (-1);
-		}
-		if (atomicio(read, monitor_fd, fr,
-		    sizeof(*fr)) != sizeof(*fr)) {
-			syslog(LOG_ERR, "%s: read(filter_rule): %s", __func__,
-			    strerror(errno));
-			return (-1);
-		}
-		TAILQ_INSERT_TAIL(&conf->filter_list, fr, entry);
-	}
-
-	dump_config(conf); 
+	syslog(LOG_DEBUG, "%s: done", __func__);
 
 	return (0);
 }
@@ -353,26 +610,23 @@ static int
 answer_reconfigure(struct flowd_config *conf, int client_fd,
     const char *config_path)
 {
-	u_int n, ok;
-	struct listen_addr *la;
-	struct filter_rule *fr;
+	u_int ok;
 	struct flowd_config newconf;
+	struct listen_addr *la;
 
 	bzero(&newconf, sizeof(newconf));
 	TAILQ_INIT(&newconf.listen_addrs);
 	TAILQ_INIT(&newconf.filter_list);
 
-	/* Transfer all options not set in config file */
-	newconf.opts |= conf->opts & (FLOWD_OPT_VERBOSE);
-
 	syslog(LOG_DEBUG, "%s: entering", __func__);
 
+	ok = 1;
 	if (read_config(config_path, &newconf) == -1) {
 		syslog(LOG_ERR, "New config has errors");
-		return (-1);
+		ok = 0;
 	}
+	newconf.opts |= (conf->opts & (FLOWD_OPT_DONT_FORK|FLOWD_OPT_VERBOSE));
 
-	ok = 1;
 	TAILQ_FOREACH(la, &newconf.listen_addrs, entry) {
 		if ((la->fd = open_listener(&la->addr, la->port)) == -1) {
 			syslog(LOG_ERR, "Listener setup of [%s]:%d failed", 
@@ -381,6 +635,7 @@ answer_reconfigure(struct flowd_config *conf, int client_fd,
 			break;
 		}
 	}
+
 	syslog(LOG_DEBUG, "%s: post listener open, ok = %d", __func__, ok);
 	if (atomicio(vwrite, client_fd, &ok, sizeof(ok)) != sizeof(ok)) {
 		syslog(LOG_ERR, "%s: write(ok): %s", __func__,
@@ -390,96 +645,18 @@ answer_reconfigure(struct flowd_config *conf, int client_fd,
 	if (ok == 0)
 		return (-1);
 
-	if (privsep_write_string(client_fd, newconf.log_file) == -1) {
-		syslog(LOG_ERR, "%s: Couldn't write newconf.log_file",
-		    __func__);
+	if (send_config(client_fd, &newconf) == -1)
 		return (-1);
-	}
-	if (privsep_write_string(client_fd, newconf.pid_file) == -1) {
-		syslog(LOG_ERR, "%s: Couldn't read newconf.pid_file",
-		    __func__);
-		return (-1);
-	}
-		
-	if (atomicio(vwrite, client_fd, &newconf.store_mask,
-	    sizeof(newconf.store_mask)) != sizeof(newconf.store_mask)) {
-		syslog(LOG_ERR, "%s: write(newconf.store_mask): %s", __func__,
-		    strerror(errno));
-		return (-1);
-	}
 
-	if (atomicio(vwrite, client_fd, &newconf.opts,
-	    sizeof(newconf.opts)) != sizeof(newconf.opts)) {
-		syslog(LOG_ERR, "%s: write(newconf.opts): %s", __func__,
-		    strerror(errno));
-		return (-1);
-	}
-
-	/* Write Listen Addrs */
-	n = 0;
-	TAILQ_FOREACH(la, &newconf.listen_addrs, entry)
-		n++;
-	syslog(LOG_DEBUG, "%s: writing %u listen_addrs", __func__, n);
-	if (atomicio(vwrite, client_fd, &n, sizeof(n)) != sizeof(n)) {
-		syslog(LOG_ERR, "%s: write(num listen_addrs): %s", __func__,
-		    strerror(errno));
-		return (-1);
-	}
 	TAILQ_FOREACH(la, &newconf.listen_addrs, entry) {
-		if (atomicio(vwrite, client_fd, la,
-		    sizeof(*la)) != sizeof(*la)) {
-			syslog(LOG_ERR, "%s: write(listen_addr): %s", __func__,
-			    strerror(errno));
-			return (-1);
-		}
-		if (send_fd(client_fd, la->fd) == -1)
-			return (-1);
 		close(la->fd);
 		la->fd = -1;
 	}
 
-	/* Write Filter Rules */
-	n = 0;
-	TAILQ_FOREACH(fr, &newconf.filter_list, entry)
-		n++;
-	syslog(LOG_DEBUG, "%s: writing %u filter_rules", __func__, n);
-	if (atomicio(vwrite, client_fd, &n, sizeof(n)) != sizeof(n)) {
-		syslog(LOG_ERR, "%s: write(num filter_rules): %s", __func__,
-		    strerror(errno));
-		return (-1);
-	}
-	TAILQ_FOREACH(fr, &newconf.filter_list, entry) {
-		if (atomicio(vwrite, client_fd, fr,
-		    sizeof(*fr)) != sizeof(*fr)) {
-			syslog(LOG_ERR, "%s: write(filter_rule): %s", __func__,
-			    strerror(errno));
-			return (-1);
-		}
-	}
-
 	/* Cleanup old config and move new one into place */
-
 	unlink(conf->pid_file);
 
-	free(conf->log_file);
-	free(conf->pid_file);
-	while ((la = TAILQ_FIRST(&conf->listen_addrs)) != NULL) {
-		TAILQ_REMOVE(&conf->listen_addrs, la, entry);
-		free(la);
-	}
-	while ((fr = TAILQ_FIRST(&conf->filter_list)) != NULL) {
-		TAILQ_REMOVE(&conf->filter_list, fr, entry);
-		free(fr);
-	}
-
-	memcpy(conf, &newconf, sizeof(*conf));
-	TAILQ_INIT(&conf->listen_addrs);
-	TAILQ_INIT(&conf->filter_list);
-
-	TAILQ_FOREACH(la, &newconf.listen_addrs, entry)
-		TAILQ_INSERT_TAIL(&conf->listen_addrs, la, entry);
-	TAILQ_FOREACH(fr, &newconf.filter_list, entry)
-		TAILQ_INSERT_TAIL(&conf->filter_list, fr, entry);
+	replace_conf(conf, &newconf);
 
 	if (write_pid_file(conf->pid_file) == -1)
 		return (-1);
@@ -592,6 +769,7 @@ privsep_init(struct flowd_config *conf, int *child_to_monitor_sock,
 		errx(1, "Privilege separation user %s doesn't exist",
 		    PRIVSEP_USER);
 	}
+	endpwent();
 
 	if ((devnull = open(_PATH_DEVNULL, O_RDWR)) == -1)
 		err(1, "open(/dev/null)");
@@ -607,25 +785,11 @@ privsep_init(struct flowd_config *conf, int *child_to_monitor_sock,
 	case -1:
 		err(1, "fork");
 	case 0: /* Child */
-		closelog();
-		openlog(PROGNAME, LOG_NDELAY|LOG_PID| 
-		    (conf->opts & FLOWD_OPT_DONT_FORK ? LOG_PERROR : 0),
-		    LOG_DAEMON);
+		log_reinit(conf->opts);
 		close(monitor_to_child_sock);
-		if (setsid() == -1)
-			err(1, "setsid");
-		if (chdir(pw->pw_dir) == -1)
-			err(1, "chdir(%s)", pw->pw_dir);
-		if (chroot(pw->pw_dir) == -1)
-			err(1, "chroot(%s)", pw->pw_dir);
-		if (chdir("/") == -1) 
-			err(1, "chdir(/)");
-		if (setgroups(1, &pw->pw_gid) == -1)
-			err(1, "setgroups");
-		if (setresgid(pw->pw_gid, pw->pw_gid, pw->pw_gid) == -1)
-			err(1, "setresgid");
-		if (setresuid(pw->pw_uid, pw->pw_uid, pw->pw_uid) == -1)
-			err(1, "setresuid");
+
+		if (drop_privs(pw, 1) == -1)
+			exit(1);
 
 		if ((conf->opts & FLOWD_OPT_DONT_FORK) == 0 && 
 		    dup2(devnull, STDERR_FILENO) == -1) {
@@ -636,10 +800,7 @@ privsep_init(struct flowd_config *conf, int *child_to_monitor_sock,
 		setproctitle("net");
 		return;
 	default: /* Parent */
-		closelog();
-		openlog(PROGNAME, LOG_NDELAY|LOG_PID| 
-		    (conf->opts & FLOWD_OPT_DONT_FORK ? LOG_PERROR : 0),
-		    LOG_DAEMON);
+		log_reinit(conf->opts);
 		if ((conf->opts & FLOWD_OPT_DONT_FORK) == 0 && 
 		    dup2(devnull, STDERR_FILENO) == -1) {
 			syslog(LOG_ERR, "dup2: %s", strerror(errno));

@@ -1,3 +1,8 @@
+20040812
+ - (djm) Parse and verify config in a subprocess, avoiding all memory leaks
+   and side effects.
+ - (djm) Activate runtime reconfigure
+
 20040810
  - (djm) Add finish() method to perl API, to close flow log
  - (djm) Fix filter format_rule for rules that match ports but not addrs
