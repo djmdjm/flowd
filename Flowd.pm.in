@@ -23,7 +23,7 @@ use Carp;
 
 package Flowd;
 
-use constant VERSION	=>	"0.4.1";
+use constant VERSION	=>	"@PROGVER@";
 
 sub iso_time {
 	my $timet = shift;

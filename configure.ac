@@ -17,6 +17,9 @@
 AC_INIT
 AC_CONFIG_SRCDIR([flowd.c])
 
+PROGVER=0.4.2
+AC_SUBST(PROGVER)
+
 AC_CONFIG_HEADER(config.h)
 AC_CANONICAL_HOST
 AC_PROG_CC
@@ -236,6 +239,6 @@ AC_DEFINE_DIR(PIDPATH, piddir, [Directory to store pidfile in])
 AC_DEFINE_DIR(CONFPATH, sysconfdir, [Full path to configuration file])
 
 AC_EXEEXT
-AC_CONFIG_FILES([Makefile flowd.8 flowd-reader.8 flowd.conf.5])
+AC_CONFIG_FILES([Makefile flowd.8 flowd-reader.8 flowd.conf.5 flowd.py setup.py Flowd.pm])
 AC_OUTPUT
 

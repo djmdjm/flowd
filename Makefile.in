@@ -64,6 +64,7 @@ clean:
 realclean: clean
 	rm -rf autom4te.cache Makefile config.log config.status
 	rm -f flowd.8 flowd-reader.8 flowd.conf.5
+	rm -f flowd.py setup.py Flowd.pm
 	rm -rf build
 
 distclean: realclean
