@@ -529,7 +529,8 @@ store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
 		strlcat(buf, tmp, len);
 	}
 	if (HASFIELD(CRC32)) {
-		snprintf(tmp, sizeof(tmp), "crc32 %08x ", flow->crc32.crc32);
+		snprintf(tmp, sizeof(tmp), "crc32 %08x ",
+		    ntohl(flow->crc32.crc32));
 		strlcat(buf, tmp, len);
 	}
 }
