@@ -30,6 +30,7 @@
 #include <err.h>
 #include <errno.h>
 #include <limits.h>
+#include <netdb.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -393,17 +394,18 @@ match_dst	: /* empty */			{ bzero(&$$, sizeof($$)); }
 match_proto	: /* empty */			{ bzero(&$$, sizeof($$)); }
 		| PROTO string		{
 			unsigned long proto;
+			struct protoent *pe;
 
 			bzero(&$$, sizeof($$));
-			if (strcasecmp($2, "tcp") == 0)
-				proto = IPPROTO_TCP;
-			else if (strcasecmp($2, "tcp") == 0)
-				proto = IPPROTO_UDP;
-			else if (atoul($2, &proto) == -1 || proto == 0 || 
-			    proto > 255) {
-				yyerror("Invalid protocol");
-				free($2);
-				YYERROR;
+			if ((pe = getprotobyname($2)) != NULL)
+				proto = pe->p_proto;
+			else {
+				if (atoul($2, &proto) == -1 || proto == 0 || 
+				    proto > 255) {
+					yyerror("Invalid protocol");
+					free($2);
+					YYERROR;
+				}
 			}
 			$$.proto = proto;
 			$$.match_what |= FF_MATCH_PROTOCOL;
