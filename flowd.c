@@ -15,6 +15,7 @@
  */
 
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/time.h>
 
 #include <unistd.h>
@@ -526,6 +527,7 @@ main(int argc, char **argv)
 #ifndef HAVE_SETPROCTITLE
 	compat_init_setproctitle(argc, &argv);
 #endif
+	umask(0077);
 
 	while ((ch = getopt(argc, argv, "dhD:f:")) != -1) {
 		switch (ch) {
