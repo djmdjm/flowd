@@ -101,7 +101,7 @@ AC_CHECK_SIZEOF(long long int, 8)
 
 AC_MSG_CHECKING([for /proc/pid/fd directory])
 if test -d "/proc/$$/fd" ; then
-	AC_DEFINE(HAVE_PROC_PID)
+	AC_DEFINE([HAVE_PROC_PID], [], [has /proc/PID/fd directory])
 	AC_MSG_RESULT(yes)
 else
 	AC_MSG_RESULT(no)
