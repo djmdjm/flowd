@@ -8,6 +8,7 @@
  - (djm) Don't clobber perl or python modules in "make distclean"
  - (djm) Build fixes for Linux
  - (djm) Add devel subpackage to rpm spec
+ - (djm) Release flowd-0.7
 
 20041102
  - (djm) Crank versions to prepare for release
