@@ -6,12 +6,20 @@ It features some basic filtering to limit or tag the flows that are recorded
 and is privilege separated, to limit security exposure to any mistakes I may 
 have made.
 
-flowd stores records on disk in a compact binary format, see XXX.h for a 
+flowd stores records on disk in a compact binary format, see store.h for a 
 specification in the form of a C header file or XXX.pl for an example
-reader application. It supports NetFlow v.1 and NetFlow v.5 packet formats 
-and both IPv4 and IPv6 transports.
+reader application. This on-disk format is a parametised format capable of
+storing a superset of NetFlow v.5. Exactly which components of the NetFlow
+records actually get written to disk may be specified at runtime, so the logs
+can be made pretty compact. An optional, per-record CRC32 checksum is provided
+to detect log corruption.
 
-Large parts of this code have been shamelessly taken from OpenBSD, 
-in particular bgpd (the configuration parser) and OpenSSH (the privsep fd
-passing). All of this code is under a BSD-like license, but read the LICENSE
-file for details.
+At present, flowd supports NetFlow v.1 and NetFlow v.5 packet formats and both 
+IPv4 and IPv6 transports. This will be extended to include an IPv6 flowd export
+format, either using sflow, the IPFIX standard or an extension to NetFlow v.5
+
+Large parts of this code have been shamelessly taken from OpenBSD, in 
+particular bgpd (the configuration parser) and OpenSSH (the privsep fd passing 
+and CRC23 code). All of this code is under BSD-like licenses, but read the 
+LICENSE file for details.
+
