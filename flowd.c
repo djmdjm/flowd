@@ -177,12 +177,76 @@ start_log(int monitor_fd)
 	return (fd);
 }
 
+static int
+store_flow(int fd, struct store_flow_complete *flow)
+{
+	u_int32_t fieldspec_flags;
+	struct store_flow_AGENT_ADDR_V4 aa4;
+	struct store_flow_AGENT_ADDR_V6 aa6;
+	struct store_flow_SRCDST_ADDR_V4 sda4;
+	struct store_flow_SRCDST_ADDR_V6 sda6;
+
+	fieldspec_flags = ntohl(flow->hdr.fieldspec_flags);
+
+	switch(flow->agent_addr.af) {
+	case AF_INET:
+		memcpy(&aa4.flow_agent_addr, &flow->agent_addr.v4,
+		    sizeof(aa4.flow_agent_addr));
+		break;
+	case AF_INET6:
+		memcpy(&aa6.flow_agent_addr, &flow->agent_addr.v6,
+		    sizeof(aa6.flow_agent_addr));
+		fieldspec_flags |= STORE_FLOW_AGENT_IS_V6;
+		break;
+	default:
+		syslog(LOG_WARNING, "%s: silly agent addr af", __func__);
+		return (-1);
+	}
+
+	/* NB. Assume that this is the same as dst_addr.af */
+	switch(flow->src_addr.af) {
+	case AF_INET:
+		memcpy(&sda4.src_addr, &flow->src_addr.v4,
+		    sizeof(sda4.src_addr));
+		memcpy(&sda4.dst_addr, &flow->dst_addr.v4,
+		    sizeof(sda4.dst_addr));
+		break;
+	case AF_INET6:
+		memcpy(&sda6.src_addr, &flow->src_addr.v6,
+		    sizeof(sda6.src_addr));
+		memcpy(&sda6.dst_addr, &flow->dst_addr.v6,
+		    sizeof(sda6.dst_addr));
+		fieldspec_flags |= STORE_FLOW_ADDRS_ARE_V6;
+		break;
+	default:
+		syslog(LOG_WARNING, "%s: silly agent addr af", __func__);
+		return (-1);
+	}
+	
+	return (-1); /* XXX */
+}
+
 static void 
 process_flow(struct store_flow_complete *flow, struct flowd_config *conf,
     int log_fd)
 {
+	/* Another sanity check */
+	if (flow->src_addr.af != flow->dst_addr.af) {
+		syslog(LOG_WARNING, "%s: flow src(%d)/dst(%d) AF mismatch",
+		    __func__, flow->src_addr.af, flow->dst_addr.af);
+		return;
+	}
+
 	if (filter_flow(flow, &conf->filter_list) == FF_ACTION_DISCARD)
 		return; /* XXX log? count (against rule?) */
+
+	flow->hdr.fieldspec_flags = htonl(flow->hdr.fieldspec_flags);
+	flow->hdr.tag = htonl(flow->hdr.tag);
+	flow->hdr.recv_secs = htonl(flow->hdr.recv_secs);
+
+	if (store_flow(log_fd, flow) == -1)
+		syslog(LOG_WARNING, "%s: store_flow failed", __func__);
+	/* XXX reopen log file on one failure, exit on multiple */
 }
 
 static void 
