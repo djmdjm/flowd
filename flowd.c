@@ -162,11 +162,11 @@ process_flow(struct store_flow_complete *flow, struct flowd_config *conf,
 
 		store_format_flow(flow, fbuf, sizeof(fbuf), 0,
 		    STORE_DISPLAY_BRIEF);
-		syslog(LOG_WARNING, "%s: flow %s", __func__, fbuf);
+		syslog(LOG_DEBUG, "%s: flow %s", __func__, fbuf);
 	}
 
 	if (filter_flow(flow, &conf->filter_list) == FF_ACTION_DISCARD)
-		return; /* XXX log? count (against rule?) */
+		return; /* XXX count against rule */
 
 	if (store_put_flow(log_fd, flow, conf->store_mask, &e) != 0) {
 		syslog(LOG_CRIT, "%s: exiting on %s", __func__, e);
@@ -565,7 +565,8 @@ main(int argc, char **argv)
 			errx(1, "strdup pidfile");
 	}
 
-	/* dump_config(&conf); */
+	if (conf->opts & FLOWD_OPT_VERBOSE)
+		dump_config(&conf); 
 
 	closefrom(STDERR_FILENO + 1);
 
