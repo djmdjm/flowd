@@ -17,3 +17,5 @@
 - Improve log handling
 
 - PID file
+
+- getprotobyname for filter protocols
