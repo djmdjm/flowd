@@ -142,8 +142,6 @@ process_flow(struct store_flow_complete *flow, struct flowd_config *conf,
 {
 	char *e;
 
-	syslog(LOG_DEBUG, "%s: entering", __func__);
-
 	/* Another sanity check */
 	if (flow->src_addr.af != flow->dst_addr.af) {
 		syslog(LOG_WARNING, "%s: flow src(%d)/dst(%d) AF mismatch",
@@ -372,8 +370,6 @@ process_input(struct flowd_config *conf, int net_fd, int log_fd)
 		/* XXX ratelimit errors */
 		return;
 	}
-	syslog(LOG_DEBUG, "recv %d bytes from %s", len,
-	    from_ntop((struct sockaddr *)&from));
 	if ((size_t)len < sizeof(*hdr)) {
 		syslog(LOG_WARNING, "short packet %d bytes from %s", len,
 		    from_ntop((struct sockaddr *)&from));
@@ -436,9 +432,7 @@ flowd_mainloop(struct flowd_config *conf, int monitor_fd)
 		if (log_fd == -1)
 			log_fd = start_log(monitor_fd);
 		
-		syslog(LOG_DEBUG, "%s: poll(%d) entering", __func__, num_fds);
 		i = poll(pfd, num_fds, INFTIM);
-		syslog(LOG_DEBUG, "%s: poll(%d) = %d", __func__, num_fds, i);
 		if (i <= 0) {
 			if (i == 0 || errno == EINTR)
 				continue;
