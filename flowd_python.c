@@ -16,7 +16,10 @@
 
 #include <Python.h>
 #include <sys/types.h>
+#include "common.h"
 #include "store.h"
+
+RCSID("$Id$");
 
 static PyObject *
 flow_header_length(PyObject *self, PyObject *args)
