@@ -2,6 +2,8 @@
  - (djm) Bring python inteface up to the same level as the perl and C ones
  - (djm) Print tcp_flags as two hex digits, in C API
  - (djm) Improve the README, mention Python API
+ - (djm) Reorganise signal handers, add SIGUSR1 for reopen logfiles
+ - (djm) Document signals and tidy
 
 20040812
  - (djm) Parse and verify config in a subprocess, avoiding all memory leaks
