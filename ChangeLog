@@ -5,6 +5,7 @@
          condition false-failures in "while [ 1 ] ; do kill ... ; done" 
          stress test
  - (djm) Improve PLATFORMS file a little
+ - (djm) Release flowd 0.4
 
 20040816
  - (djm) Pull in some portability fixes from portable OpenSSH
