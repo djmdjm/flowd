@@ -1,4 +1,8 @@
-20050204
+20050404
+ - (djm) Error on inconsistent addr/masklen in config file. Spotted by 
+ msaufy AT yahoo.co.uk
+
+20050313
  - (djm) Move Perl library from Flowd to Flowd-perl because Mac OS X's 
    filesystem is (idiotically) case independant, resulting in breakage when 
    trying to build the 'flowd' binary; reported by Jakob Schlyter
