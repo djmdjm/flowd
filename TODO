@@ -1,16 +1,18 @@
-- support relaying of pre/post-filter packets to another agent (via UDP)
-
 - runtime reconfigure
   - parse config in monitor, deep-copy to child
   - Need to be careful about listener fds, merge changes or close+reopen??
+  - We probably leak memory in parse.y right now
 
 - Per-peer statistics, esp. errors
+  - Does this make sense?
 
 - Port predicates, e.g. "port 1024-65536"
 
 - Improve log handling
+ - E.g. multiple log files, based on tag?
+ - support relaying of pre/post-filter packets to another agent (via UDP)
 
 - Instead of reading/writing flow logs, store.c functions should format them
  to memory buffers (e.g. so they can be sent over the network)
 
-- manpages
+- SIGINFO handler to dump statistics, etc (where? syslog, file?)
