@@ -4,6 +4,7 @@
  - (djm) Add tree code for recent changes
  - (djm) Store agent address for v.9 flows
  - (djm) Add some tools to the tools/ directory
+ - (djm) Add tools/ directory to RPM
 
 20040921
  - (djm) Implement NetFlow v.9 support. Some more work to do yet, but it is 

@@ -106,7 +106,7 @@ fi
 
 %files
 %defattr(-,root,root)
-%doc ChangeLog LICENSE README TODO
+%doc ChangeLog LICENSE README TODO tools
 %dir %attr(0111,root,root) %{_var}/empty
 %attr(0600,root,root) %config(noreplace) %{_sysconfdir}/flowd.conf
 %attr(0644,root,root) %{_mandir}/man5/flowd.conf.5*
