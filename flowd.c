@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004 Damien Miller <djm@mindrot.org>
+ * Copyright (c) 2004,2005 Damien Miller <djm@mindrot.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -1129,7 +1129,8 @@ startup_listen_init(struct flowd_config *conf)
 	struct listen_addr *la;
 
 	TAILQ_FOREACH(la, &conf->listen_addrs, entry) {
-		if ((la->fd = open_listener(&la->addr, la->port)) == -1) {
+		if ((la->fd = open_listener(&la->addr, la->port,
+		    &conf->join_groups)) == -1) {
 			logerrx("Listener setup of [%s]:%d failed",
 			    addr_ntop_buf(&la->addr), la->port);
 		}

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004 Damien Miller <djm@mindrot.org>
+ * Copyright (c) 2004,2005 Damien Miller <djm@mindrot.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -110,11 +110,14 @@ write_pid_file(const char *path)
 }
 
 int
-open_listener(struct xaddr *addr, u_int16_t port)
+open_listener(struct xaddr *addr, u_int16_t port, struct join_groups *groups)
 {
 	int fd, fl;
 	struct sockaddr_storage ss;
 	socklen_t slen = sizeof(ss);
+	struct join_group *jg;
+	struct ip_mreq v4mreq;
+	struct ipv6_mreq v6mreq;
 
 	if (addr_xaddr_to_sa(addr, (struct sockaddr *)&ss, &slen, port) == -1) {
 		logit(LOG_ERR, "addr_xaddr_to_sa");
@@ -155,6 +158,33 @@ open_listener(struct xaddr *addr, u_int16_t port)
 	logit(LOG_DEBUG, "Listener for [%s]:%d fd = %d", addr_ntop_buf(addr),
 	    port, fd);
 
+	TAILQ_FOREACH(jg, groups, entry) {
+		if (jg->addr.af != addr->af)
+			continue;
+		logit(LOG_DEBUG, "Multicast join on fd %d to [%s]", fd,
+		    addr_ntop_buf(&jg->addr));
+		switch (addr->af) {
+		case AF_INET:
+			bzero(&v4mreq, sizeof(v4mreq));
+			v4mreq.imr_multiaddr = jg->addr.v4;
+			v4mreq.imr_interface.s_addr = INADDR_ANY;
+			if (setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP,
+			    &v4mreq, sizeof(v4mreq)) == -1)
+				logitm(LOG_ERR, "setsockopt(IP_ADD_MEMBERSHIP)");
+			/* non-fatal for now */
+			break;
+		case AF_INET6:
+			bzero(&v6mreq, sizeof(v6mreq));
+			v6mreq.ipv6mr_multiaddr = jg->addr.v6;
+			v6mreq.ipv6mr_interface = jg->addr.scope_id;
+			if (setsockopt(fd, IPPROTO_IPV6, IPV6_JOIN_GROUP,
+			    &v6mreq, sizeof(v6mreq)) == -1)
+				logitm(LOG_ERR, "setsockopt(IPV6_JOIN_GROUP)");
+			/* non-fatal for now */
+			break;
+		}
+	}
+
 	return (fd);
 }
 
@@ -164,6 +194,7 @@ replace_conf(struct flowd_config *conf, struct flowd_config *newconf)
 	struct listen_addr *la;
 	struct filter_rule *fr;
 	struct allowed_device *ad;
+	struct join_group *jg;
 
 	free(conf->log_file);
 	free(conf->pid_file);
@@ -181,11 +212,16 @@ replace_conf(struct flowd_config *conf, struct flowd_config *newconf)
 		TAILQ_REMOVE(&conf->allowed_devices, ad, entry);
 		free(ad);
 	}
+	while ((jg = TAILQ_FIRST(&conf->join_groups)) != NULL) {
+		TAILQ_REMOVE(&conf->join_groups, jg, entry);
+		free(jg);
+	}
 
 	memcpy(conf, newconf, sizeof(*conf));
 	TAILQ_INIT(&conf->listen_addrs);
 	TAILQ_INIT(&conf->filter_list);
 	TAILQ_INIT(&conf->allowed_devices);
+	TAILQ_INIT(&conf->join_groups);
 
 	while ((la = TAILQ_LAST(&newconf->listen_addrs, listen_addrs)) != NULL) {
 		TAILQ_REMOVE(&newconf->listen_addrs, la, entry);
@@ -200,6 +236,10 @@ replace_conf(struct flowd_config *conf, struct flowd_config *newconf)
 		TAILQ_REMOVE(&newconf->allowed_devices, ad, entry);
 		TAILQ_INSERT_HEAD(&conf->allowed_devices, ad, entry);
 	}
+	while ((jg = TAILQ_LAST(&newconf->join_groups, join_groups)) != NULL) {
+		TAILQ_REMOVE(&newconf->join_groups, jg, entry);
+		TAILQ_INSERT_HEAD(&conf->join_groups, jg, entry);
+	}
 
 	bzero(newconf, sizeof(*newconf));
 }
@@ -211,6 +251,7 @@ recv_config(int fd, struct flowd_config *conf)
 	struct listen_addr *la;
 	struct filter_rule *fr;
 	struct allowed_device *ad;
+	struct join_group *jg;
 	struct flowd_config newconf;
 
 	logit(LOG_DEBUG, "%s: entering fd = %d", __func__, fd);
@@ -219,6 +260,7 @@ recv_config(int fd, struct flowd_config *conf)
 	TAILQ_INIT(&newconf.listen_addrs);
 	TAILQ_INIT(&newconf.filter_list);
 	TAILQ_INIT(&newconf.allowed_devices);
+	TAILQ_INIT(&newconf.join_groups);
 
 	logit(LOG_DEBUG, "%s: ready to receive config", __func__);
 
@@ -258,8 +300,7 @@ recv_config(int fd, struct flowd_config *conf)
 			logit(LOG_ERR, "%s: calloc", __func__);
 			return (-1);
 		}
-		if (atomicio(read, fd, la,
-		    sizeof(*la)) != sizeof(*la)) {
+		if (atomicio(read, fd, la, sizeof(*la)) != sizeof(*la)) {
 			logitm(LOG_ERR, "%s: read(listen_addr)", __func__);
 			return (-1);
 		}
@@ -283,8 +324,7 @@ recv_config(int fd, struct flowd_config *conf)
 			logit(LOG_ERR, "%s: calloc", __func__);
 			return (-1);
 		}
-		if (atomicio(read, fd, fr,
-		    sizeof(*fr)) != sizeof(*fr)) {
+		if (atomicio(read, fd, fr, sizeof(*fr)) != sizeof(*fr)) {
 			logitm(LOG_ERR, "%s: read(filter_rule)", __func__);
 			return (-1);
 		}
@@ -306,12 +346,33 @@ recv_config(int fd, struct flowd_config *conf)
 			logit(LOG_ERR, "%s: calloc", __func__);
 			return (-1);
 		}
-		if (atomicio(read, fd, ad,
-		    sizeof(*ad)) != sizeof(*ad)) {
-			logitm(LOG_ERR, "%s: read(filter_rule)", __func__);
+		if (atomicio(read, fd, ad, sizeof(*ad)) != sizeof(*ad)) {
+			logitm(LOG_ERR, "%s: read(allowed_device)", __func__);
 			return (-1);
 		}
 		TAILQ_INSERT_TAIL(&newconf.allowed_devices, ad, entry);
+	}
+
+	/* Read multicast join groups */
+	if (atomicio(read, fd, &n, sizeof(n)) != sizeof(n)) {
+		logitm(LOG_ERR, "%s: read(num join_groups)", __func__);
+		return (-1);
+	}
+	if (n > 1024*1024) {
+		logit(LOG_ERR, "%s: silly number of join_groups: %d",
+		    __func__, n);
+		return (-1);
+	}
+	for (i = 0; i < n; i++) {
+		if ((jg = calloc(1, sizeof(*jg))) == NULL) {
+			logit(LOG_ERR, "%s: calloc", __func__);
+			return (-1);
+		}
+		if (atomicio(read, fd, jg, sizeof(*jg)) != sizeof(*jg)) {
+			logitm(LOG_ERR, "%s: read(join_group)", __func__);
+			return (-1);
+		}
+		TAILQ_INSERT_TAIL(&newconf.join_groups, jg, entry);
 	}
 
 	replace_conf(conf, &newconf);
@@ -326,6 +387,7 @@ send_config(int fd, struct flowd_config *conf)
 	struct listen_addr *la;
 	struct filter_rule *fr;
 	struct allowed_device *ad;
+	struct join_group *jg;
 
 	logit(LOG_DEBUG, "%s: entering fd = %d", __func__, fd);
 
@@ -359,8 +421,7 @@ send_config(int fd, struct flowd_config *conf)
 		return (-1);
 	}
 	TAILQ_FOREACH(la, &conf->listen_addrs, entry) {
-		if (atomicio(vwrite, fd, la,
-		    sizeof(*la)) != sizeof(*la)) {
+		if (atomicio(vwrite, fd, la, sizeof(*la)) != sizeof(*la)) {
 			logitm(LOG_ERR, "%s: write(listen_addr)", __func__);
 			return (-1);
 		}
@@ -377,8 +438,7 @@ send_config(int fd, struct flowd_config *conf)
 		return (-1);
 	}
 	TAILQ_FOREACH(fr, &conf->filter_list, entry) {
-		if (atomicio(vwrite, fd, fr,
-		    sizeof(*fr)) != sizeof(*fr)) {
+		if (atomicio(vwrite, fd, fr, sizeof(*fr)) != sizeof(*fr)) {
 			logitm(LOG_ERR, "%s: write(filter_rule)", __func__);
 			return (-1);
 		}
@@ -393,9 +453,23 @@ send_config(int fd, struct flowd_config *conf)
 		return (-1);
 	}
 	TAILQ_FOREACH(ad, &conf->allowed_devices, entry) {
-		if (atomicio(vwrite, fd, ad,
-		    sizeof(*ad)) != sizeof(*ad)) {
+		if (atomicio(vwrite, fd, ad, sizeof(*ad)) != sizeof(*ad)) {
 			logitm(LOG_ERR, "%s: write(allowed_devices)", __func__);
+			return (-1);
+		}
+	}
+
+	/* Write Multicast join groups */
+	n = 0;
+	TAILQ_FOREACH(jg, &conf->join_groups, entry)
+		n++;
+	if (atomicio(vwrite, fd, &n, sizeof(n)) != sizeof(n)) {
+		logitm(LOG_ERR, "%s: write(num join_group)", __func__);
+		return (-1);
+	}
+	TAILQ_FOREACH(jg, &conf->join_groups, entry) {
+		if (atomicio(vwrite, fd, jg, sizeof(*jg)) != sizeof(*jg)) {
+			logitm(LOG_ERR, "%s: write(join_group)", __func__);
 			return (-1);
 		}
 	}
@@ -471,7 +545,8 @@ child_get_config(const char *path, struct flowd_config *conf)
 		NULL, NULL, 0, 0,
 		TAILQ_HEAD_INITIALIZER(newconf.listen_addrs),
 		TAILQ_HEAD_INITIALIZER(newconf.filter_list),
-		TAILQ_HEAD_INITIALIZER(newconf.allowed_devices)
+		TAILQ_HEAD_INITIALIZER(newconf.allowed_devices),
+		TAILQ_HEAD_INITIALIZER(newconf.join_groups)
 	};
 
 	logit(LOG_DEBUG, "%s: entering", __func__);
@@ -656,6 +731,7 @@ answer_reconfigure(struct flowd_config *conf, int client_fd,
 	TAILQ_INIT(&newconf.listen_addrs);
 	TAILQ_INIT(&newconf.filter_list);
 	TAILQ_INIT(&newconf.allowed_devices);
+	TAILQ_INIT(&newconf.join_groups);
 
 	logit(LOG_DEBUG, "%s: entering", __func__);
 
@@ -667,7 +743,8 @@ answer_reconfigure(struct flowd_config *conf, int client_fd,
 	newconf.opts |= (conf->opts & (FLOWD_OPT_DONT_FORK|FLOWD_OPT_VERBOSE));
 
 	TAILQ_FOREACH(la, &newconf.listen_addrs, entry) {
-		if ((la->fd = open_listener(&la->addr, la->port)) == -1) {
+		if ((la->fd = open_listener(&la->addr, la->port,
+		    &conf->join_groups)) == -1) {
 			logit(LOG_ERR, "Listener setup of [%s]:%d failed",
 			    addr_ntop_buf(&la->addr), la->port);
 			ok = 0;

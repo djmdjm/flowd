@@ -1,7 +1,7 @@
 /*	$Id$	*/
 
 /*
- * Copyright (c) 2004 Damien Miller <djm@mindrot.org>
+ * Copyright (c) 2004,2005 Damien Miller <djm@mindrot.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -58,6 +58,13 @@ struct listen_addr {
 };
 TAILQ_HEAD(listen_addrs, listen_addr);
 
+struct join_group {
+	struct xaddr			addr;
+	/* XXX: add interface name */
+	TAILQ_ENTRY(join_group)		entry;
+};
+TAILQ_HEAD(join_groups, join_group);
+
 #define FLOWD_OPT_DONT_FORK		(1)
 #define FLOWD_OPT_VERBOSE		(1<<1)
 struct flowd_config {
@@ -68,6 +75,7 @@ struct flowd_config {
 	struct listen_addrs	listen_addrs;
 	struct filter_list	filter_list;
 	struct allowed_devices	allowed_devices;
+	struct join_groups	join_groups;
 };
 
 /* parse.y */

@@ -1,3 +1,6 @@
+20050110
+ - (djm) Implement multicast group join support
+
 20041202
  - (djm) Reuse existing config parsing code for flowd-reader's new filtering
    ability, rather than maintaining a whole other yacc parser

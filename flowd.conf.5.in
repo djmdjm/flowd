@@ -1,6 +1,6 @@
 .\" $Id$
 .\"
-.\" Copyright (c) 2004 Damien Miller <djm@mindrot.org>
+.\" Copyright (c) 2004,2005 Damien Miller <djm@mindrot.org>
 .\" Copyright (c) 2004 Claudio Jeker <claudio@openbsd.org>
 .\" Copyright (c) 2003, 2004 Henning Brauer <henning@openbsd.org>
 .\" Copyright (c) 2002 Daniel Hartmeier <dhartmei@openbsd.org>
@@ -80,13 +80,13 @@ daemon globally.
 .Bl -tag -width xxxxxxxx
 .It Ar flow source
 Specify an address (or network) that
-.Nm
+.Xr flowd 8
 should accept flows from.
-The default is to accept flow packets from anyway, but if one or
+The default is to accept flow packets from anywhere, but if one or
 more
 .Ar flow source
 options has been specified then
-.Nm
+.Xr flowd 8
 will disregard flow packets from other hosts.
 This is separate from the flow filtering language (mentioned below in the
 .Cm Filter
@@ -101,14 +101,28 @@ flow source [4000:1::]/32
 .Ed
 .Pp
 This option is optional, if it is not specified then
-.Nm
+.Xr flowd 8
 will accept flow records from any address.
 The use of this option is strongly recommended when flow export protocols
 are used that require the collector to retain state information (e.g.
 NetFlow v.9 flow templates) in order to avoid flooding attacks.
+.It Ar join group
+Specify multicast groups to join.
+This allows
+.Xr flowd 8
+to receive multicast NetFlow datagrams.
+Both IPv6 and IPv6 groups are supported, IPv6 groups may specify an 
+interface scope.
+.Pp
+For example,
+.Bd -literal -offset indent
+join group 224.0.1.20
+join group ff02::114%em0
+join group ff05::114
+.Ed
 .It Ar listen on
 Specifies an address and port on which
-.Nm
+.Xr flowd 8
 should listen.
 IPv6 addresses must be surrounded by square brackets to distinguish them from
 the port number.

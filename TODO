@@ -15,6 +15,11 @@
 - Add Perl and Python regress tests				*
 - Add writing of binary flows to perl and python modules	*
 
+- Option to check TTL of inbound flow export packets
+- Option to bind by interface name 
+- IPv4 Multicast group join by interface. e.g. 
+	join group 224.22.33.44 on fxp0
+
 - Tools collection:
   - "flow-send", a small program to take on-disk flows and send them as 
     NetFlow packets to a chosen host

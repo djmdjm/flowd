@@ -1,7 +1,7 @@
 /* $Id$ */
 
 /*
- * Copyright (c) 2004 Damien Miller <djm@mindrot.org>
+ * Copyright (c) 2004,2005 Damien Miller <djm@mindrot.org>
  * Copyright (c) 2002, 2003, 2004 Henning Brauer <henning@openbsd.org>
  * Copyright (c) 2001 Markus Friedl.  All rights reserved.
  * Copyright (c) 2001 Daniel Hartmeier.  All rights reserved.
@@ -76,6 +76,7 @@ typedef struct {
 		u_int32_t			number;
 		char				*string;
 		u_int8_t			u8;
+		struct xaddr			addr;
 		struct {
 			struct xaddr		addr;
 			unsigned int		len;
@@ -92,12 +93,13 @@ typedef struct {
 
 %}
 
-%token	LISTEN ON LOGFILE STORE PIDFILE FLOW SOURCE
+%token	LISTEN ON JOIN GROUP LOGFILE STORE PIDFILE FLOW SOURCE
 %token	ALL TAG ACCEPT DISCARD QUICK AGENT SRC DST PORT PROTO TOS ANY
 %token	ERROR
 %token	<v.string>		STRING
 %type	<v.number>		number quick logspec not
 %type	<v.string>		string
+%type	<v.addr>		address
 %type	<v.addrport>		address_port
 %type	<v.prefix>		prefix prefix_or_any
 %type	<v.filter_match>	match_agent match_src match_dst match_proto match_tos
@@ -148,6 +150,10 @@ varset		: STRING '=' string		{
 		}
 		;
 
+/*
+ * Unfortunately, we can't let yacc do the host:port colon splitting for us, 
+ * because it breaks IPv6 addresses
+ */
 address_port	: STRING		{
 			char *colon, *cp;
 			unsigned long port;
@@ -181,6 +187,29 @@ address_port	: STRING		{
 				YYERROR;
 			}
 			$$.port = port;
+
+			free($1);
+		}
+		;
+
+address		: STRING		{
+			char *cp;
+			size_t len;
+
+			cp = $1;
+			len = strlen(cp);
+
+			/* Allow [blah]:foo for IPv6 */
+			if (cp[0] == '[' && cp[len - 1] == ']') {
+				cp++;
+				cp[len - 1] = '\0';
+			}
+
+			if (addr_pton(cp, &$$) == -1) {
+				yyerror("could not parse address \"%s\"", cp);
+				free($1);
+				YYERROR;
+			}
 
 			free($1);
 		}
@@ -261,6 +290,16 @@ conf_main	: LISTEN ON address_port	{
 			ad->masklen = $3.len;
 
 			TAILQ_INSERT_TAIL(&conf->allowed_devices, ad, entry);
+		}
+		| JOIN GROUP address	{
+			struct join_group	*jg;
+
+			if ((jg = calloc(1, sizeof(*jg))) == NULL)
+				logerrx("join_group: calloc");
+
+			memcpy(&jg->addr, &$3, sizeof(jg->addr));
+
+			TAILQ_INSERT_TAIL(&conf->join_groups, jg, entry);
 		}
 		| LOGFILE string		{
 			conf->log_file = $2;
@@ -568,6 +607,8 @@ lookup(char *s)
 		{ "discard",		DISCARD},
 		{ "dst",		DST},
 		{ "flow",		FLOW},
+		{ "group",		GROUP},
+		{ "join",		JOIN},
 		{ "listen",		LISTEN},
 		{ "logfile",		LOGFILE},
 		{ "on",			ON},
@@ -795,6 +836,7 @@ parse_config(const char *path, FILE *f, struct flowd_config *mconf,
 	TAILQ_INIT(&conf->listen_addrs);
 	TAILQ_INIT(&conf->filter_list);
 	TAILQ_INIT(&conf->allowed_devices);
+	TAILQ_INIT(&conf->join_groups);
 
 	lineno = 1;
 	errors = 0;
@@ -929,19 +971,22 @@ dump_config(struct flowd_config *c, const char *prefix, int filter_only)
 {
 	struct filter_rule *fr;
 	struct listen_addr *la;
+	struct join_group *jg;
 #define DCPR(a) ((a) == NULL ? "" : a), ((a) == NULL ? "" : ": ")
 	if (!filter_only)
 		logit(LOG_DEBUG, "%s%slogfile \"%s\"", DCPR(prefix), c->log_file);
 	logit(LOG_DEBUG, "%s%s# store mask %08x", DCPR(prefix), c->store_mask);
-	if (!filter_only)
+	if (!filter_only) {
 		logit(LOG_DEBUG, "%s%s# opts %08x", DCPR(prefix), c->opts);
-
-	if (!filter_only)
 		TAILQ_FOREACH(la, &c->listen_addrs, entry) {
 			logit(LOG_DEBUG, "%s%slisten on [%s]:%d # fd = %d",
 			    DCPR(prefix), addr_ntop_buf(&la->addr), la->port, la->fd);
 		}
-
+		TAILQ_FOREACH(jg, &c->join_groups, entry) {
+			logit(LOG_DEBUG, "%s%sjoin group [%s]",
+			    DCPR(prefix), addr_ntop_buf(&jg->addr));
+		}
+	}
 	TAILQ_FOREACH(fr, &c->filter_list, entry)
 		logit(LOG_DEBUG, "%s%s%s", DCPR(prefix), format_rule(fr));
 #undef DCPR
