@@ -505,7 +505,8 @@ store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
 	if (HASFIELD(PROTO_FLAGS_TOS)) {
 		snprintf(tmp, sizeof(tmp), "proto %d ", flow->pft.protocol);
 		strlcat(buf, tmp, len);
-		snprintf(tmp, sizeof(tmp), "tcpflags %x ", flow->pft.tcp_flags);
+		snprintf(tmp, sizeof(tmp), "tcpflags %02x ",
+		    flow->pft.tcp_flags);
 		strlcat(buf, tmp, len);
 		snprintf(tmp, sizeof(tmp), "tos %02x " , flow->pft.tos);
 		strlcat(buf, tmp, len);
