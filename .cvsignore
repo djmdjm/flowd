@@ -7,4 +7,5 @@ config.log
 autom4te.cache
 parse.c
 y.tab.c
+y.tab.h
 Makefile
