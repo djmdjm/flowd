@@ -1,8 +1,9 @@
 * indicates things to do before 1.0 release
 
-- Port predicates, e.g. "port 1024-65536"
-- filter match on AF
-- Improve flowd_reader filters (packets, octets, tags, tcpflags, whatever)
+- Improve Filters 
+- packets, octets (need predicates)
+- tcpflags, src/dst AF 
+- Port predicates, e.g. "port 1024-65536", "port > 1024"
 
 - Improve log handling
  - E.g. multiple log files, based on tag?
