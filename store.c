@@ -510,12 +510,12 @@ store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
 		strlcat(buf, tmp, len);
 	}
 	if (HASFIELD(AGENT_ADDR4) || HASFIELD(AGENT_ADDR6)) {
-		snprintf(tmp, sizeof(tmp), "agent %s ",
+		snprintf(tmp, sizeof(tmp), "agent [%s] ",
 		    addr_ntop_buf(&flow->agent_addr));
 		strlcat(buf, tmp, len);
 	}
 	if (HASFIELD(SRC_ADDR4) || HASFIELD(SRC_ADDR6)) {
-		snprintf(tmp, sizeof(tmp), "src %s",
+		snprintf(tmp, sizeof(tmp), "src [%s]",
 		    addr_ntop_buf(&flow->src_addr));
 		strlcat(buf, tmp, len);
 		if (HASFIELD(SRCDST_PORT)) {
@@ -526,7 +526,7 @@ store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
 		strlcat(buf, " ", len);
 	}
 	if (HASFIELD(DST_ADDR4) || HASFIELD(DST_ADDR6)) {
-		snprintf(tmp, sizeof(tmp), "dst %s",
+		snprintf(tmp, sizeof(tmp), "dst [%s]",
 		    addr_ntop_buf(&flow->dst_addr));
 		strlcat(buf, tmp, len);
 		if (HASFIELD(SRCDST_PORT)) {
@@ -537,7 +537,7 @@ store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
 		strlcat(buf, " ", len);
 	}
 	if (HASFIELD(GATEWAY_ADDR4) || HASFIELD(GATEWAY_ADDR6)) {
-		snprintf(tmp, sizeof(tmp), "gateway %s ",
+		snprintf(tmp, sizeof(tmp), "gateway [%s] ",
 		    addr_ntop_buf(&flow->gateway_addr));
 		strlcat(buf, tmp, len);
 	}

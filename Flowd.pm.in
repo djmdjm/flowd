@@ -270,24 +270,25 @@ sub format
 		$ret .= sprintf "tos %02x ", $self->{fields}->{tos};
 	}
 	if ($fields & AGENT_ADDR) {
-		$ret .= sprintf "agent %s ", $self->{fields}->{agent_addr};
+		$ret .= sprintf "agent [%s] ", $self->{fields}->{agent_addr};
 	}
 	if ($fields & SRC_ADDR) {
-		$ret .= sprintf "src %s", $self->{fields}->{src_addr};
+		$ret .= sprintf "src [%s]", $self->{fields}->{src_addr};
 		if ($fields & SRCDST_PORT) {
 			$ret .= sprintf ":%u", $self->{fields}->{src_port};
 		}
 		$ret .= " ";
 	}
 	if ($fields & DST_ADDR) {
-		$ret .= sprintf "dst %s", $self->{fields}->{dst_addr};
+		$ret .= sprintf "dst [%s]", $self->{fields}->{dst_addr};
 		if ($fields & SRCDST_PORT) {
 			$ret .= sprintf ":%u", $self->{fields}->{dst_port};
 		}
 		$ret .= " ";
 	}
 	if ($fields & GATEWAY_ADDR) {
-		$ret .= sprintf "gateway %s ", $self->{fields}->{gateway_addr};
+		$ret .= sprintf "gateway [%s] ",
+		    $self->{fields}->{gateway_addr};
 	}
 	if ($fields & PACKETS) {
 		my $p = $self->{fields}->{flow_packets};

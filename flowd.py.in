@@ -198,19 +198,20 @@ class flow:
 			ret = ret + "tcpflags %02x " % self.fields["tcp_flags"]
 			ret = ret + "tos %02x " % self.fields["tos"]
 		if fields & self.__class__.AGENT_ADDR != 0: 
-			ret = ret + "agent %s " % self.fields["agent_addr"]
+			ret = ret + "agent [%s] " % self.fields["agent_addr"]
 		if fields & self.__class__.SRC_ADDR != 0: 
-			ret = ret + "src %s" % self.fields["src_addr"];
+			ret = ret + "src [%s]" % self.fields["src_addr"];
 			if fields & self.__class__.SRCDST_PORT != 0: 
 				ret = ret + ":%u" % self.fields["src_port"];
 			ret = ret + " ";
 		if fields & self.__class__.DST_ADDR != 0: 
-			ret = ret + "dst %s" % self.fields["dst_addr"];
+			ret = ret + "dst [%s]" % self.fields["dst_addr"];
 			if fields & self.__class__.SRCDST_PORT != 0: 
 				ret = ret + ":%u" % self.fields["dst_port"];
 			ret = ret + " ";
 		if fields & self.__class__.GATEWAY_ADDR != 0: 
-			ret = ret + "gateway %s " % self.fields["gateway_addr"];
+			ret = ret + "gateway [%s] " % \
+			    self.fields["gateway_addr"];
 		if fields & self.__class__.PACKETS != 0: 
 			ret = ret + "packets %s " % self.fields["flow_packets"];
 		if fields & self.__class__.OCTETS != 0: 
