@@ -45,7 +45,7 @@ static FILE			*fin = NULL;
 static int			 lineno = 1;
 static int			 errors = 0;
 static int			 pdebug = 1;
-char				*infile;
+const char			*infile;
 
 int	yyerror(const char *, ...);
 int	yyparse(void);
@@ -685,7 +685,7 @@ top:
 }
 
 int
-parse_config(char *filename, struct flowd_config *mconf)
+parse_config(const char *filename, struct flowd_config *mconf)
 {
 	struct sym		*sym, *next;
 

@@ -1,0 +1,59 @@
+# $Id$
+
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+bindir=@bindir@
+sbindir=@sbindir@
+libexecdir=@libexecdir@
+datadir=@datadir@
+mandir=@mandir@
+sysconfdir=@sysconfdir@
+srcdir=@srcdir@
+top_srcdir=@top_srcdir@
+VPATH=@srcdir@
+CC=@CC@
+LDFLAGS=@LDFLAGS@
+CFLAGS=@CFLAGS@
+CPPFLAGS=-I$(srcdir) @CPPFLAGS@
+LIBS=@LIBS@
+EXEEXT=@EXEEXT@
+INSTALL=@INSTALL@
+YACC=@YACC@
+
+TARGETS=flowd flowd-reader
+
+all: $(TARGETS)
+
+LIBFLOWD_OBJS=		atomicio.o addr.o store.o crc32.o
+FLOWD_OBJS=		flowd.o privsep_fdpass.o privsep.o filter.o parse.o
+FLOWD_READER_OBJS=	flowd-reader.o
+
+libflowd.a: $(LIBFLOWD_OBJS)
+	$(AR) rv $@ $(LIBFLOWD_OBJS)
+	$(RANLIB) $@
+
+flowd: $(FLOWD_OBJS) libflowd.a
+	$(CC) $(LDFLAGS) -L. -o $@ $(FLOWD_OBJS) -lflowd $(LIBS)
+
+flowd-reader: $(FLOWD_READER_OBJS) libflowd.a
+	$(CC) $(LDFLAGS) -L. -o $@ $(FLOWD_READER_OBJS) libflowd.a $(LIBS)
+
+clean:
+	rm -f $(TARGETS) *.o core *.core y.tab.*
+
+realclean: clean
+	rm -rf autom4te.cache Makefile config.log config.status
+
+distclean: realclean
+	rm -f config.h* configure
+
+strip:
+	strip $(TARGETS)
+
+install:
+	$(INSTALL) -m 0755 -s flowd $(sbindir)/flowd
+	$(INSTALL) -m 0755 -s flowd-reader $(bindir)/flowd-reader
+	#$(INSTALL) -m 0644 flowd.8 $(mandir)/man8/flowd.8
+	#$(INSTALL) -m 0644 flowd.conf.5 $(mandir)/man5/flowd.conf.5
+	#$(INSTALL) -m 0644 flowd-reader.8 $(mandir)/man8/flowd-reader.8
+

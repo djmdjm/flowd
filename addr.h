@@ -19,7 +19,8 @@
 #ifndef _ADDR_H
 #define _ADDR_H
 
-#include <sys/types.h>
+#include "common.h"
+
 #include <sys/socket.h>
 #include <netinet/in.h>
 

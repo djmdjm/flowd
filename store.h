@@ -19,7 +19,7 @@
 #ifndef _STORE_H
 #define _STORE_H
 
-#include <sys/types.h>
+#include "common.h"
 #include "addr.h"
 
 /* On-disk address formats for v4 and v6 addresses */
@@ -195,11 +195,11 @@ struct store_flow_complete {
 	struct store_flow_CRC32			crc32;
 } __packed;
 
-int store_get_header(int fd, struct store_header *hdr, char **errptr);
-int store_get_flow(int fd, struct store_flow_complete *f, char **errptr);
-int store_put_header(int fd, char **errptr);
+int store_get_header(int fd, struct store_header *hdr, const char **errptr);
+int store_get_flow(int fd, struct store_flow_complete *f, const char **errptr);
+int store_put_header(int fd, const char **errptr);
 int store_put_flow(int fd, struct store_flow_complete *flow,
-    u_int32_t fieldmask, char **errptr);
+    u_int32_t fieldmask, const char **errptr);
 
 const char *iso_time(time_t t, int utc_flag);
 const char *interval_time(time_t t);

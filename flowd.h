@@ -17,9 +17,8 @@
 #ifndef _FLOWD_H
 #define _FLOWD_H
 
-#include <sys/types.h>
-#include <sys/queue.h>
-
+#include "common.h"
+#include "sys-queue.h"
 #include "addr.h"
 #include "filter.h"
 
@@ -49,7 +48,7 @@ struct flowd_config {
 };
 
 /* parse.y */
-int parse_config(char *, struct flowd_config *);
+int parse_config(const char *, struct flowd_config *);
 int cmdline_symset(char *);
 
 #endif /* _FLOWD_H */

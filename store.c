@@ -48,7 +48,7 @@
 
 
 int
-store_get_header(int fd, struct store_header *hdr, char **errptr)
+store_get_header(int fd, struct store_header *hdr, const char **errptr)
 {
 	ssize_t r;
 	static char ebuf[512];
@@ -67,7 +67,7 @@ store_get_header(int fd, struct store_header *hdr, char **errptr)
 }
 
 static int
-read_field(int fd, void *f, ssize_t l, char **errptr, char *desc)
+read_field(int fd, void *f, ssize_t l, const char **errptr, const char *desc)
 {
 	ssize_t r;
 	static char ebuf[256];
@@ -92,7 +92,7 @@ read_field(int fd, void *f, ssize_t l, char **errptr, char *desc)
 }
 
 int
-store_get_flow(int fd, struct store_flow_complete *f, char **errptr)
+store_get_flow(int fd, struct store_flow_complete *f, const char **errptr)
 {
 	int r;
 	struct store_flow_AGENT_ADDR_V4 aa4;
@@ -187,7 +187,7 @@ store_get_flow(int fd, struct store_flow_complete *f, char **errptr)
 }
 
 int
-store_put_header(int fd, char **errptr)
+store_put_header(int fd, const char **errptr)
 {
 	struct store_header hdr;
 	char ebuf[512];
@@ -209,7 +209,7 @@ store_put_header(int fd, char **errptr)
 }
 
 static int
-write_flow(int fd, char **errptr, 
+write_flow(int fd, const char **errptr, 
     u_int32_t fields, 
     struct store_flow_complete *flow, 
     struct store_flow_AGENT_ADDR_V4 *aa4,
@@ -272,7 +272,7 @@ write_flow(int fd, char **errptr,
 
 int
 store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
-    char **errptr)
+    const char **errptr)
 {
 	struct store_flow_AGENT_ADDR_V4 aa4;
 	struct store_flow_AGENT_ADDR_V6 aa6;

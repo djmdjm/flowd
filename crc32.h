@@ -19,7 +19,7 @@
 #ifndef _CRC32_H
 #define _CRC32_H
 
-#include <sys/types.h>
+#include "common.h"
 
 void crc32_start(u_int32_t *crcp);
 void crc32_update(const u_char *buf, u_int32_t size, u_int32_t *crcp);

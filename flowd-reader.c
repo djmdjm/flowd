@@ -42,7 +42,8 @@ main(int argc, char **argv)
 	extern int optind;
 	struct store_flow_complete flow;
 	struct store_header hdr;
-	char *e, buf[2048];
+	const char *e;
+	char buf[2048];
 
 	utc = verbose = 0;
 	while ((ch = getopt(argc, argv, "Uhv")) != -1) {

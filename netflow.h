@@ -19,7 +19,7 @@
 #ifndef _NETFLOW_H
 #define _NETFLOW_H
 
-#include <sys/types.h>
+#include "common.h"
 
 /*
  * These are Cisco Netflow(tm) packet formats

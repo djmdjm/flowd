@@ -15,7 +15,6 @@
  */
 
 #include <sys/types.h>
-#include <sys/queue.h>
 #include <sys/time.h>
 
 #include <unistd.h>
@@ -29,6 +28,7 @@
 #include <err.h>
 #include <poll.h>
 
+#include "sys-queue.h"
 #include "flowd.h"
 #include "privsep.h"
 #include "netflow.h"
@@ -102,7 +102,7 @@ start_log(int monitor_fd)
 {
 	int fd;
 	off_t pos;
-	char *e;
+	const char *e;
 
 	if ((fd = client_open_log(monitor_fd)) == -1) {
 		syslog(LOG_CRIT, "Logfile open failed, exiting");
@@ -139,7 +139,7 @@ static void
 process_flow(struct store_flow_complete *flow, struct flowd_config *conf,
     int log_fd)
 {
-	char *e;
+	const char *e;
 
 	/* Another sanity check */
 	if (flow->src_addr.af != flow->dst_addr.af) {
@@ -512,7 +512,7 @@ main(int argc, char **argv)
 	int ch;
 	extern char *optarg;
 	extern int optind;
-	char *config_file = DEFAULT_CONFIG;
+	const char *config_file = DEFAULT_CONFIG;
 	struct flowd_config conf = {
 		NULL, NULL, 0, 0, 
 		TAILQ_HEAD_INITIALIZER(conf.listen_addrs),
@@ -551,8 +551,10 @@ main(int argc, char **argv)
 		errx(1, "No listening addresses specified");
 	if (conf.log_file == NULL)
 		errx(1, "No log file specified");
-	if (conf.pid_file == NULL)
-		conf.pid_file = DEFAULT_PIDFILE;
+	if (conf.pid_file == NULL) {
+		if ((conf.pid_file = strdup(DEFAULT_PIDFILE)) == NULL)
+			errx(1, "strdup pidfile");
+	}
 
 	/* dump_config(&conf); */
 

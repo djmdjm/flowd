@@ -19,8 +19,8 @@
 #ifndef _FILTER_H
 #define _FILTER_H
 
-#include <sys/types.h>
-#include <sys/queue.h>
+#include "common.h"
+#include "sys-queue.h"
 #include "addr.h"
 #include "store.h"
 

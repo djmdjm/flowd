@@ -15,13 +15,13 @@
  */
 
 #include <sys/types.h>
-#include <sys/queue.h>
 
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 
+#include "sys-queue.h"
 #include "flowd.h"
 #include "filter.h"
 #include "store.h"
