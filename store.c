@@ -27,6 +27,7 @@
 
 #include "store.h"
 #include "atomicio.h"
+#include "crc32.h"
 
 /* Stash error message and return */
 #define SFAILX(i, m) do {							\
@@ -100,7 +101,7 @@ store_get_flow(int fd, struct store_flow_complete *f, char **errptr)
 	struct store_flow_SRCDST_ADDR_V6 sda6;
 	struct store_flow_GATEWAY_ADDR_V4 ga4;
 	struct store_flow_GATEWAY_ADDR_V6 ga6;
-	u_int32_t fields;
+	u_int32_t fields, crc;
 
 	bzero(f, sizeof(*f));
 
@@ -114,10 +115,20 @@ store_get_flow(int fd, struct store_flow_complete *f, char **errptr)
 #define SHASFIELD(flag)				\
 	(fields & STORE_FIELD_##flag)
 #define RFIELD(flag, dest, desc) do { \
-		if (SHASFIELD(flag) && \
-	 	   read_field(fd, &dest, sizeof(dest), errptr, desc) <= 0) \
-			return (-1); \
+		if (SHASFIELD(flag)) { \
+	 		if (read_field(fd, &dest, sizeof(dest), errptr, \
+			    desc) <= 0) \
+				return (-1); \
+			if (SHASFIELD(CRC32) && \
+			    STORE_FIELD_##flag != STORE_FIELD_CRC32) { \
+				crc32_update((u_char *)&dest, sizeof(dest), \
+				    &crc); \
+			} \
+		} \
 	} while (0)
+
+	if (SHASFIELD(CRC32))
+		crc32_start(&crc);
 
 	RFIELD(PROTO_FLAGS_TOS, f->pft, "proto/flags/tos");
 	RFIELD(AGENT_ADDR4, aa4, "IPv4 agent addr");
@@ -133,14 +144,15 @@ store_get_flow(int fd, struct store_flow_complete *f, char **errptr)
 	RFIELD(FLOW_TIMES, f->ftimes, "info");
 	RFIELD(AS_INFO, f->asinf, "AS info");
 	RFIELD(FLOW_ENGINE_INFO, f->finf, "engine info");
+	RFIELD(CRC32, f->crc32, "crc32");
 
 	/* Sanity check and convert addresses */
 	if (SHASFIELD(AGENT_ADDR4) && SHASFIELD(AGENT_ADDR6))
-		SFAILX(1, "Flow has both v4/v6 agent addrs");
+		SFAILX(-1, "Flow has both v4/v6 agent addrs");
 	if (SHASFIELD(SRCDST_ADDR4) && SHASFIELD(SRCDST_ADDR6))
-		SFAILX(1, "Flow has both v4/v6 src/dst addrs");
+		SFAILX(-1, "Flow has both v4/v6 src/dst addrs");
 	if (SHASFIELD(GATEWAY_ADDR4) && SHASFIELD(GATEWAY_ADDR6))
-		SFAILX(1, "Flow has both v4/v6 gateway addrs");
+		SFAILX(-1, "Flow has both v4/v6 gateway addrs");
 
 #define S_CPYADDR(d, s, fam) do {					\
 		(d).af = (fam == 4) ? AF_INET : AF_INET6;		\
@@ -163,6 +175,9 @@ store_get_flow(int fd, struct store_flow_complete *f, char **errptr)
 		S_CPYADDR(f->gateway_addr, ga4.gateway_addr, 4);
 	if (SHASFIELD(GATEWAY_ADDR6))
 		S_CPYADDR(f->gateway_addr, ga6.gateway_addr, 6);
+
+	if (SHASFIELD(CRC32) && crc != ntohl(f->crc32.crc32))
+		SFAILX(-1, "Flow checksum mismatch");
 
 #undef S_CPYADDR
 #undef SHASFIELD
@@ -206,6 +221,10 @@ write_flow(int fd, char **errptr,
 {
 	char ebuf[512];
 	int r;
+	u_int32_t crc;
+
+	if (fields & (STORE_FIELD_CRC32))
+		crc32_start(&crc);
 
 	if ((r = atomicio(vwrite, fd, &flow->hdr, sizeof(flow->hdr))) == -1)
 		SFAIL(-1, "write flow header");
@@ -219,6 +238,11 @@ write_flow(int fd, char **errptr,
 			SFAIL(-1, "write " #spec);			\
 		if (r < (ssize_t)sizeof(what))				\
 			SFAILX(-1, "EOF writing " #spec);		\
+		if ((fields & (STORE_FIELD_CRC32)) && 			\
+		    (STORE_FIELD_##spec != STORE_FIELD_CRC32)) {	\
+			crc32_update((u_char *)(what), sizeof(*(what)),	\
+			    &crc);					\
+		}							\
 	}  } while (0)
 
 	WRITEOUT(PROTO_FLAGS_TOS, &flow->pft);
@@ -235,6 +259,11 @@ write_flow(int fd, char **errptr,
 	WRITEOUT(FLOW_TIMES, &flow->ftimes);
 	WRITEOUT(AS_INFO, &flow->asinf);
 	WRITEOUT(FLOW_ENGINE_INFO, &flow->finf);
+
+	if (fields & (STORE_FIELD_CRC32))
+		flow->crc32.crc32 = htonl(crc);
+
+	WRITEOUT(CRC32, &flow->crc32);
 #undef WRITEOUT
 
 	return (0);
@@ -476,9 +505,13 @@ store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
 	}
 	if (HASFIELD(FLOW_ENGINE_INFO)) {
 		snprintf(tmp, sizeof(tmp),
-		    "engine_type %u engine_id %u seq %lu", 
+		    "engine_type %u engine_id %u seq %lu ", 
 		    flow->finf.engine_type,  flow->finf.engine_id,
 		    (u_long)ntohl(flow->finf.flow_sequence));
+		strlcat(buf, tmp, len);
+	}
+	if (HASFIELD(CRC32)) {
+		snprintf(tmp, sizeof(tmp), "crc32 %08x ", flow->crc32.crc32);
 		strlcat(buf, tmp, len);
 	}
 }

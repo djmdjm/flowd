@@ -58,8 +58,11 @@ struct store_header {
 #define STORE_FIELD_FLOW_TIMES		(1U<<11)
 #define STORE_FIELD_AS_INFO		(1U<<12)
 #define STORE_FIELD_FLOW_ENGINE_INFO	(1U<<13)
+/* ... more one day */
 
-#define STORE_FIELD_ALL			((1U<<14)-1)
+#define STORE_FIELD_CRC32		(1U<<30)
+#define STORE_FIELD_RESERVED		(1U<<31) /* For extension header */
+#define STORE_FIELD_ALL			(((1U<<14)-1)|STORE_FIELD_CRC32)
 
 /* Useful combinations for displaying flows */
 #define STORE_DISPLAY_ALL		STORE_FIELD_ALL
@@ -162,6 +165,11 @@ struct store_flow_FLOW_ENGINE_INFO {
 	u_int32_t		flow_sequence;
 } __packed;
 
+/* Optional flow field - present if STORE_FIELD_CRC32 */
+struct store_flow_CRC32 {
+	u_int32_t		crc32;
+} __packed;
+
 /* A abstract flow record (all fields included) */
 struct store_flow_complete {
 	struct store_flow			hdr;
@@ -177,6 +185,7 @@ struct store_flow_complete {
 	struct store_flow_FLOW_TIMES		ftimes;
 	struct store_flow_AS_INFO		asinf;
 	struct store_flow_FLOW_ENGINE_INFO	finf;
+	struct store_flow_CRC32			crc32;
 } __packed;
 
 int store_get_header(int fd, struct store_header *hdr, char **errptr);

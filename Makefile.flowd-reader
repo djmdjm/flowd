@@ -2,7 +2,7 @@
 
 PROG=	flowd-reader
 
-SRCS=	flowd-reader.c atomicio.c store.c addr.c
+SRCS=	flowd-reader.c atomicio.c store.c addr.c crc32.c
 
 CFLAGS+= -Wall -I${.CURDIR}
 CFLAGS+= -Wstrict-prototypes -Wmissing-prototypes
