@@ -13,6 +13,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+#include "common.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -28,7 +29,6 @@
 #include <errno.h>
 #include <pwd.h>
 #include <grp.h>
-#include <paths.h>
 #include <netdb.h>
 
 #include "flowd.h"
@@ -378,14 +378,32 @@ drop_privs(struct passwd *pw, int do_chroot)
 		logitm(LOG_ERR, "setgroups");
 		return (-1);
 	}
+#if defined(HAVE_SETRESGID)
 	if (setresgid(pw->pw_gid, pw->pw_gid, pw->pw_gid) == -1) {
 		logitm(LOG_ERR, "setresgid");
 		return (-1);
 	}
+#elif defined(HAVE_SETREGID)
+	if (setregid(pw->pw_gid, pw->pw_gid) == -1) {
+		logitm(LOG_ERR, "setregid");
+		return (-1);
+	}
+#else
+# error No suitable setgid function found
+#endif
+#if defined(HAVE_SETRESUID)
 	if (setresuid(pw->pw_uid, pw->pw_uid, pw->pw_uid) == -1) {
 		logitm(LOG_ERR, "setresuid");
 		return (-1);
 	}
+#elif defined(HAVE_SETREUID)
+	if (setreuid(pw->pw_uid, pw->pw_uid) == -1) {
+		logitm(LOG_ERR, "setreuid");
+		return (-1);
+	}
+#else
+# error No suitable setuid function found
+#endif
 	return (0);
 }
 
@@ -412,7 +430,7 @@ child_get_config(const char *path, struct flowd_config *conf)
 	}
 	endpwent();
 
-	if (socketpair(AF_LOCAL, SOCK_STREAM, PF_UNSPEC, s) == -1) {
+	if (socketpair(AF_UNIX, SOCK_STREAM, PF_UNSPEC, s) == -1) {
 		logitm(LOG_ERR, "%s: socketpair", __func__);
 		return (-1);
 	}
@@ -723,7 +741,7 @@ privsep_init(struct flowd_config *conf, int *child_to_monitor_sock,
 
 	logit(LOG_DEBUG, "%s: entering", __func__);
 
-	if (socketpair(AF_LOCAL, SOCK_STREAM, PF_UNSPEC, s) == -1)
+	if (socketpair(AF_UNIX, SOCK_STREAM, PF_UNSPEC, s) == -1)
 		logerr("socketpair");
 
 	monitor_to_child_sock = s[0];

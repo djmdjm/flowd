@@ -45,8 +45,15 @@ fi
 # Check for some target-specific stuff
 case "$host" in
 *-*-linux*)
-	AC_DEFINE(SPT_TYPE, SPT_REUSEARGV, [setproctitle replacement type])
+	AC_DEFINE([SPT_TYPE], [SPT_REUSEARGV], [setproctitle replacement type])
 	CFLAGS="$CFLAGS -D_GNU_SOURCE"
+	case `uname -r` in
+	1.*|2.0.*)
+		AC_DEFINE([BROKEN_CMSG_TYPE], [], [cmsg_type is wrong])
+		;;
+	esac
+	;;
+*-*-solaris*)
 	;;
 esac
 
@@ -79,7 +86,7 @@ AC_ARG_WITH(libs,
 	[ if test "x$withval" != "xno" ; then LIBS="$LIBS $withval"; fi ]	
 )
 
-AC_CHECK_HEADERS(dirent.h sys/ndir.h sys/dir.h ndir.h sys/pstat.h endian.h)
+AC_CHECK_HEADERS(dirent.h sys/ndir.h sys/dir.h ndir.h sys/pstat.h endian.h sys/cdefs.h paths.h strings.h sys/time.h)
 
 AC_CHECK_MEMBER([struct sockaddr.sa_len], 
 	[AC_DEFINE([SOCK_HAS_LEN], 1, [struct sockaddr contains length])], ,
@@ -89,10 +96,11 @@ AC_CHECK_MEMBER([struct sockaddr.sa_len],
 AC_SEARCH_LIBS(daemon, bsd)
 AC_SEARCH_LIBS(socket, socket)
 
-AC_CHECK_FUNCS(closefrom betoh64 htobe64 daemon setresuid setreuid setresgid setgid sysconf setproctitle dirfd)
+AC_CHECK_FUNCS(closefrom betoh64 htobe64 daemon setresuid setreuid setresgid setregid sysconf setproctitle dirfd sendmsg recvmsg)
 
 AC_CHECK_TYPES([u_int64_t, int64_t, uint64_t, u_int32_t, int32_t, uint32_t])
 AC_CHECK_TYPES([u_int16_t, int16_t, uint16_t, u_int8_t, int8_t, uint8_t])
+AC_CHECK_TYPES([u_int])
 AC_CHECK_SIZEOF(char, 1)
 AC_CHECK_SIZEOF(short int, 2)
 AC_CHECK_SIZEOF(int, 4)
@@ -105,6 +113,66 @@ if test -d "/proc/$$/fd" ; then
 	AC_MSG_RESULT(yes)
 else
 	AC_MSG_RESULT(no)
+fi
+
+dnl make sure we're using the real structure members and not defines
+AC_CACHE_CHECK([for msg_accrights field in struct msghdr],
+		ac_cv_have_accrights_in_msghdr, [
+	AC_TRY_RUN(
+		[
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/uio.h>
+int main() {
+#ifdef msg_accrights
+exit(1);
+#endif
+struct msghdr m;
+m.msg_accrights = 0;
+exit(0);
+}
+		],
+		[ ac_cv_have_accrights_in_msghdr="yes" ],
+		[ ac_cv_have_accrights_in_msghdr="no" ]
+	)
+])
+if test "x$ac_cv_have_accrights_in_msghdr" = "xyes" ; then
+	AC_DEFINE([HAVE_ACCRIGHTS_IN_MSGHDR], [], [msghdr.accrights exists])
+fi
+
+AC_CACHE_CHECK([for msg_control field in struct msghdr],
+		ac_cv_have_control_in_msghdr, [
+	AC_TRY_RUN(
+		[
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/uio.h>
+int main() {
+#ifdef msg_control
+exit(1);
+#endif
+struct msghdr m;
+m.msg_control = 0;
+exit(0);
+}
+		],
+		[ ac_cv_have_control_in_msghdr="yes" ],
+		[ ac_cv_have_control_in_msghdr="no" ]
+	)
+])
+if test "x$ac_cv_have_control_in_msghdr" = "xyes" ; then
+	AC_DEFINE([HAVE_CONTROL_IN_MSGHDR], [], [msghdr.msg_control exists])
+fi
+
+AC_CACHE_CHECK([if libc defines __progname], ac_cv_libc_defines___progname, [
+	AC_TRY_LINK([],
+		[ extern char *__progname; printf("%s", __progname); ],
+		[ ac_cv_libc_defines___progname="yes" ],
+		[ ac_cv_libc_defines___progname="no" ]
+	)
+])
+if test "x$ac_cv_libc_defines___progname" = "xyes" ; then
+	AC_DEFINE([HAVE___PROGNAME], [], [__progname is set in libc])
 fi
 
 if test "x$ac_cv_type_uint8_t" = "xyes" ; then

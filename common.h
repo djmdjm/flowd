@@ -17,15 +17,27 @@
  */
 
 #ifndef _FLOWD_COMMON_H
+#define _FLOWD_COMMON_H
 
 #include "config.h"
 
-#include <sys/cdefs.h>
+#if defined(HAVE_SYS_CDEFS_H)
+# include <sys/cdefs.h>
+#endif
+#if defined(HAVE_SYS_TIME_H)
+# include <sys/time.h>
+#endif
+
 #include <sys/types.h>
 #include <sys/poll.h>
-#include <paths.h>
 #include <unistd.h>
 
+#if defined(HAVE_PATHS_H)
+# include <paths.h>
+#endif
+#if defined(HAVE_STRINGS_H)
+# include <strings.h>
+#endif
 #if defined(HAVE_INTTYPES_H)
 # include <inttypes.h>
 #endif
@@ -53,6 +65,9 @@ size_t strlcpy(char *, const char *, size_t);
 #ifndef HAVE_SETPROCTITLE
 void compat_init_setproctitle(int, char ***);
 void setproctitle(const char *, ...);
+#endif
+#ifndef HAVE_DAEMON
+int daemon(int nochdir, int noclose);
 #endif
 
 #ifndef INFTIM
@@ -95,6 +110,9 @@ typedef OUR_CFG_U_INT32_T u_int32_t;
 #endif
 #if !defined(HAVE_U_INT64_T) && defined(OUR_CFG_U_INT64_T)
 typedef OUR_CFG_U_INT64_T u_int64_t;
+#endif
+#if !defined(HAVE_U_INT)
+typedef unsigned int u_int;
 #endif
 
 #endif /* _FLOWD_COMMON_H */

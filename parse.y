@@ -127,8 +127,11 @@ number		: STRING			{
 		;
 
 string		: string STRING				{
-			if (asprintf(&$$, "%s %s", $1, $2) == -1)
-				logerrx("string: asprintf");
+			char buf[2048];
+			
+			snprintf(buf, sizeof(buf), "%s %s", $1, $2);
+			if (($$ = strdup(buf)) == NULL)
+				logerrx("string: strdup");
 			free($1);
 			free($2);
 		}
@@ -184,10 +187,11 @@ address_port	: STRING		{
 		;
 
 prefix		: STRING '/' number	{
-			char	*s;
+			char	*s, buf[2048];
 
-			if (asprintf(&s, "%s/%u", $1, $3) == -1)
-				logerrx("string: asprintf");
+			snprintf(buf, sizeof(buf), "%s/%u", $1, $3);
+			if ((s = strdup(buf)) == NULL)
+				logerrx("string: strdup");
 
 			free($1);
 
@@ -498,12 +502,13 @@ int
 yyerror(const char *fmt, ...)
 {
 	va_list		 ap;
-	char		*nfmt;
+	char		*nfmt, buf[2048];
 
 	errors = 1;
 	va_start(ap, fmt);
-	if (asprintf(&nfmt, "%s:%d: %s", infile, yylval.lineno, fmt) == -1)
-		logerrx("yyerror asprintf");
+	snprintf(buf, sizeof(buf), "%s:%d: %s", infile, yylval.lineno, fmt);
+	if ((nfmt = strdup(buf)) == NULL)
+		logerrx("yyerror strdup");
 	vlogit(LOG_ERR, nfmt, ap);
 	va_end(ap);
 	free(nfmt);

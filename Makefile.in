@@ -39,7 +39,7 @@ all: $(TARGETS)
 LIBFLOWD_OBJS=		atomicio.o addr.o store.o crc32.o closefrom.o \
 			strlcpy.o strlcat.o setproctitle.o
 FLOWD_OBJS=		flowd.o privsep_fdpass.o privsep.o filter.o \
-			parse.o log.o
+			parse.o log.o daemon.o
 FLOWD_READER_OBJS=	flowd-reader.o
 
 libflowd.a: $(LIBFLOWD_OBJS)
@@ -58,7 +58,7 @@ flowd-reader: $(FLOWD_READER_OBJS) libflowd.a
 	$(CC) $(LDFLAGS) -L. -o $@ $(FLOWD_READER_OBJS) libflowd.a $(LIBS)
 
 clean:
-	rm -f $(TARGETS) *.o core *.core y.tab.* parse.c
+	rm -f $(TARGETS) *.o core *.core y.tab.* parse.c libflowd.a
 
 realclean: clean
 	rm -rf autom4te.cache Makefile config.log config.status

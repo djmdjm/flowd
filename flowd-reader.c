@@ -22,7 +22,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <err.h>
 #include <poll.h>
 
 #include "store.h"
@@ -81,10 +80,14 @@ main(int argc, char **argv)
 	}
 
 	for (i = optind; i < argc; i++) {
-		if ((fd = open(argv[i], O_RDONLY)) == -1)
-			err(1, "Couldn't open %s", argv[i]);
-		if (store_get_header(fd, &hdr, &e) == -1)
-			errx(1, "%s", e);
+		if ((fd = open(argv[i], O_RDONLY)) == -1) {
+			fprintf(stderr, "Couldn't open %s\n", argv[i]);
+			exit(1);
+		}
+		if (store_get_header(fd, &hdr, &e) == -1) {
+			fprintf(stderr, "%s\n", e);
+			exit(1);
+		}
 	
 		printf("LOGFILE %s started at %s\n", argv[i],
 		    iso_time(ntohl(hdr.start_time), utc));
@@ -92,8 +95,10 @@ main(int argc, char **argv)
 		for (;;) {
 			bzero(&flow, sizeof(flow));
 
-			if ((r = store_get_flow(fd, &flow, &e)) == -1)
-				errx(1, "%s", e);
+			if ((r = store_get_flow(fd, &flow, &e)) == -1) {
+				fprintf(stderr, "%s\n", e);
+				exit(1);
+			}
 			if (r == 0) /* EOF */
 				break;
 
