@@ -36,37 +36,12 @@
 #include "netflow.h"
 #include "store.h"
 #include "atomicio.h"
+#include "peer.h"
 
 RCSID("$Id$");
 
 /* Dump unknown packet types */
 /* #define DEBUG_UNKNOWN */
-
-/*
- * Structure to hold per-peer state. NetFlow v.9 / IPFIX will require that we 
- * hold state for each peer to retain templates. This peer state is stored in
- * a splay tree for quick access by sender address and in a deque so we can
- * do fast LRU deletions on overflow
- */
-struct peer_state {
-	SPLAY_ENTRY(peer_state) tp;
-	TAILQ_ENTRY(peer_state) lp;
-	struct xaddr from;
-	u_int64_t npackets, nflows, ninvalid;
-	struct timeval firstseen, lastvalid;
-	u_int last_version;
-};
-
-/* Structures for top of peer state tree and head of list */
-SPLAY_HEAD(peer_tree, peer_state);
-TAILQ_HEAD(peer_list, peer_state);
-
-/* Peer stateholding structure */
-struct peers {
-	struct peer_tree peer_tree;
-	struct peer_list peer_list;
-	u_int max_peers, num_peers, num_forced;
-};
 
 /* Flags set by signal handlers */
 
@@ -103,152 +78,6 @@ sighand_info(int signo)
 {
 	info_flag = 1;
 	signal(signo, sighand_info);
-}
-
-/* Peer state housekeeping functions */
-static int
-peer_compare(struct peer_state *a, struct peer_state *b)
-{
-	return (addr_cmp(&a->from, &b->from));
-}
-
-/* Generate functions for peer state tree */
-SPLAY_PROTOTYPE(peer_tree, peer_state, tp, peer_compare);
-SPLAY_GENERATE(peer_tree, peer_state, tp, peer_compare);
-
-static void
-delete_peer(struct peers *peers, struct peer_state *peer)
-{
-	TAILQ_REMOVE(&peers->peer_list, peer, lp);
-	SPLAY_REMOVE(peer_tree, &peers->peer_tree, peer);
-	free(peer);
-	peers->num_peers--;
-}
-
-static struct peer_state *
-new_peer(struct peers *peers, struct flowd_config *conf, struct xaddr *addr)
-{
-	struct peer_state *peer;
-	struct allowed_device *ad;
-
-	/* Check for address authorization */
-	if (TAILQ_FIRST(&conf->allowed_devices) != NULL) {
-		TAILQ_FOREACH(ad, &conf->allowed_devices, entry) {
-			if (addr_netmatch(addr, &ad->addr, ad->masklen) == 0)
-		 		break;
-		}
-		if (ad == NULL)
-			return (NULL);
-	}
-
-	/* If we have overflowed our peer table, then kick out the LRU peer */
-	peers->num_peers++;
-	if (peers->num_peers > peers->max_peers) {
-		peers->num_forced++;
-		peer = TAILQ_LAST(&peers->peer_list, peer_list);
-		logit(LOG_WARNING, "forced deletion of peer %s", 
-		    addr_ntop_buf(&peer->from));
-		/* XXX ratelimit errors */
-		delete_peer(peers, peer);
-	}
-
-	if ((peer = calloc(1, sizeof(*peer))) == NULL)
-		logerrx("%s: calloc failed", __func__);
-	memcpy(&peer->from, addr, sizeof(peer->from));
-
-	logit(LOG_DEBUG, "new peer %s", addr_ntop_buf(addr));
-
-	TAILQ_INSERT_HEAD(&peers->peer_list, peer, lp);
-	SPLAY_INSERT(peer_tree, &peers->peer_tree, peer);
-	gettimeofday(&peer->firstseen, NULL);
-	
-	return (peer);
-}
-
-static void
-scrub_peers(struct flowd_config *conf, struct peers *peers)
-{
-	struct peer_state *peer, *npeer;
-	struct allowed_device *ad;
-
-	/* Check for address authorization */
-	if (TAILQ_FIRST(&conf->allowed_devices) == NULL)
-		return;
-
-	for (peer = TAILQ_FIRST(&peers->peer_list); peer != NULL;) {
-		npeer = TAILQ_NEXT(peer, lp);
-
-		TAILQ_FOREACH(ad, &conf->allowed_devices, entry) {
-			if (addr_netmatch(&peer->from, &ad->addr,
-			    ad->masklen) == 0)
-		 		break;
-		}
-		if (ad == NULL) {
-			logit(LOG_WARNING, "delete peer %s (no longer allowed)",
-			    addr_ntop_buf(&peer->from));
-			delete_peer(peers, peer);
-		}
-		peer = npeer;
-	}
-}
-
-static void
-update_peer(struct peers *peers, struct peer_state *peer, u_int nflows, 
-    u_int netflow_version)
-{
-	/* Push peer to front of LRU queue, if it isn't there already */
-	if (peer != TAILQ_FIRST(&peers->peer_list)) {
-		TAILQ_REMOVE(&peers->peer_list, peer, lp);
-		TAILQ_INSERT_HEAD(&peers->peer_list, peer, lp);
-	}
-	gettimeofday(&peer->lastvalid, NULL);
-	peer->nflows += nflows;
-	peer->npackets++;
-	peer->last_version = netflow_version;
-	logit(LOG_DEBUG, "update peer %s", addr_ntop_buf(&peer->from));
-}
-
-static struct peer_state *
-find_peer(struct peers *peers, struct xaddr *addr)
-{
-	struct peer_state tmp, *peer;
-
-	bzero(&tmp, sizeof(tmp));
-	memcpy(&tmp.from, addr, sizeof(tmp.from));
-
-	peer = SPLAY_FIND(peer_tree, &peers->peer_tree, &tmp);
-	logit(LOG_DEBUG, "%s: found %s", __func__,
-	    peer == NULL ? "NONE" : addr_ntop_buf(addr));
-
-	return (peer);
-}
-
-static void
-dump_peers(struct peers *peers)
-{
-	struct peer_state *peer;
-	u_int i;
-
-	logit(LOG_INFO, "Peer state: %u of %u in used, %u forced deletions",
-	    peers->num_peers, peers->max_peers, peers->num_forced);
-	i = 0;
-	SPLAY_FOREACH(peer, peer_tree, &peers->peer_tree) {
-		logit(LOG_INFO,
-		    "peer %u - %s: %llu packets %llu flows %llu invalid",
-		    i, addr_ntop_buf(&peer->from), 
-		    peer->npackets, peer->nflows,
-		    peer->ninvalid);
-		logit(LOG_INFO, "peer %u - %s: first seen %s.%03u",
-		    i, addr_ntop_buf(&peer->from), 
-		    iso_time(peer->firstseen.tv_sec, 0), 
-		    (u_int)(peer->firstseen.tv_usec / 1000));
-		logit(LOG_INFO, "peer %u - %s: last valid %s.%03u netflow v.%u",
-		    i, addr_ntop_buf(&peer->from), 
-		    iso_time(peer->lastvalid.tv_sec, 0), 
-		    (u_int)(peer->lastvalid.tv_usec / 1000), 
-		    peer->last_version);
-		i++;
-	}
 }
 
 /* Display commandline usage information */

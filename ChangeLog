@@ -1,6 +1,7 @@
 20040920
  - (djm) Add new "flow source" directive, to specify hosts that we are willing
    to receive flows from
+ - (djm) Split peer tracking code out into separate file
 
 20040916
  - (djm) Fix transposed flow limits for v.1 vs v.5 flows; found by 
