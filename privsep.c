@@ -77,6 +77,7 @@ answer_open_log(struct flowd_config *conf, int client_fd)
 	}
 	if (send_fd(client_fd, fd) == -1)
 		return (-1);
+	close(fd);
 	return (0);
 }
 
