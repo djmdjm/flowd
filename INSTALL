@@ -1,5 +1,6 @@
-flowd is tested on OpenBSD and Linux (Debian and Fedora Core 2). It may work
-on other platforms, but may need some adjusting. 
+flowd is tested on OpenBSD, Linux and Solairs. It may work on other platforms, 
+but may need some adjusting. Please read PLATFORMS for comments specific to 
+your environment.
 
 To build flowd, you will need Berkeley yacc. Right now, GNU bison's doesn't 
 work for flowd (patches welcome). Berkeley yacc is installed by default on 

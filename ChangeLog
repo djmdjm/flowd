@@ -7,6 +7,7 @@
          and is a little more portable
  - (djm) Add PLATFORMS notes file
  - (djm) Lots of portability goop to get flowd compiling of Solaris 9
+ - (djm) Reflect Solaris support in PLATFORMS and INSTALL
  
 20040813
  - (djm) Bring python inteface up to the same level as the perl and C ones
