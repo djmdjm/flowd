@@ -22,6 +22,10 @@ IPv4 and IPv6 transports. This will be extended to include an IPv6 flowd export
 format, either using sflow, the IPFIX standard or an extension to NetFlow v.5 
 in the near future.
 
+Building flowd requires yacc. The perl interface to the on-disk format requires
+the Socket6 module, which is available at:
+http://search.cpan.org/~umemoto/Socket6-0.17/Socket6.pm
+
 Large parts of this code have been shamelessly taken from OpenBSD, in 
 particular bgpd (the configuration parser) and OpenSSH (the privsep fd passing 
 and CRC23 code). All of this code is under BSD-like licenses, but read the 
