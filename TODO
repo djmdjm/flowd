@@ -2,3 +2,4 @@
 - runtime reconfigure
   - parse config in monitor, deep-copy to child
 - don't pass sockaddr_storage pointers around, just use (struct sockaddr *)
+- Move to a tagged on-disk format
