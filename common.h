@@ -21,11 +21,6 @@
 #include "config.h"
 
 #include <sys/cdefs.h>
-
-#ifdef __GNU_LIBRARY__
-# define _GNU_SOURCE
-#endif
-
 #include <sys/types.h>
 #include <sys/poll.h>
 #include <paths.h>

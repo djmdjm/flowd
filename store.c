@@ -206,7 +206,6 @@ int
 store_check_header(int fd, const char **errptr)
 {
 	struct store_header hdr;
-	char ebuf[512];
 	int r;
 
 	if ((r = store_get_header(fd, &hdr, errptr)) != 0)

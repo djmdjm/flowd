@@ -46,6 +46,7 @@ fi
 case "$host" in
 *-*-linux*)
 	AC_DEFINE(SPT_TYPE, SPT_REUSEARGV, [setproctitle replacement type])
+	CFLAGS="$CFLAGS -D_GNU_SOURCE"
 	;;
 esac
 

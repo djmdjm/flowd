@@ -4,6 +4,7 @@
  - (djm) Improve the README, mention Python API
  - (djm) Reorganise signal handers, add SIGUSR1 for reopen logfiles
  - (djm) Document signals and tidy
+ - (djm) Portability and warning fixes
 
 20040812
  - (djm) Parse and verify config in a subprocess, avoiding all memory leaks

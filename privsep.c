@@ -821,7 +821,9 @@ privsep_init(struct flowd_config *conf, int *child_to_monitor_sock,
 		signal(SIGTERM, sighand_exit);
 		signal(SIGCHLD, sighand_child);
 		signal(SIGHUP, sighand_relay);
+#ifdef SIGINFO
 		signal(SIGINFO, sighand_relay);
+#endif
 		signal(SIGUSR1, sighand_relay);
 		signal(SIGUSR2, sighand_relay);
 
