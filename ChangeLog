@@ -1,3 +1,6 @@
+20040929
+ - (djm) Don't refuse to write flows lacking gateway addr
+
 20040927
  - (djm) In flow formattinhg function (C, Perl and Python), surround all
    addresses with square brackets so ports may be seen in IPv6 addresses.

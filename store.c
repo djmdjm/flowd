@@ -347,6 +347,8 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 		fields &= ~STORE_FIELD_AGENT_ADDR4;
 		break;
 	default:
+		if ((fields & STORE_FIELD_AGENT_ADDR) == 0)
+			break;
 		SFAILX(-1, "silly agent addr af", 1);
 	}
 
@@ -368,6 +370,8 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 		fields &= ~STORE_FIELD_SRC_ADDR4;
 		break;
 	default:
+		if ((fields & STORE_FIELD_SRC_ADDR) == 0)
+			break;
 		SFAILX(-1, "silly src addrs af", 1);
 	}
 	
@@ -389,6 +393,8 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 		fields &= ~STORE_FIELD_DST_ADDR4;
 		break;
 	default:
+		if ((fields & STORE_FIELD_DST_ADDR) == 0)
+			break;
 		SFAILX(-1, "silly dst addrs af", 1);
 	}
 	
@@ -410,6 +416,8 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 		fields &= ~STORE_FIELD_GATEWAY_ADDR4;
 		break;
 	default:
+		if ((fields & STORE_FIELD_GATEWAY_ADDR) == 0)
+			break;
 		SFAILX(-1, "silly gateway addr af", 1);
 	}
 
