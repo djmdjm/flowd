@@ -26,7 +26,6 @@
 
 #include "addr.h"
 
-#define _SS(x)	((struct sockaddr_storage *)(x))
 #define _SA(x)	((struct sockaddr *)(x))
 
 int
@@ -60,23 +59,32 @@ masklen_valid(int af, u_int masklen)
 
 
 int
-addr_xaddr_to_ss(struct xaddr *xa, struct sockaddr_storage *ss, u_int16_t port)
+addr_xaddr_to_sa(struct xaddr *xa, struct sockaddr *sa, socklen_t *len,
+    u_int16_t port)
 {
-	struct sockaddr_in *in4 = (struct sockaddr_in *)ss;
-	struct sockaddr_in6 *in6 = (struct sockaddr_in6 *)ss;
+	struct sockaddr_in *in4 = (struct sockaddr_in *)sa;
+	struct sockaddr_in6 *in6 = (struct sockaddr_in6 *)sa;
 
-	if (xa == NULL || ss == NULL)
+	if (xa == NULL || sa == NULL || len == NULL)
 		return (-1);
 
-	memset(ss, '\0', sizeof(*ss));
 	switch (xa->af) {
 	case AF_INET:
+		if (*len < sizeof(*in4))
+			return (-1);
+		memset(sa, '\0', sizeof(*in4));
+		*len = sizeof(*in4);
 		in4->sin_len = sizeof(*in4);
 		in4->sin_family = AF_INET;
 		in4->sin_port = htons(port);
 		memcpy(&in4->sin_addr, &xa->v4, sizeof(in4->sin_addr));
 		break;
 	case AF_INET6:
+		if (*len < sizeof(*in6))
+			return (-1);
+		memset(sa, '\0', sizeof(*in6));
+		*len = sizeof(*in6);
+		in4->sin_len = sizeof(*in4);
 		in6->sin6_len = sizeof(*in6);
 		in6->sin6_family = AF_INET6;
 		in6->sin6_port = htons(port);
@@ -90,19 +98,23 @@ addr_xaddr_to_ss(struct xaddr *xa, struct sockaddr_storage *ss, u_int16_t port)
 }
 
 int
-addr_ss_to_xaddr(struct sockaddr_storage *ss, struct xaddr *xa)
+addr_sa_to_xaddr(struct sockaddr *sa, socklen_t slen, struct xaddr *xa)
 {
-	struct sockaddr_in *in4 = (struct sockaddr_in *)ss;
-	struct sockaddr_in6 *in6 = (struct sockaddr_in6 *)ss;
+	struct sockaddr_in *in4 = (struct sockaddr_in *)sa;
+	struct sockaddr_in6 *in6 = (struct sockaddr_in6 *)sa;
 
 	memset(xa, '\0', sizeof(*xa));
 
-	switch (ss->ss_family) {
+	switch (sa->sa_family) {
 	case AF_INET:
+		if (slen < sizeof(*in4))
+			return (-1);
 		xa->af = AF_INET;
 		memcpy(&xa->v4, &in4->sin_addr, sizeof(xa->v4));
 		break;
 	case AF_INET6:
+		if (slen < sizeof(*in6))
+			return (-1);
 		xa->af = AF_INET6;
 		memcpy(&xa->v6, &in6->sin6_addr, sizeof(xa->v6));
 		xa->scope_id = in6->sin6_scope_id;
@@ -332,7 +344,8 @@ addr_pton(const char *p, struct xaddr *n)
 	if (ai == NULL || ai->ai_addr == NULL)
 		return (-1);
 
-	if (n != NULL && addr_ss_to_xaddr(_SS(ai->ai_addr), n) == -1) {
+	if (n != NULL && addr_sa_to_xaddr(ai->ai_addr, ai->ai_addrlen, 
+	    n) == -1) {
 		freeaddrinfo(ai);
 		return (-1);
 	}
@@ -342,7 +355,7 @@ addr_pton(const char *p, struct xaddr *n)
 }
 
 int
-addr_ss_pton(const char *h, const char *s, struct sockaddr_storage *n)
+addr_sa_pton(const char *h, const char *s, struct sockaddr *sa, socklen_t slen)
 {
 	struct addrinfo hints, *ai;
 
@@ -355,8 +368,11 @@ addr_ss_pton(const char *h, const char *s, struct sockaddr_storage *n)
 	if (ai == NULL || ai->ai_addr == NULL)
 		return (-1);
 
-	if (n != NULL)
-		memcpy(n, &ai->ai_addr, SA_LEN(_SA(ai->ai_addr)));
+	if (sa != NULL) {
+		if (slen < ai->ai_addrlen)
+			return (-1);
+		memcpy(sa, &ai->ai_addr, ai->ai_addrlen);
+	}
 
 	freeaddrinfo(ai);
 	return (0);
@@ -366,11 +382,13 @@ int
 addr_ntop(struct xaddr *n, char *p, size_t len)
 {
 	struct sockaddr_storage ss;
-	if (addr_xaddr_to_ss(n, &ss, 0) == -1)
+	socklen_t slen = sizeof(ss);
+
+	if (addr_xaddr_to_sa(n, _SA(&ss), &slen, 0) == -1)
 		return (-1);
 	if (n == NULL || p == NULL || len == 0)
 		return (-1);
-	if (getnameinfo(_SA(&ss), SA_LEN(_SA(&ss)), p, len, NULL, 0, 
+	if (getnameinfo(_SA(&ss), slen, p, len, NULL, 0, 
 	    NI_NUMERICHOST) == -1)
 		return (-1);
 
@@ -378,13 +396,12 @@ addr_ntop(struct xaddr *n, char *p, size_t len)
 }
 
 int
-addr_ss_ntop(struct sockaddr_storage *ss, char *h, size_t hlen, 
-    char *s, size_t slen)
+addr_sa_ntop(struct sockaddr *sa, socklen_t slen, char *h, size_t hlen,
+    char *p, size_t plen)
 {
-	if (ss == NULL)
+	if (sa == NULL)
 		return (-1);
-	if (getnameinfo(_SA(ss), SA_LEN(_SA(ss)), h, hlen, s, slen, 
-	    NI_NUMERICHOST) == -1)
+	if (getnameinfo(sa, slen, h, hlen, p, plen, NI_NUMERICHOST) == -1)
 		return (-1);
 
 	return (0);

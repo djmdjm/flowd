@@ -68,12 +68,11 @@ usage(void)
 }
 
 static const char *
-from_ntop(struct sockaddr *s)
+from_ntop(struct sockaddr *s, socklen_t slen)
 {
 	static char hbuf[64], sbuf[32], ret[128];
 
-	if (addr_ss_ntop((struct sockaddr_storage *)s, hbuf, sizeof(hbuf),
-	    sbuf, sizeof(sbuf)) == -1)
+	if (addr_sa_ntop(s, slen, hbuf, sizeof(hbuf), sbuf, sizeof(sbuf)) == -1)
 		return ("error");
 
 	snprintf(ret, sizeof(ret), "[%s]:%s", hbuf, sbuf);
@@ -185,18 +184,18 @@ process_netflow_v1(u_int8_t *pkt, size_t len, struct sockaddr *from,
 
 	if (len < sizeof(*nf1_hdr)) {
 		syslog(LOG_WARNING, "short netflow v.1 packet %d bytes from %s",
-		    len, from_ntop(from));
+		    len, from_ntop(from, fromlen));
 		return;
 	}
 	nflows = ntohs(nf1_hdr->c.flows);
 	if (nflows == 0 || nflows > NF1_MAXFLOWS) {
 		syslog(LOG_WARNING, "Invalid number of flows (%u) in netflow "
-		    "v.1 packet from %s", nflows, from_ntop(from));
+		    "v.1 packet from %s", nflows, from_ntop(from, fromlen));
 		return;
 	}
 	if (len != NF1_PACKET_SIZE(nflows)) {
 		syslog(LOG_WARNING, "Inconsistent Netflow v.1 packet from %s: "
-		    "len %u expected %u", from_ntop(from), len,
+		    "len %u expected %u", from_ntop(from, fromlen), len,
 		    NF1_PACKET_SIZE(nflows));
 		return;
 	}
@@ -222,8 +221,7 @@ process_netflow_v1(u_int8_t *pkt, size_t len, struct sockaddr *from,
 		flow.pft.protocol = nf1_flow->protocol;
 		flow.pft.tos = nf1_flow->tos;
 
-		if (addr_ss_to_xaddr((struct sockaddr_storage *)from,
-		    &flow.agent_addr) == -1) {
+		if (addr_sa_to_xaddr(from, fromlen, &flow.agent_addr) == -1) {
 			syslog(LOG_WARNING, "Invalid agent address");
 			break;
 		}
@@ -270,18 +268,18 @@ process_netflow_v5(u_int8_t *pkt, size_t len, struct sockaddr *from,
 
 	if (len < sizeof(*nf5_hdr)) {
 		syslog(LOG_WARNING, "short netflow v.5 packet %d bytes from %s",
-		    len, from_ntop(from));
+		    len, from_ntop(from, fromlen));
 		return;
 	}
 	nflows = ntohs(nf5_hdr->c.flows);
 	if (nflows == 0 || nflows > NF5_MAXFLOWS) {
 		syslog(LOG_WARNING, "Invalid number of flows (%u) in netflow "
-		    "v.5 packet from %s", nflows, from_ntop(from));
+		    "v.5 packet from %s", nflows, from_ntop(from, fromlen));
 		return;
 	}
 	if (len != NF5_PACKET_SIZE(nflows)) {
 		syslog(LOG_WARNING, "Inconsistent Netflow v.5 packet from %s: "
-		    "len %u expected %u", from_ntop(from), len,
+		    "len %u expected %u", from_ntop(from, fromlen), len,
 		    NF5_PACKET_SIZE(nflows));
 		return;
 	}
@@ -305,8 +303,7 @@ process_netflow_v5(u_int8_t *pkt, size_t len, struct sockaddr *from,
 		flow.pft.protocol = nf5_flow->protocol;
 		flow.pft.tos = nf5_flow->tos;
 
-		if (addr_ss_to_xaddr((struct sockaddr_storage *)from,
-		    &flow.agent_addr) == -1) {
+		if (addr_sa_to_xaddr(from, fromlen, &flow.agent_addr) == -1) {
 			syslog(LOG_WARNING, "Invalid agent address");
 			break;
 		}
@@ -372,7 +369,7 @@ process_input(struct flowd_config *conf, int net_fd, int log_fd)
 	}
 	if ((size_t)len < sizeof(*hdr)) {
 		syslog(LOG_WARNING, "short packet %d bytes from %s", len,
-		    from_ntop((struct sockaddr *)&from));
+		    from_ntop((struct sockaddr *)&from, fromlen));
 		return;
 	}
 	hdr = (struct NF_HEADER_COMMON *)buf;
@@ -387,7 +384,7 @@ process_input(struct flowd_config *conf, int net_fd, int log_fd)
 		break;
 	default:
 		syslog(LOG_INFO, "Unsupported netflow version %u from %s",
-		    hdr->version, from_ntop((struct sockaddr *)&from));
+		    hdr->version, from_ntop((struct sockaddr *)&from, fromlen));
 		return;
 	}
 }
@@ -468,9 +465,10 @@ setup_listener(struct xaddr *addr, u_int16_t port)
 {
 	int fd, fl;
 	struct sockaddr_storage ss;
+	socklen_t slen = sizeof(ss);
 
-	if (addr_xaddr_to_ss(addr, &ss, port) == -1)
-		errx(1, "addr_xaddr_to_ss");
+	if (addr_xaddr_to_sa(addr, (struct sockaddr *)&ss, &slen, port) == -1)
+		errx(1, "addr_xaddr_to_sa");
 	if ((fd = socket(addr->af, SOCK_DGRAM, 0)) == -1)
 		err(1, "socket");
 
@@ -478,8 +476,7 @@ setup_listener(struct xaddr *addr, u_int16_t port)
 	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &fl, sizeof(fl)) == -1)
 		err(1, "setsockopt");
 
-	if (bind(fd, (struct sockaddr *)&ss, 
-	    SA_LEN((struct sockaddr *)&ss)) == -1)
+	if (bind(fd, (struct sockaddr *)&ss, slen) == -1)
 		err(1, "bind");
 
 	/* Set non-blocking */

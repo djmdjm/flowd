@@ -41,17 +41,17 @@ struct xaddr {
 };
 
 int addr_unicast_masklen(int af);
-int addr_xaddr_to_ss(struct xaddr *xa, struct sockaddr_storage *ss, u_int16_t port);
-int addr_ss_to_xaddr(struct sockaddr_storage *ss, struct xaddr *xa);
+int addr_xaddr_to_sa(struct xaddr *xa, struct sockaddr *sa, socklen_t *len, u_int16_t port);
+int addr_sa_to_xaddr(struct sockaddr *sa, socklen_t slen, struct xaddr *xa);
 int addr_netmask(int af, u_int l, struct xaddr *n);
 int addr_hostmask(int af, u_int l, struct xaddr *n);
 int addr_invert(struct xaddr *n);
 int addr_pton(const char *p, struct xaddr *n);
-int addr_ss_pton(const char *h, const char *s, struct sockaddr_storage *n);
+int addr_sa_pton(const char *h, const char *s, struct sockaddr *sa, socklen_t slen);
 int addr_pton_cidr(const char *p, struct xaddr *n, u_int *l);
 int addr_ntop(struct xaddr *n, char *p, size_t len);
-int addr_ss_ntop(struct sockaddr_storage *ss, char *h, size_t hlen,
-    char *s, size_t slen);
+int addr_sa_ntop(struct sockaddr *sa, socklen_t slen, char *h, size_t hlen,
+    char *p, size_t plen);
 int addr_and(struct xaddr *dst, const struct xaddr *a, const struct xaddr *b);
 int addr_or(struct xaddr *dst, const struct xaddr *a, const struct xaddr *b);
 int addr_cmp(const struct xaddr *a, const struct xaddr *b);
