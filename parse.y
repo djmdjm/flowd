@@ -228,43 +228,45 @@ conf_main	: LISTEN ON address_port	{
 		;
 
 logspec		: STRING	{
-			if (strcasecmp($1, "PROTO_FLAGS_TOS") == 0) {
+			if (strcasecmp($1, "ALL") == 0)
+				$$ = STORE_FIELD_ALL;
+			else if (strcasecmp($1, "PROTO_FLAGS_TOS") == 0)
 				$$ = STORE_FIELD_PROTO_FLAGS_TOS;
-			} else if (strcasecmp($1, "AGENT_ADDR") == 0) {
+			else if (strcasecmp($1, "AGENT_ADDR") == 0)
 				$$ = STORE_FIELD_AGENT_ADDR;
-			} else if (strcasecmp($1, "AGENT_ADDR4") == 0) {
+			else if (strcasecmp($1, "AGENT_ADDR4") == 0)
 				$$ = STORE_FIELD_AGENT_ADDR4;
-			} else if (strcasecmp($1, "AGENT_ADDR6") == 0) {
+			else if (strcasecmp($1, "AGENT_ADDR6") == 0)
 				$$ = STORE_FIELD_AGENT_ADDR6;
-			} else if (strcasecmp($1, "SRCDST_ADDR") == 0) {
+			else if (strcasecmp($1, "SRCDST_ADDR") == 0)
 				$$ = STORE_FIELD_SRCDST_ADDR;
-			} else if (strcasecmp($1, "SRCDST_ADDR4") == 0) {
+			else if (strcasecmp($1, "SRCDST_ADDR4") == 0)
 				$$ = STORE_FIELD_SRCDST_ADDR4;
-			} else if (strcasecmp($1, "SRCDST_ADDR6") == 0) {
+			else if (strcasecmp($1, "SRCDST_ADDR6") == 0)
 				$$ = STORE_FIELD_SRCDST_ADDR6;
-			} else if (strcasecmp($1, "GATEWAY_ADDR") == 0) {
+			else if (strcasecmp($1, "GATEWAY_ADDR") == 0)
 				$$ = STORE_FIELD_GATEWAY_ADDR;
-			} else if (strcasecmp($1, "GATEWAY_ADDR4") == 0) {
+			else if (strcasecmp($1, "GATEWAY_ADDR4") == 0)
 				$$ = STORE_FIELD_GATEWAY_ADDR4;
-			} else if (strcasecmp($1, "GATEWAY_ADDR6") == 0) {
+			else if (strcasecmp($1, "GATEWAY_ADDR6") == 0)
 				$$ = STORE_FIELD_GATEWAY_ADDR6;
-			} else if (strcasecmp($1, "SRCDST_PORT") == 0) {
+			else if (strcasecmp($1, "SRCDST_PORT") == 0)
 				$$ = STORE_FIELD_SRCDST_PORT;
-			} else if (strcasecmp($1, "PACKETS_OCTETS") == 0) {
+			else if (strcasecmp($1, "PACKETS_OCTETS") == 0)
 				$$ = STORE_FIELD_PACKETS_OCTETS;
-			} else if (strcasecmp($1, "IF_INDICES") == 0) {
+			else if (strcasecmp($1, "IF_INDICES") == 0)
 				$$ = STORE_FIELD_IF_INDICES;
-			} else if (strcasecmp($1, "AGENT_INFO") == 0) {
+			else if (strcasecmp($1, "AGENT_INFO") == 0)
 				$$ = STORE_FIELD_AGENT_INFO;
-			} else if (strcasecmp($1, "FLOW_TIMES") == 0) {
+			else if (strcasecmp($1, "FLOW_TIMES") == 0)
 				$$ = STORE_FIELD_FLOW_TIMES;
-			} else if (strcasecmp($1, "AS_INFO") == 0) {
+			else if (strcasecmp($1, "AS_INFO") == 0)
 				$$ = STORE_FIELD_AS_INFO;
-			} else if (strcasecmp($1, "FLOW_ENGINE_INFO") == 0) {
+			else if (strcasecmp($1, "FLOW_ENGINE_INFO") == 0)
 				$$ = STORE_FIELD_FLOW_ENGINE_INFO;
-			} else if (strcasecmp($1, "CRC32") == 0) {
+			else if (strcasecmp($1, "CRC32") == 0)
 				$$ = STORE_FIELD_CRC32;
-			} else {
+			else {
 				yyerror("unknown log field type");
 				free($1);
 				YYERROR;
