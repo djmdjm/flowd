@@ -261,7 +261,7 @@ recv_config(int fd, struct flowd_config *conf)
 		logitm(LOG_ERR, "%s: read(num filter_rules)", __func__);
 		return (-1);
 	}
-	if (n == 0 || n > 1024*1024) {
+	if (n > 1024*1024) {
 		logit(LOG_ERR, "%s: silly number of filter_rules: %d",
 		    __func__, n);
 		return (-1);
