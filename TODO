@@ -22,14 +22,15 @@
 
 - NetFlow v.7, v.9, sflow, IPFIX
 
-- Speed up perl and python modules *
-  - CRC is especially slow **
+- Speed up perl and python modules
+  - CRC is especially slow
+  - Making these clients of the C library would be best, but the C library 
+    needs to be modified to work with Python at least (it uses FILE * for
+    file objects)
+  - A Python implementation of our CRC code would be easy
 
 - Add writing of binary flows to perl and python modules *
 
 - Add calculation and storage of "normalised" flow timers, correcting for 
   flow probe clock errors by using difference between header->time_sec and 
-  localtime (assumes flow collector clock is accurate!) *
-
-- Rewrite parsing components of Flowd.pm to be as nice as the Python
-  implementation (or just make them both layers of the C library) *
+  localtime (assumes flow collector clock is accurate!)
