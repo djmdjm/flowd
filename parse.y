@@ -267,7 +267,7 @@ logspec		: STRING	{
 			else if (strcasecmp($1, "CRC32") == 0)
 				$$ = STORE_FIELD_CRC32;
 			else {
-				yyerror("unknown log field type");
+				yyerror("unknown store field type \"%s\"", $1);
 				free($1);
 				YYERROR;
 			}
