@@ -99,6 +99,11 @@ struct store_flow {
 	u_int32_t		fields;
 } __packed;
 
+/*
+ * Optional flow records
+ * NB. suffixes must match the corresponding STORE_FIELD_ define (see store.c)
+ */
+
 /* Optional flow field - present if STORE_FIELD_TAG */
 struct store_flow_TAG {
 	u_int32_t		tag; /* set by filter */
@@ -118,43 +123,43 @@ struct store_flow_PROTO_FLAGS_TOS {
 } __packed;
 
 /* Optional flow field - present if STORE_FIELD_AGENT_ADDR */
-struct store_flow_AGENT_ADDR_V4 {
+struct store_flow_AGENT_ADDR4 {
 	struct store_addr4	flow_agent_addr;
 } __packed;
-struct store_flow_AGENT_ADDR_V6 {
+struct store_flow_AGENT_ADDR6 {
 	struct store_addr6	flow_agent_addr;
 } __packed;
 
-/* Optional flow field - present if STORE_FIELD_SRC_ADDR_V4 */
-struct store_flow_SRC_ADDR_V4 {
+/* Optional flow field - present if STORE_FIELD_SRC_ADDR4 */
+struct store_flow_SRC_ADDR4 {
 	struct store_addr4	src_addr;
 } __packed;
 
-/* Optional flow field - present if STORE_FIELD_DST_ADDR_V4 */
-struct store_flow_DST_ADDR_V4 {
+/* Optional flow field - present if STORE_FIELD_DST_ADDR4 */
+struct store_flow_DST_ADDR4 {
 	struct store_addr4	dst_addr;
 } __packed;
 
-/* Optional flow field - present if STORE_FIELD_SRC_ADDR_V6 */
-struct store_flow_SRC_ADDR_V6 {
+/* Optional flow field - present if STORE_FIELD_SRC_ADDR6 */
+struct store_flow_SRC_ADDR6 {
 	struct store_addr6	src_addr;
 } __packed;
 
-/* Optional flow field - present if STORE_FIELD_DST_ADDR_V6 */
-struct store_flow_DST_ADDR_V6 {
+/* Optional flow field - present if STORE_FIELD_DST_ADDR6 */
+struct store_flow_DST_ADDR6 {
 	struct store_addr6	dst_addr;
 } __packed;
 
 /* Optional flow field - present if STORE_FIELD_GATEWAY_ADDR */
-struct store_flow_GATEWAY_ADDR_V4 {
+struct store_flow_GATEWAY_ADDR4 {
 	struct store_addr4	gateway_addr;
 } __packed;
-struct store_flow_GATEWAY_ADDR_V6 {
+struct store_flow_GATEWAY_ADDR6 {
 	struct store_addr6	gateway_addr;
 } __packed;
 
 /* Optional flow field - present if STORE_FIELD_SRCDST_PORT */
-struct store_flow_FLOW_SRCDST_PORT {
+struct store_flow_SRCDST_PORT {
 	u_int16_t		src_port;
 	u_int16_t		dst_port;
 } __packed;
@@ -222,7 +227,7 @@ struct store_flow_complete {
 	struct xaddr				src_addr;
 	struct xaddr				dst_addr;
 	struct xaddr				gateway_addr;
-	struct store_flow_FLOW_SRCDST_PORT	ports;
+	struct store_flow_SRCDST_PORT		ports;
 	struct store_flow_PACKETS		packets;
 	struct store_flow_OCTETS		octets;
 	struct store_flow_IF_INDICES		ifndx;
@@ -239,6 +244,10 @@ int store_check_header(int fd, const char **errptr);
 int store_put_header(int fd, const char **errptr);
 int store_put_flow(int fd, struct store_flow_complete *flow,
     u_int32_t fieldmask, const char **errptr);
+int store_validate_header(struct store_header *hdr, const char **errptr);
+int store_calc_flow_len(struct store_flow *hdr);
+int store_flow_convert(u_int8_t *buf, int len, struct store_flow_complete *f,
+    const char **errptr);
 
 const char *iso_time(time_t t, int utc_flag);
 const char *interval_time(time_t t);

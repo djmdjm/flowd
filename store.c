@@ -31,6 +31,9 @@
 
 RCSID("$Id$");
 
+/* This is a useful abbreviation, used in several places below */
+#define SHASFIELD(flag) (fields & STORE_FIELD_##flag)
+
 /* Stash error message and return */
 #define SFAILX(i, m, f) do {						\
 		if (errptr != NULL) {					\
@@ -52,6 +55,18 @@ RCSID("$Id$");
 		return (i);						\
 	} while (0)
 
+int
+store_validate_header(struct store_header *hdr, const char **errptr)
+{
+	static char ebuf[512];
+
+	if (ntohl(hdr->magic) != STORE_MAGIC)
+		SFAILX(-1, "Bad magic", 0);
+	if (ntohl(hdr->version) != STORE_VERSION)
+		SFAILX(-1, "Unsupported version", 0);
+
+	return (0);
+}
 
 int
 store_get_header(int fd, struct store_header *hdr, const char **errptr)
@@ -64,74 +79,81 @@ store_get_header(int fd, struct store_header *hdr, const char **errptr)
 	if (r < (ssize_t)sizeof(*hdr))
 		SFAILX(-1, "premature EOF", 0);
 
-	if (ntohl(hdr->magic) != STORE_MAGIC)
-		SFAILX(-1, "Bad magic", 0);
-	if (ntohl(hdr->version) != STORE_VERSION)
-		SFAILX(-1, "Unsupported version", 0);
-
-	return (0);
-}
-
-static int
-read_field(int fd, void *f, ssize_t l, const char **errptr, const char *desc)
-{
-	ssize_t r;
-	static char ebuf[256];
-
-	if ((r = atomicio(read, fd, f, l)) == -1) {
-		if (errptr != NULL) {
-			snprintf(ebuf, sizeof(ebuf),
-			    "read error on flow %s: %s", desc, strerror(errno));
-			*errptr = ebuf;
-		}
-		return (-1);
-	}
-	if (r < l) {
-		if (errptr != NULL) {
-			snprintf(ebuf, sizeof(ebuf), "EOF reading %s", desc);
-			*errptr = ebuf;
-		}
-		return (0);
-	}
-
-	return (1);
+	return (store_validate_header(hdr, errptr));
 }
 
 int
-store_get_flow(int fd, struct store_flow_complete *f, const char **errptr)
+store_calc_flow_len(struct store_flow *hdr)
 {
-	int r;
-	struct store_flow_AGENT_ADDR_V4 aa4;
-	struct store_flow_AGENT_ADDR_V6 aa6;
-	struct store_flow_SRC_ADDR_V4 sa4;
-	struct store_flow_SRC_ADDR_V6 sa6;
-	struct store_flow_DST_ADDR_V4 da4;
-	struct store_flow_DST_ADDR_V6 da6;
-	struct store_flow_GATEWAY_ADDR_V4 ga4;
-	struct store_flow_GATEWAY_ADDR_V6 ga6;
+	int ret = 0;
+	u_int32_t fields;
+
+	fields = ntohl(hdr->fields);
+
+#define ADDFIELD(flag)		\
+		if (SHASFIELD(flag))		\
+			ret += sizeof(struct store_flow_##flag)
+	ADDFIELD(TAG);
+	ADDFIELD(RECV_TIME);
+	ADDFIELD(PROTO_FLAGS_TOS);
+	ADDFIELD(AGENT_ADDR4);
+	ADDFIELD(AGENT_ADDR6);
+	ADDFIELD(SRC_ADDR4);
+	ADDFIELD(SRC_ADDR6);
+	ADDFIELD(DST_ADDR4);
+	ADDFIELD(DST_ADDR6);
+	ADDFIELD(GATEWAY_ADDR4);
+	ADDFIELD(GATEWAY_ADDR6);
+	ADDFIELD(SRCDST_PORT);
+	ADDFIELD(PACKETS);
+	ADDFIELD(OCTETS);
+	ADDFIELD(IF_INDICES);
+	ADDFIELD(AGENT_INFO);
+	ADDFIELD(FLOW_TIMES);
+	ADDFIELD(AS_INFO);
+	ADDFIELD(FLOW_ENGINE_INFO);
+	ADDFIELD(CRC32);
+#undef ADDFIELD
+
+	return (ret);
+}	
+
+int
+store_flow_convert(u_int8_t *buf, int len, struct store_flow_complete *f,
+    const char **errptr)
+{
+	int offset;
+	struct store_flow_AGENT_ADDR4 aa4;
+	struct store_flow_AGENT_ADDR6 aa6;
+	struct store_flow_SRC_ADDR4 sa4;
+	struct store_flow_SRC_ADDR6 sa6;
+	struct store_flow_DST_ADDR4 da4;
+	struct store_flow_DST_ADDR6 da6;
+	struct store_flow_GATEWAY_ADDR4 ga4;
+	struct store_flow_GATEWAY_ADDR6 ga6;
 	u_int32_t fields, crc;
 	static char ebuf[256];
 
 	bzero(f, sizeof(*f));
 	crc32_start(&crc);
 
-	/* Return -1 on error or 0 on eof */
-	r = read_field(fd, &f->hdr, sizeof(f->hdr), errptr, "header");
-	if (r == 0 || r == -1)
-		return (r);
+	memcpy(&f->hdr.fields, buf, sizeof(f->hdr.fields));
+
+	if ((store_calc_flow_len((struct store_flow *)buf) != len) == -1)
+		SFAILX(-1, "calulated length doesn't match supplied len", 1);
 
 	crc32_update((u_char *)&f->hdr, sizeof(f->hdr), &crc);
 
 	fields = ntohl(f->hdr.fields);
 
-#define SHASFIELD(flag)				\
-	(fields & STORE_FIELD_##flag)
+	offset = sizeof(f->hdr);
+
 #define RFIELD(flag, dest, desc) do { \
 		if (SHASFIELD(flag)) { \
-	 		if (read_field(fd, &dest, sizeof(dest), errptr, \
-			    desc) <= 0) \
-				return (-1); \
-			if (STORE_FIELD_##flag != STORE_FIELD_CRC32) { \
+			memcpy(&dest, buf + offset, sizeof(dest)); \
+			offset += sizeof(dest); \
+			if (SHASFIELD(CRC32) && \
+			    STORE_FIELD_##flag != STORE_FIELD_CRC32) { \
 				crc32_update((u_char *)&dest, sizeof(dest), \
 				    &crc); \
 			} \
@@ -195,8 +217,35 @@ store_get_flow(int fd, struct store_flow_complete *f, const char **errptr)
 		SFAILX(-1, "Flow checksum mismatch", 0);
 
 #undef S_CPYADDR
-#undef SHASFIELD
 #undef RFIELD
+
+	return (1);
+}
+
+int
+store_get_flow(int fd, struct store_flow_complete *f, const char **errptr)
+{
+	int r, len;
+	u_int8_t buf[512];
+	static char ebuf[256];
+
+	/* Read header */
+	if ((r = atomicio(read, fd, buf, sizeof(struct store_flow))) == -1)
+		SFAIL(-1, "read flow header", 0);
+	if (r < sizeof(struct store_flow))
+		SFAILX(0, "EOF reading flow header", 0);
+
+	if ((len = store_calc_flow_len((struct store_flow *)buf)) == -1)
+		SFAILX(-1, "Invalid flow header", 0);
+	if (len > sizeof(buf) - sizeof(struct store_flow))
+		SFAILX(-1, "Internal error: flow buffer too small", 1);
+
+	if ((r = atomicio(read, fd, buf + sizeof(struct store_flow),len)) == -1)
+		SFAIL(-1, "read flow data", 0);
+	if (r < len)
+		SFAILX(0, "EOF reading flow data", 0);
+
+	return (store_flow_convert(buf, len, f, errptr));
 
 	return (1);
 }
@@ -241,14 +290,14 @@ static int
 write_flow(int fd, const char **errptr,
     u_int32_t fields,
     struct store_flow_complete *flow,
-    struct store_flow_AGENT_ADDR_V4 *aa4,
-    struct store_flow_AGENT_ADDR_V6 *aa6,
-    struct store_flow_SRC_ADDR_V4 *sa4,
-    struct store_flow_SRC_ADDR_V6 *sa6,
-    struct store_flow_DST_ADDR_V4 *da4,
-    struct store_flow_DST_ADDR_V6 *da6,
-    struct store_flow_GATEWAY_ADDR_V4 *gwa4,
-    struct store_flow_GATEWAY_ADDR_V6 *gwa6)
+    struct store_flow_AGENT_ADDR4 *aa4,
+    struct store_flow_AGENT_ADDR6 *aa6,
+    struct store_flow_SRC_ADDR4 *sa4,
+    struct store_flow_SRC_ADDR6 *sa6,
+    struct store_flow_DST_ADDR4 *da4,
+    struct store_flow_DST_ADDR6 *da6,
+    struct store_flow_GATEWAY_ADDR4 *gwa4,
+    struct store_flow_GATEWAY_ADDR6 *gwa6)
 {
 	char ebuf[512];
 	int r;
@@ -263,13 +312,14 @@ write_flow(int fd, const char **errptr,
 		SFAILX(-1, "EOF writing flow header", 0);
 
 #define WRITEOUT(spec, what) do {					\
-	if ((fields & (STORE_FIELD_##spec))) {				\
+	if (SHASFIELD(spec)) {						\
 		r = atomicio(vwrite, fd, (what), sizeof(*(what)));	\
 		if (r == -1)						\
 			SFAIL(-1, "write " #spec, 0);			\
 		if (r < (ssize_t)sizeof(what))				\
 			SFAILX(-1, "EOF writing " #spec, 0);		\
-		if ((STORE_FIELD_##spec != STORE_FIELD_CRC32)) {	\
+		if (SHASFIELD(spec) && 					\
+		    (STORE_FIELD_##spec != STORE_FIELD_CRC32)) {	\
 			crc32_update((u_char *)(what), sizeof(*(what)),	\
 			    &crc);					\
 		}							\
@@ -309,14 +359,14 @@ int
 store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
     const char **errptr)
 {
-	struct store_flow_AGENT_ADDR_V4 aa4;
-	struct store_flow_AGENT_ADDR_V6 aa6;
-	struct store_flow_SRC_ADDR_V4 sa4;
-	struct store_flow_SRC_ADDR_V6 sa6;
-	struct store_flow_DST_ADDR_V4 da4;
-	struct store_flow_DST_ADDR_V6 da6;
-	struct store_flow_GATEWAY_ADDR_V4 gwa4;
-	struct store_flow_GATEWAY_ADDR_V6 gwa6;
+	struct store_flow_AGENT_ADDR4 aa4;
+	struct store_flow_AGENT_ADDR6 aa6;
+	struct store_flow_SRC_ADDR4 sa4;
+	struct store_flow_SRC_ADDR6 sa6;
+	struct store_flow_DST_ADDR4 da4;
+	struct store_flow_DST_ADDR6 da6;
+	struct store_flow_GATEWAY_ADDR4 gwa4;
+	struct store_flow_GATEWAY_ADDR6 gwa6;
 	u_int32_t fields, origfields;
 	off_t startpos;
 	char ebuf[512];
@@ -497,18 +547,16 @@ store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
 
 	strlcat(buf, "FLOW ", len);
 
-#define HASFIELD(flag)	(fields & STORE_FIELD_##flag)
-
-	if (HASFIELD(TAG)) {
+	if (SHASFIELD(TAG)) {
 		snprintf(tmp, sizeof(tmp), "tag %u ", ntohl(flow->tag.tag));
 		strlcat(buf, tmp, len);
 	}
-	if (HASFIELD(RECV_TIME)) {
+	if (SHASFIELD(RECV_TIME)) {
 		snprintf(tmp, sizeof(tmp), "recv_time %s ",
 		    iso_time(ntohl(flow->recv_time.recv_secs), utc_flag));
 		strlcat(buf, tmp, len);
 	}
-	if (HASFIELD(PROTO_FLAGS_TOS)) {
+	if (SHASFIELD(PROTO_FLAGS_TOS)) {
 		snprintf(tmp, sizeof(tmp), "proto %d ", flow->pft.protocol);
 		strlcat(buf, tmp, len);
 		snprintf(tmp, sizeof(tmp), "tcpflags %02x ",
@@ -517,55 +565,55 @@ store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
 		snprintf(tmp, sizeof(tmp), "tos %02x " , flow->pft.tos);
 		strlcat(buf, tmp, len);
 	}
-	if (HASFIELD(AGENT_ADDR4) || HASFIELD(AGENT_ADDR6)) {
+	if (SHASFIELD(AGENT_ADDR4) || SHASFIELD(AGENT_ADDR6)) {
 		snprintf(tmp, sizeof(tmp), "agent [%s] ",
 		    addr_ntop_buf(&flow->agent_addr));
 		strlcat(buf, tmp, len);
 	}
-	if (HASFIELD(SRC_ADDR4) || HASFIELD(SRC_ADDR6)) {
+	if (SHASFIELD(SRC_ADDR4) || SHASFIELD(SRC_ADDR6)) {
 		snprintf(tmp, sizeof(tmp), "src [%s]",
 		    addr_ntop_buf(&flow->src_addr));
 		strlcat(buf, tmp, len);
-		if (HASFIELD(SRCDST_PORT)) {
+		if (SHASFIELD(SRCDST_PORT)) {
 			snprintf(tmp, sizeof(tmp), ":%d",
 			    ntohs(flow->ports.src_port));
 			strlcat(buf, tmp, len);
 		}
 		strlcat(buf, " ", len);
 	}
-	if (HASFIELD(DST_ADDR4) || HASFIELD(DST_ADDR6)) {
+	if (SHASFIELD(DST_ADDR4) || SHASFIELD(DST_ADDR6)) {
 		snprintf(tmp, sizeof(tmp), "dst [%s]",
 		    addr_ntop_buf(&flow->dst_addr));
 		strlcat(buf, tmp, len);
-		if (HASFIELD(SRCDST_PORT)) {
+		if (SHASFIELD(SRCDST_PORT)) {
 			snprintf(tmp, sizeof(tmp), ":%d",
 			    ntohs(flow->ports.dst_port));
 			strlcat(buf, tmp, len);
 		}
 		strlcat(buf, " ", len);
 	}
-	if (HASFIELD(GATEWAY_ADDR4) || HASFIELD(GATEWAY_ADDR6)) {
+	if (SHASFIELD(GATEWAY_ADDR4) || SHASFIELD(GATEWAY_ADDR6)) {
 		snprintf(tmp, sizeof(tmp), "gateway [%s] ",
 		    addr_ntop_buf(&flow->gateway_addr));
 		strlcat(buf, tmp, len);
 	}
-	if (HASFIELD(PACKETS)) {
+	if (SHASFIELD(PACKETS)) {
 		snprintf(tmp, sizeof(tmp), "packets %llu ",
 		    store_ntohll(flow->packets.flow_packets));
 		strlcat(buf, tmp, len);
 	}
-	if (HASFIELD(OCTETS)) {
+	if (SHASFIELD(OCTETS)) {
 		snprintf(tmp, sizeof(tmp), "octets %llu ",
 		    store_ntohll(flow->octets.flow_octets));
 		strlcat(buf, tmp, len);
 	}
-	if (HASFIELD(IF_INDICES)) {
+	if (SHASFIELD(IF_INDICES)) {
 		snprintf(tmp, sizeof(tmp), "in_if %d out_if %d ",
 			ntohs(flow->ifndx.if_index_in),
 			ntohs(flow->ifndx.if_index_out));
 		strlcat(buf, tmp, len);
 	}
-	if (HASFIELD(AGENT_INFO)) {
+	if (SHASFIELD(AGENT_INFO)) {
 		snprintf(tmp, sizeof(tmp), "sys_uptime_ms %s.%03u ",
 		    interval_time(ntohl(flow->ainfo.sys_uptime_ms) / 1000),
 		    ntohl(flow->ainfo.sys_uptime_ms) % 1000);
@@ -578,7 +626,7 @@ store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
 		    ntohs(flow->ainfo.netflow_version));
 		strlcat(buf, tmp, len);
 	}
-	if (HASFIELD(FLOW_TIMES)) {
+	if (SHASFIELD(FLOW_TIMES)) {
 		snprintf(tmp, sizeof(tmp), "flow_start %s.%03u ",
 		    interval_time(ntohl(flow->ftimes.flow_start) / 1000),
 		    ntohl(flow->ftimes.flow_start) % 1000);
@@ -588,7 +636,7 @@ store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
 		    ntohl(flow->ftimes.flow_finish) % 1000);
 		strlcat(buf, tmp, len);
 	}
-	if (HASFIELD(AS_INFO)) {
+	if (SHASFIELD(AS_INFO)) {
 		snprintf(tmp, sizeof(tmp), "src_AS %u src_masklen %u ",
 		    ntohs(flow->asinf.src_as), flow->asinf.src_mask);
 		strlcat(buf, tmp, len);
@@ -596,14 +644,14 @@ store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
 		    ntohs(flow->asinf.dst_as), flow->asinf.dst_mask);
 		strlcat(buf, tmp, len);
 	}
-	if (HASFIELD(FLOW_ENGINE_INFO)) {
+	if (SHASFIELD(FLOW_ENGINE_INFO)) {
 		snprintf(tmp, sizeof(tmp),
 		    "engine_type %u engine_id %u seq %lu ",
 		    flow->finf.engine_type,  flow->finf.engine_id,
 		    (u_long)ntohl(flow->finf.flow_sequence));
 		strlcat(buf, tmp, len);
 	}
-	if (HASFIELD(CRC32)) {
+	if (SHASFIELD(CRC32)) {
 		snprintf(tmp, sizeof(tmp), "crc32 %08x ",
 		    ntohl(flow->crc32.crc32));
 		strlcat(buf, tmp, len);

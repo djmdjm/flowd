@@ -1,3 +1,10 @@
+20041030
+ - (djm) Rework flow reading C API to be more friendly to wrapping into Perl
+   and Python: add functions to convert a serialised flow record into a
+   struct store_flow_complete.
+ - (djm) Skip CRC32 calculations when aren't reading/writing a CRC32, saves a
+   little time.
+
 20041011
  - (djm) Kill whitespace at EOL, improve nf9 debugging
  - (djm) Add option to keep flowd in foreground without verbose debugging; 
