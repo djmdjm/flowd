@@ -5,6 +5,7 @@
  - (djm) Store agent address for v.9 flows
  - (djm) Add some tools to the tools/ directory
  - (djm) Add tools/ directory to RPM
+ - (djm) Release flowd-0.6
 
 20040921
  - (djm) Implement NetFlow v.9 support. Some more work to do yet, but it is 
