@@ -239,7 +239,7 @@ AC_DEFINE_DIR(PIDPATH, piddir, [Directory to store pidfile in])
 AC_DEFINE_DIR(CONFPATH, sysconfdir, [Full path to configuration file])
 
 AC_EXEEXT
-AC_CONFIG_FILES([Makefile flowd.8 flowd-reader.8 flowd.conf.5 flowd.py setup.py Flowd.pm])
+AC_CONFIG_FILES([Makefile flowd.8 flowd-reader.8 flowd.conf.5 flowd.py setup.py Flowd/lib/Flowd.pm])
 AC_OUTPUT
 
 # Fix permissions on setup.py

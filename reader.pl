@@ -21,12 +21,11 @@
 
 use strict;
 use warnings;
-
 use Flowd;
 
 sub usage
 {
-	printf STDERR "reader.pl (Flowd.pm version %s)\n", Flowd::VERSION;
+	printf STDERR "reader.pl (Flowd.pm version %s)\n", $Flowd::VERSION;
 	printf STDERR "Usage: reader.pl [flowd-store]\n";
 	exit 1;
 }
@@ -39,8 +38,8 @@ foreach my $ffile (@ARGV) {
 	printf "LOGFILE %s started at %s\n",
 	    $ffile, Flowd::iso_time($log->{start_time}, 0);
 	
-	while (my $flow = $log->readflow()) {
-		print $flow->format(Flowd::Flow::BRIEF, 0);
+	while (my $flow = $log->read_flow()) {
+		print $log->format(Flowd::BRIEF, 0, $flow);
 		print "\n";
 	}
 	$log->finish();
