@@ -84,10 +84,11 @@ store_calc_flow_len(struct store_flow *hdr)
 	u_int32_t fields;
 
 	fields = ntohl(hdr->fields);
-
-#define ADDFIELD(flag)		\
-		if (SHASFIELD(flag))		\
-			ret += sizeof(struct store_flow_##flag)
+#define ADDFIELD(flag) do { \
+		if (SHASFIELD(flag)) { \
+			ret += sizeof(struct store_flow_##flag); \
+			fields &= ~STORE_FIELD_##flag; \
+		} } while (0)
 	ADDFIELD(TAG);
 	ADDFIELD(RECV_TIME);
 	ADDFIELD(PROTO_FLAGS_TOS);
@@ -110,6 +111,10 @@ store_calc_flow_len(struct store_flow *hdr)
 	ADDFIELD(CRC32);
 #undef ADDFIELD
 
+	/* Make sure we have captured everything */
+	if (fields != 0)
+		return (-1);
+
 	return (ret);
 }	
 
@@ -117,7 +122,7 @@ int
 store_flow_deserialise(u_int8_t *buf, int len, struct store_flow_complete *f,
     char *ebuf, int elen)
 {
-	int offset;
+	int offset, r;
 	struct store_flow_AGENT_ADDR4 aa4;
 	struct store_flow_AGENT_ADDR6 aa6;
 	struct store_flow_SRC_ADDR4 sa4;
@@ -133,9 +138,13 @@ store_flow_deserialise(u_int8_t *buf, int len, struct store_flow_complete *f,
 
 	memcpy(&f->hdr.fields, buf, sizeof(f->hdr.fields));
 
-	if (store_calc_flow_len((struct store_flow *)buf) != len)
+	if ((r = store_calc_flow_len((struct store_flow *)buf)) == -1)
+		SFAILX(STORE_ERR_FLOW_INVALID,
+		    "unsupported flow fields specified", 0);
+	
+	if (r > len - sizeof(f->hdr))
 		SFAILX(STORE_ERR_BUFFER_SIZE,
-		    "calulated length doesn't match supplied len", 1);
+		    "calulated flow length is less than supplied len", 1);
 
 	crc32_update((u_char *)&f->hdr, sizeof(f->hdr), &crc);
 
@@ -152,8 +161,7 @@ store_flow_deserialise(u_int8_t *buf, int len, struct store_flow_complete *f,
 				crc32_update((u_char *)&dest, sizeof(dest), \
 				    &crc); \
 			} \
-		} \
-	} while (0)
+		} } while (0)
 
 	RFIELD(TAG, f->tag);
 	RFIELD(RECV_TIME, f->recv_time);
@@ -230,17 +238,19 @@ store_get_flow(int fd, struct store_flow_complete *f, char *ebuf, int elen)
 		SFAILX(STORE_ERR_EOF, "EOF reading flow header", 0);
 
 	if ((len = store_calc_flow_len((struct store_flow *)buf)) == -1)
-		SFAILX(STORE_ERR_FLOW_INVALID, "Invalid flow header", 0);
+		SFAILX(STORE_ERR_FLOW_INVALID,
+		    "unsupported flow fields specified", 0);
 	if (len > sizeof(buf) - sizeof(struct store_flow))
 		SFAILX(STORE_ERR_INTERNAL,
 		    "Internal error: flow buffer too small", 1);
 
-	if ((r = atomicio(read, fd, buf + sizeof(struct store_flow),len)) == -1)
+	if ((r = atomicio(read, fd, buf + sizeof(struct store_flow), len)) == -1)
 		SFAIL(STORE_ERR_IO, "read flow data", 0);
 	if (r < len)
 		SFAILX(STORE_ERR_EOF, "EOF reading flow data", 0);
 
-	return (store_flow_deserialise(buf, len, f, ebuf, elen));
+	return (store_flow_deserialise(buf, len + sizeof(struct store_flow),
+	    f, ebuf, elen));
 }
 
 int

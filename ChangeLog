@@ -1,4 +1,8 @@
 20041030
+ - (djm) Fix a few bugs in the store code: calculate lengths correctly and 
+   error when we encounter unsupported fields
+
+20041030
  - (djm) Rework flow reading C API to be more friendly to wrapping into Perl
    and Python: add functions to convert a serialised flow record into a
    struct store_flow_complete.
