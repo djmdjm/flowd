@@ -23,9 +23,7 @@ use Carp;
 
 package Flowd;
 
-use constant {
-	VERSION		=>	"0.4"
-};
+use constant VERSION		=>	"0.4";
 
 sub iso_time {
 	my $timet = shift;
@@ -118,37 +116,35 @@ sub readflow {
 
 package Flowd::Flow;
 
-use constant {
-	TAG			=> 0x00000001,
-	RECV_TIME		=> 0x00000002,
-	PROTO_FLAGS_TOS		=> 0x00000004,
-	AGENT_ADDR4		=> 0x00000008,
-	AGENT_ADDR6		=> 0x00000010,
-	SRC_ADDR4		=> 0x00000020,
-	SRC_ADDR6		=> 0x00000040,
-	DST_ADDR4		=> 0x00000080,
-	DST_ADDR6		=> 0x00000100,
-	GATEWAY_ADDR4		=> 0x00000200,
-	GATEWAY_ADDR6		=> 0x00000400,
-	SRCDST_PORT		=> 0x00000800,
-	PACKETS			=> 0x00001000,
-	OCTETS			=> 0x00002000,
-	IF_INDICES		=> 0x00004000,
-	AGENT_INFO		=> 0x00008000,
-	FLOW_TIMES		=> 0x00010000,
-	AS_INFO			=> 0x00020000,
-	FLOW_ENGINE_INFO	=> 0x00040000,
-	CRC32			=> 0x40000000,
+use constant TAG		=> 0x00000001;
+use constant RECV_TIME		=> 0x00000002;
+use constant PROTO_FLAGS_TOS	=> 0x00000004;
+use constant AGENT_ADDR4	=> 0x00000008;
+use constant AGENT_ADDR6	=> 0x00000010;
+use constant SRC_ADDR4		=> 0x00000020;
+use constant SRC_ADDR6		=> 0x00000040;
+use constant DST_ADDR4		=> 0x00000080;
+use constant DST_ADDR6		=> 0x00000100;
+use constant GATEWAY_ADDR4	=> 0x00000200;
+use constant GATEWAY_ADDR6	=> 0x00000400;
+use constant SRCDST_PORT	=> 0x00000800;
+use constant PACKETS		=> 0x00001000;
+use constant OCTETS		=> 0x00002000;
+use constant IF_INDICES		=> 0x00004000;
+use constant AGENT_INFO		=> 0x00008000;
+use constant FLOW_TIMES		=> 0x00010000;
+use constant AS_INFO		=> 0x00020000;
+use constant FLOW_ENGINE_INFO	=> 0x00040000;
+use constant CRC32		=> 0x40000000;
 
 # Some useful combinations
-	AGENT_ADDR		=> 0x00000018,
-	SRC_ADDR		=> 0x00000060,
-	DST_ADDR		=> 0x00000180,
-	SRCDST_ADDR		=> 0x000001e0,
-	GATEWAY_ADDR		=> 0x00000600,
-	BRIEF			=> 0x000039ff,
-	ALL			=> 0x4007ffff
-};
+use constant AGENT_ADDR		=> 0x00000018;
+use constant SRC_ADDR		=> 0x00000060;
+use constant DST_ADDR		=> 0x00000180;
+use constant SRCDST_ADDR	=> 0x000001e0;
+use constant GATEWAY_ADDR	=> 0x00000600;
+use constant BRIEF		=> 0x000039ff;
+use constant ALL		=> 0x4007ffff;
 
 my @fieldspec = (
 #	  Field Flag		Field Name		Length
@@ -235,7 +231,7 @@ sub init {
 			$fields{agent_addr} = Socket6::inet_ntop(
 			    Socket::PF_INET, $rawfields{$field});
 		} elsif ($field eq "AGENT_ADDR6") {
-			$fields{agent_addr_af} = Socket::PF_INET6;
+			$fields{agent_addr_af} = Socket6::PF_INET6;
 			$fields{agent_addr} = Socket6::inet_ntop(
 			    Socket6::PF_INET6, $rawfields{$field});
 		} elsif ($field eq "SRC_ADDR4") {
@@ -243,23 +239,23 @@ sub init {
 			$fields{src_addr} = Socket6::inet_ntop(
 			    Socket::PF_INET, $rawfields{$field});
 		} elsif ($field eq "SRC_ADDR6") {
-			$fields{src_addr_af} = Socket::PF_INET6;
+			$fields{src_addr_af} = Socket6::PF_INET6;
 			$fields{src_addr} = Socket6::inet_ntop(
-			    Socket::PF_INET6, $rawfields{$field});
+			    Socket6::PF_INET6, $rawfields{$field});
 		} elsif ($field eq "DST_ADDR4") {
 			$fields{dst_addr_af} = Socket::PF_INET;
 			$fields{dst_addr} = Socket6::inet_ntop(
 			    Socket::PF_INET, $rawfields{$field});
 		} elsif ($field eq "DST_ADDR6") {
-			$fields{dst_addr_af} = Socket::PF_INET6;
+			$fields{dst_addr_af} = Socket6::PF_INET6;
 			$fields{dst_addr} = Socket6::inet_ntop(
-			    Socket::PF_INET6, $rawfields{$field});
+			    Socket6::PF_INET6, $rawfields{$field});
 		} elsif ($field eq "GATEWAY_ADDR4") {
 			$fields{gateways_addr_af} = Socket::PF_INET;
 			$fields{gateway_addr} = Socket6::inet_ntop(
 			    Socket::PF_INET, $rawfields{$field});
 		} elsif ($field eq "GATEWAY_ADDR6") {
-			$fields{gateway_addr_af} = Socket::PF_INET6;
+			$fields{gateway_addr_af} = Socket6::PF_INET6;
 			$fields{gateway_addr} = Socket6::inet_ntop(
 			    Socket6::PF_INET6, $rawfields{$field});
 		} elsif ($field eq "SRCDST_PORT") {
@@ -268,17 +264,23 @@ sub init {
 		} elsif ($field eq "PACKETS") {
 			(my $p1, my $p2)
 				= unpack "NN", $rawfields{$field};
-
-			$fields{flow_packets} = Math::BigInt->new($p1);
-			$fields{flow_packets}->blsft(32);
-			$fields{flow_packets}->badd($p2);
+			if ($p1 != 0) {
+				my $pp1 = Math::BigInt->new($p1);
+				my $pp2 = Math::BigInt->new($p2);
+				$fields{flow_packets} = $pp1->badd($pp2);
+			} else {
+				$fields{flow_packets} = $p2;
+			}
 		} elsif ($field eq "OCTETS") {
 			(my $o1, my $o2)
 				= unpack "NN", $rawfields{$field};
-
-			$fields{flow_octets} = Math::BigInt->new($o1);
-			$fields{flow_octets}->blsft(32);
-			$fields{flow_octets}->badd($o2);
+			if ($o1 != 0) {
+				my $oo1 = Math::BigInt->new($o1);
+				my $oo2 = Math::BigInt->new($o2);
+				$fields{flow_octets} = $oo1->badd($oo2);
+			} else {
+				$fields{flow_octets} = $o2;
+			}
 		} elsif ($field eq "IF_INDICES") {
 			($fields{if_index_in}, $fields{if_index_out})
 				= unpack "nn", $rawfields{$field};
@@ -352,10 +354,14 @@ sub format
 		$ret .= sprintf "gateway %s ", $self->{fields}->{gateway_addr};
 	}
 	if ($fields & PACKETS) {
-		$ret .= sprintf "packets %s ", $self->{fields}->{flow_packets};
+		my $p = $self->{fields}->{flow_packets};
+		$p =~ s/^\+//;
+		$ret .= sprintf "packets %s ", $p;
 	}
 	if ($fields & OCTETS) {
-		$ret .= sprintf "octets %s ", $self->{fields}->{flow_octets};
+		my $o = $self->{fields}->{flow_octets};
+		$o =~ s/^\+//;
+		$ret .= sprintf "octets %s ", $o;
 	}
 	if ($fields & IF_INDICES) {
 		$ret .= sprintf "in_if %u ", $self->{fields}->{if_index_in};
