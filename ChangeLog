@@ -7,6 +7,7 @@
    - Avoid Math::BigInt altogether for counters < 2^32
  - (djm) Don't refuse to load configs without filter rules
  - (djm) Support "store SRC_ADDR" and "store DST_ADDR" aliases
+ - (djm) Fix flowd.conf store example
 
 20040817
  - (djm) Make sure we reinstate signal handers after invocation, fixes 
