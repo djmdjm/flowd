@@ -147,27 +147,27 @@ use constant BRIEF		=> 0x000039ff;
 use constant ALL		=> 0x4007ffff;
 
 my @fieldspec = (
-#	  Field Flag		Field Name		Length
-	[ TAG,			"TAG",			4	],
-	[ RECV_TIME,		"RECV_TIME",		4	],
-	[ PROTO_FLAGS_TOS,	"PROTO_FLAGS_TOS",	4	],
-	[ AGENT_ADDR4,		"AGENT_ADDR4",		4	],
-	[ AGENT_ADDR6,		"AGENT_ADDR6",		16	],
-	[ SRC_ADDR4,		"SRC_ADDR4",		4	],
-	[ SRC_ADDR6,		"SRC_ADDR6",		16	],
-	[ DST_ADDR4,		"DST_ADDR4",		4	],
-	[ DST_ADDR6,		"DST_ADDR6",		16	],
-	[ GATEWAY_ADDR4,	"GATEWAY_ADDR4",	4	],
-	[ GATEWAY_ADDR6,	"GATEWAY_ADDR6",	16	],
-	[ SRCDST_PORT,		"SRCDST_PORT",		4	],
-	[ PACKETS,		"PACKETS",		8	],
-	[ OCTETS,		"OCTETS",		8	],
-	[ IF_INDICES,		"IF_INDICES",		4	],
-	[ AGENT_INFO,		"AGENT_INFO",		16	],
-	[ FLOW_TIMES,		"FLOW_TIMES",		8	],
-	[ AS_INFO,		"AS_INFO",		8	],
-	[ FLOW_ENGINE_INFO,	"FLOW_ENGINE_INFO",	8	],
-	[ CRC32,		"CRC32",		4	]
+#	  Field Flag		Field Name		Length	Packspec	Fields
+	[ TAG,			"TAG",			4,	"N",		[ "tag" ]	],
+	[ RECV_TIME,		"RECV_TIME",		4,	"N",		[ "recv_secs" ]	],
+	[ PROTO_FLAGS_TOS,	"PROTO_FLAGS_TOS",	4,	"CCC",		[ "tcp_flags", "protocol", "tos" ]	],
+	[ AGENT_ADDR4,		"AGENT_ADDR4",		4,	"A4",		[ "agent_addr" ]	],
+	[ AGENT_ADDR6,		"AGENT_ADDR6",		16,	"A6",		[ "agent_addr" ]	],
+	[ SRC_ADDR4,		"SRC_ADDR4",		4,	"A4",		[ "src_addr" ]	],
+	[ SRC_ADDR6,		"SRC_ADDR6",		16,	"A6",		[ "src_addr" ]	],
+	[ DST_ADDR4,		"DST_ADDR4",		4,	"A4",		[ "dst_addr" ]	],
+	[ DST_ADDR6,		"DST_ADDR6",		16,	"A6",		[ "dst_addr" ]	],
+	[ GATEWAY_ADDR4,	"GATEWAY_ADDR4",	4,	"A4",		[ "gateway_addr" ]	],
+	[ GATEWAY_ADDR6,	"GATEWAY_ADDR6",	16,	"A6",		[ "gateway_addr" ]	],
+	[ SRCDST_PORT,		"SRCDST_PORT",		4,	"nn",		[ "src_port", "dst_port" ]	],
+	[ PACKETS,		"PACKETS",		8,	"Q",		[ "flow_packets" ]	],
+	[ OCTETS,		"OCTETS",		8,	"Q",		[ "flow_octets" ]	],
+	[ IF_INDICES,		"IF_INDICES",		4,	"nn",		[ "if_index_in", "if_index_out" ]	],
+	[ AGENT_INFO,		"AGENT_INFO",		16,	"NNNn",		[ "sys_uptime_ms", "time_sec", "time_nanosec", "netflow_version"  ]	],
+	[ FLOW_TIMES,		"FLOW_TIMES",		8,	"NN",		[ "flow_start", "flow_finish" ]	],
+	[ AS_INFO,		"AS_INFO",		8,	"nnCC",		[ "src_as", "dst_as", "src_masklen", "dst_masklen" ]	],
+	[ FLOW_ENGINE_INFO,	"FLOW_ENGINE_INFO",	8,	"CCnN",		[ "engine_type", "engine_id", "pad", "flow_sequence" ]	],
+	[ CRC32,		"CRC32",		4,	"N",		[ "crc" ]	]
 );
 
 sub new {
@@ -205,7 +205,6 @@ sub init {
 
 	($fields{fields}) = unpack("N", $hdr);
 
-	# XXX - merge these two loops
 	foreach my $fspec (@fieldspec) {
 		next unless ($fields{fields} & @$fspec[0]);
 		$rawfields{@$fspec[1]} = "";
@@ -215,93 +214,29 @@ sub init {
 		if (($fields{fields} & CRC32) && (@$fspec[1] ne "CRC32")) {
 			$crc->update($rawfields{@$fspec[1]}) 
 		}
-	}
 
-	foreach my $field (keys %rawfields) {
-		if ($field eq "TAG") {
-			($fields{tag})
-				= unpack "N", $rawfields{$field};
-		} elsif ($field eq "RECV_TIME") {
-			($fields{recv_secs})
-				= unpack "N", $rawfields{$field};
-		} elsif ($field eq "PROTO_FLAGS_TOS") {
-			($fields{tcp_flags}, $fields{protocol},  $fields{tos})
-				= unpack "CCC", $rawfields{$field};
-		} elsif ($field eq "AGENT_ADDR4") {
-			$fields{agent_addr_af} = Socket::PF_INET;
-			$fields{agent_addr} = Socket6::inet_ntop(
-			    Socket::PF_INET, $rawfields{$field});
-		} elsif ($field eq "AGENT_ADDR6") {
-			$fields{agent_addr_af} = Socket6::PF_INET6;
-			$fields{agent_addr} = Socket6::inet_ntop(
-			    Socket6::PF_INET6, $rawfields{$field});
-		} elsif ($field eq "SRC_ADDR4") {
-			$fields{src_addr_af} = Socket::PF_INET;
-			$fields{src_addr} = Socket6::inet_ntop(
-			    Socket::PF_INET, $rawfields{$field});
-		} elsif ($field eq "SRC_ADDR6") {
-			$fields{src_addr_af} = Socket6::PF_INET6;
-			$fields{src_addr} = Socket6::inet_ntop(
-			    Socket6::PF_INET6, $rawfields{$field});
-		} elsif ($field eq "DST_ADDR4") {
-			$fields{dst_addr_af} = Socket::PF_INET;
-			$fields{dst_addr} = Socket6::inet_ntop(
-			    Socket::PF_INET, $rawfields{$field});
-		} elsif ($field eq "DST_ADDR6") {
-			$fields{dst_addr_af} = Socket6::PF_INET6;
-			$fields{dst_addr} = Socket6::inet_ntop(
-			    Socket6::PF_INET6, $rawfields{$field});
-		} elsif ($field eq "GATEWAY_ADDR4") {
-			$fields{gateways_addr_af} = Socket::PF_INET;
-			$fields{gateway_addr} = Socket6::inet_ntop(
-			    Socket::PF_INET, $rawfields{$field});
-		} elsif ($field eq "GATEWAY_ADDR6") {
-			$fields{gateway_addr_af} = Socket6::PF_INET6;
-			$fields{gateway_addr} = Socket6::inet_ntop(
-			    Socket6::PF_INET6, $rawfields{$field});
-		} elsif ($field eq "SRCDST_PORT") {
-			($fields{src_port}, $fields{dst_port})
-				= unpack "nn", $rawfields{$field};
-		} elsif ($field eq "PACKETS") {
-			(my $p1, my $p2)
-				= unpack "NN", $rawfields{$field};
-			if ($p1 != 0) {
-				my $pp1 = Math::BigInt->new($p1);
-				my $pp2 = Math::BigInt->new($p2);
-				$fields{flow_packets} = $pp1->badd($pp2);
+		if (@$fspec[3] eq "A4") {
+			$fields{@$fspec[4]->[0] . "_af"} = Socket::PF_INET;
+			$fields{@$fspec[4]->[0]} = Socket6::inet_ntop(
+			    Socket::PF_INET, $rawfields{@$fspec[1]});
+		} elsif (@$fspec[3] eq "A6") {
+			$fields{@$fspec[4]->[0] . "_af"} = Socket6::PF_INET6;
+			$fields{@$fspec[4]->[0]} = Socket6::inet_ntop(
+			    Socket6::PF_INET6, $rawfields{@$fspec[1]});
+		} elsif (@$fspec[3] eq "Q") {
+			(my $q1, my $q2) = unpack "NN", $rawfields{@$fspec[1]};
+			if ($q1 != 0) {
+				my $qq1 = Math::BigInt->new($q1);
+				my $qq2 = Math::BigInt->new($q2);
+				$fields{@$fspec[4]->[0]} = $qq1->badd($qq2);
 			} else {
-				$fields{flow_packets} = $p2;
+				$fields{@$fspec[4]->[0]} = $q2;
 			}
-		} elsif ($field eq "OCTETS") {
-			(my $o1, my $o2)
-				= unpack "NN", $rawfields{$field};
-			if ($o1 != 0) {
-				my $oo1 = Math::BigInt->new($o1);
-				my $oo2 = Math::BigInt->new($o2);
-				$fields{flow_octets} = $oo1->badd($oo2);
-			} else {
-				$fields{flow_octets} = $o2;
+		} else {
+			my @xpac = unpack @$fspec[3], $rawfields{@$fspec[1]};
+			foreach my $fname (@{$fspec->[4]}) {
+				$fields{$fname} = shift @xpac;
 			}
-		} elsif ($field eq "IF_INDICES") {
-			($fields{if_index_in}, $fields{if_index_out})
-				= unpack "nn", $rawfields{$field};
-		} elsif ($field eq "AGENT_INFO") {
-			($fields{sys_uptime_ms}, $fields{time_sec},
-			 $fields{time_nanosec}, $fields{netflow_version}, 
-			 my $pad) = unpack "NNNn", $rawfields{$field};
-		} elsif ($field eq "FLOW_TIMES") {
-			($fields{flow_start}, $fields{flow_finish})
-				= unpack "NN", $rawfields{$field};
-		} elsif ($field eq "AS_INFO") {
-			($fields{src_as}, $fields{dst_as},
-			 $fields{src_masklen}, $fields{dst_masklen}, my $pad)
-				= unpack "nnCCn", $rawfields{$field};
-		} elsif ($field eq "FLOW_ENGINE_INFO") {
-			($fields{engine_type}, $fields{engine_id},
-			 my $pad, $fields{flow_sequence})
-			 	= unpack "CCnN", $rawfields{$field};
-		} elsif ($field eq "CRC32") {
-			($fields{crc}) = unpack "N", $rawfields{$field};
 		}
 	}
 

@@ -1,3 +1,6 @@
+20040914
+ - (djm) Use a table-based parser in Flowd.pm, like the python code
+
 20040906
  - (djm) Actually check for strlcpy and strlcat in configure
 
