@@ -27,6 +27,74 @@
 #include "filter.h"
 #include "store.h"
 
+const char *
+format_rule(struct filter_rule *rule)
+{
+	char tmpbuf[128];
+	static char rulebuf[1024];
+
+	*rulebuf = '\0';
+
+	if (rule->action.action_what == FF_ACTION_ACCEPT)
+		strlcat(rulebuf, "accept ", sizeof(rulebuf));
+	else if (rule->action.action_what == FF_ACTION_DISCARD)
+		strlcat(rulebuf, "discard ", sizeof(rulebuf));
+	else if (rule->action.action_what == FF_ACTION_TAG) {
+		snprintf(tmpbuf, sizeof(tmpbuf), "tag %lu ",
+		    (u_long)rule->action.tag);
+		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
+	} else
+		strlcat(rulebuf, "ERROR ", sizeof(rulebuf));
+
+	if (rule->quick)
+		strlcat(rulebuf, "quick ", sizeof(rulebuf));
+
+	if (rule->match.match_what & FF_MATCH_AGENT_ADDR) {
+		snprintf(tmpbuf, sizeof(tmpbuf), "agent %s/%d ",
+		    addr_ntop_buf(&rule->match.agent_addr), 
+		    rule->match.agent_masklen);
+		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
+	}
+
+	if (rule->match.match_what & 
+	    (FF_MATCH_SRC_ADDR|FF_MATCH_SRC_PORT)) {
+		snprintf(tmpbuf, sizeof(tmpbuf), "src %s/%d ",
+		    addr_ntop_buf(&rule->match.src_addr), 
+		    rule->match.src_masklen);
+		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
+	}
+	if (rule->match.match_what & FF_MATCH_SRC_PORT) {
+		snprintf(tmpbuf, sizeof(tmpbuf), "port %d ",
+		    rule->match.src_port);
+		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
+	}
+
+	if (rule->match.match_what & 
+	    (FF_MATCH_DST_ADDR|FF_MATCH_DST_PORT)) {
+		snprintf(tmpbuf, sizeof(tmpbuf), "dst %s/%d ",
+		    addr_ntop_buf(&rule->match.dst_addr), 
+		    rule->match.dst_masklen);
+		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
+	}
+	if (rule->match.match_what & FF_MATCH_DST_PORT) {
+		snprintf(tmpbuf, sizeof(tmpbuf), "port %d ",
+		    rule->match.dst_port);
+		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
+	}
+
+	if (rule->match.match_what & FF_MATCH_PROTOCOL) {
+		snprintf(tmpbuf, sizeof(tmpbuf), "proto %d ",
+		    rule->match.proto);
+		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
+	}
+
+	if (rule->match.match_what & FF_MATCH_TOS) {
+		snprintf(tmpbuf, sizeof(tmpbuf), "tos 0x%x ", rule->match.tos);
+		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
+	}
+	return (rulebuf);
+}
+
 static int
 flow_match(struct filter_rule *rule, struct store_flow_complete *flow)
 {
@@ -85,10 +153,12 @@ filter_flow(struct store_flow_complete *flow, struct filter_list *filter)
 	}
 
 	if (action == FF_ACTION_TAG) {
+		syslog(LOG_DEBUG, "%s: tagging with %d", __func__, tag);
 		flow->hdr.tag = tag;
 		action = FF_ACTION_ACCEPT;
 	}
 
+	syslog(LOG_DEBUG, "%s: rule action %d", __func__, action);
 	return (action);
 }
 
