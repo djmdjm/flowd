@@ -3,7 +3,8 @@ secure.
 
 It features some basic filtering to limit or tag the flows that are
 recorded and is privilege separated, to limit security exposure from
-bugs in flowd itself.
+bugs in flowd itself. Flowd is IPv6 capable - supporting flow export via
+IPv6 transport and NetFlow v.9 IPv6 flow records.
 
 flowd is considered stable enough for production deployment. Some more
 features are planned before the 1.0 release (see the TODO file if you
@@ -18,17 +19,18 @@ Flowd.pm, store.c, and flowd.py respectively. Example applications are
 flowd-reader.c, reader.pl and reader.py.
 
 This on-disk format is a parametised format capable of storing a
-superset of NetFlow v.5. Exactly which components of the NetFlow records
-actually get written to disk may be specified at runtime, so the logs
-can be made quite compact by excluding information that is uninteresting
-to you. An optional, per-record CRC32 checksum is provided to detect log
+superset of NetFlow v.5, including the most common records from NetFlow
+v.9. Exactly which components of the NetFlow records actually get
+written to disk may be specified at runtime, so the logs can be made
+quite compact by excluding information that is uninteresting to you.
+An optional, per-record CRC32 checksum is provided to detect log
 corruption.
 
-At present, flowd supports NetFlow v.1 and NetFlow v.5 packet formats
-over both IPv4 and IPv6 transports. This will be extended to include
-an IPv6 flowd export format, either using sflow, the IPFIX standard or
-an extension to NetFlow v.5 in the near future. The internals and the
-storage format are all IPv6 ready, so upgrading will not break the API.
+At present, flowd supports NetFlow v.1, v.5, v.7 and v.9 packet formats
+over both IPv4 and IPv6 transports. Future plans include sflow and IETF
+IPFIX protocol support (when it is finalised). See the TODO file in
+this distribution for more information (and more interesting projects if
+you are a prospective developers)
 
 flowd is tested on OpenBSD and Linux. It may work on other platforms,
 but will likely need some adjusting. Please refer to the PLATFORMS file

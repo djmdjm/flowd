@@ -1,4 +1,7 @@
-2004091
+20040924
+ - (djm) Tidy README and mention v.7 and v.9 support
+
+20040921
  - (djm) Implement NetFlow v.9 support. Some more work to do yet, but it is 
    basically functional
  - (djm) Bugfix nf v.9: we never updated the peer record
