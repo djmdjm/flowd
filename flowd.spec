@@ -76,7 +76,7 @@ make
 ./setup.py build
 %endif
 
-(cd Flowd ; CFLAGS="$RPM_OPT_FLAGS" perl Makefile.PL \
+(cd Flowd-perl ; CFLAGS="$RPM_OPT_FLAGS" perl Makefile.PL \
 	PREFIX=$RPM_BUILD_ROOT/usr INSTALLDIRS=vendor; make )
 
 %install
@@ -90,7 +90,7 @@ install -d $RPM_BUILD_ROOT/etc/rc.d/init.d
 install -m755 flowd.init $RPM_BUILD_ROOT/etc/rc.d/init.d/flowd
 
 # Perl module
-(cd Flowd; make install)
+(cd Flowd-perl; make install)
 find ${RPM_BUILD_ROOT}/usr/lib*/perl5 \
 	\( -name perllocal.pod -o -name .packlist \) -exec rm -v {} \;
 find ${RPM_BUILD_ROOT}/usr/lib*/perl5 \
