@@ -5,6 +5,7 @@
  - (djm) Make Python API optional in RPM spec as it is broken on Redhat 9
  - (djm) Add some standard logging code from softflowd, that does stderr right
  and is a little more portable
+ - (djm) Add PLATFORMS notes file
 
 20040813
  - (djm) Bring python inteface up to the same level as the perl and C ones

@@ -1,0 +1,23 @@
+These are the platforms that flowd is tested on, along with any relevant notes.
+
+OpenBSD 3.5+		works fine
+
+Fedora Core 2		works fine, see note [1] below
+
+Redhat 9		works fine, except for Python API, see notes [1] & [2]
+
+Debian testing		works fine for occasional tests, see note [1]
+
+Notes:
+
+[1] Most Linux distributions don't set up /var/empty/dev/log to capture log
+messages from chrooted processes like OpenBSD does. For Redhat-derived
+distributions, you can modify the syslog options line in /etc/sysconfig/syslog
+to add a listener. E.g.:
+
+SYSLOGD_OPTIONS="-m 0 -a /var/empty/dev/log"
+
+[2] The socket module in Python-2.2 seems to lack the inet_pton() function 
+that flowd.py uses for address translations. Right now, we only support 
+Python 2.3
+
