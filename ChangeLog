@@ -1,3 +1,6 @@
+20041103
+ - (djm) Rejig Makefile and headers to install C library and headers
+
 20041102
  - (djm) Crank versions to prepare for release
 

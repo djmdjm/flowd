@@ -6,6 +6,7 @@ prefix=@prefix@
 exec_prefix=@exec_prefix@
 bindir=@bindir@
 sbindir=@sbindir@
+libdir=@libdir@
 libexecdir=@libexecdir@
 datadir=@datadir@
 mandir=@mandir@
@@ -13,6 +14,7 @@ sysconfdir=@sysconfdir@
 srcdir=@srcdir@
 top_srcdir=@top_srcdir@
 localstatedir=@localstatedir@
+includedir=@includedir@
 
 PIDFILEDIR=@PIDPATH@
 
@@ -29,6 +31,8 @@ EXEEXT=@EXEEXT@
 INSTALL=@INSTALL@
 RANLIB=@RANLIB@
 
+HEADER_DIR=$(includedir)/flowd
+
 # Bison doesn't work
 YACC=@YACC@
 
@@ -36,10 +40,11 @@ TARGETS=flowd flowd-reader
 
 all: $(TARGETS)
 
-LIBFLOWD_OBJS=		atomicio.o addr.o store.o crc32.o closefrom.o \
-			strlcpy.o strlcat.o setproctitle.o
+LIBFLOWD_OBJS=		atomicio.o addr.o store.o crc32.o strlcpy.o strlcat.o
+LIBFLOWD_HEADERS=	addr.h crc32.h store.h
 FLOWD_OBJS=		flowd.o privsep_fdpass.o privsep.o filter.o \
-			parse.o log.o daemon.o peer.o
+			parse.o log.o daemon.o peer.o \
+			closefrom.o setproctitle.o
 FLOWD_READER_OBJS=	flowd-reader.o
 
 libflowd.a: $(LIBFLOWD_OBJS)
@@ -74,17 +79,32 @@ distclean: realclean
 strip:
 	strip $(TARGETS)
 
-install:
-	$(srcdir)/mkinstalldirs $(DESTDIR)$(sysconfdir)
-	$(srcdir)/mkinstalldirs $(DESTDIR)$(sbindir)
-	$(srcdir)/mkinstalldirs $(DESTDIR)$(bindir)
+install-man:
 	$(srcdir)/mkinstalldirs $(DESTDIR)$(mandir)/man5
 	$(srcdir)/mkinstalldirs $(DESTDIR)$(mandir)/man8
-	test -f $(DESTDIR)$(sysconfdir)/flowd.conf || \
-	    $(INSTALL) -m 0600 flowd.conf $(DESTDIR)$(sysconfdir)
-	$(INSTALL) -m 0755 -s flowd $(DESTDIR)$(sbindir)/flowd
-	$(INSTALL) -m 0755 -s flowd-reader $(DESTDIR)$(bindir)/flowd-reader
 	$(INSTALL) -m 0644 flowd.8 $(DESTDIR)$(mandir)/man8/flowd.8
 	$(INSTALL) -m 0644 flowd.conf.5 $(DESTDIR)$(mandir)/man5/flowd.conf.5
 	$(INSTALL) -m 0644 flowd-reader.8 $(DESTDIR)$(mandir)/man8/flowd-reader.8
 
+install-bin: $(TARGETS)
+	$(srcdir)/mkinstalldirs $(DESTDIR)$(sbindir)
+	$(srcdir)/mkinstalldirs $(DESTDIR)$(bindir)
+	$(INSTALL) -m 0755 -s flowd $(DESTDIR)$(sbindir)/flowd
+	$(INSTALL) -m 0755 -s flowd-reader $(DESTDIR)$(bindir)/flowd-reader
+
+install-conf: flowd.conf
+	$(srcdir)/mkinstalldirs $(DESTDIR)$(sysconfdir)
+	test -f $(DESTDIR)$(sysconfdir)/flowd.conf || \
+	    $(INSTALL) -m 0600 flowd.conf $(DESTDIR)$(sysconfdir)
+
+install-lib: libflowd.a
+	$(srcdir)/mkinstalldirs $(DESTDIR)$(libdir)
+	$(INSTALL) -m 0644 libflowd.a $(DESTDIR)$(libdir)
+
+install-includes: $(LIBFLOWD_HEADERS)
+	$(srcdir)/mkinstalldirs $(DESTDIR)$(HEADER_DIR)
+	$(INSTALL) -m 0644 addr.h $(DESTDIR)$(HEADER_DIR)
+	$(INSTALL) -m 0644 store.h $(DESTDIR)$(HEADER_DIR)
+	$(INSTALL) -m 0644 crc32.h $(DESTDIR)$(HEADER_DIR)
+
+install: install-bin install-man install-conf install-lib install-includes

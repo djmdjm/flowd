@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include "common.h"
 #include "addr.h"
 
 RCSID("$Id$");

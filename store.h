@@ -21,7 +21,6 @@
 #ifndef _STORE_H
 #define _STORE_H
 
-#include "common.h"
 #include "addr.h"
 
 /* On-disk address formats for v4 and v6 addresses */
