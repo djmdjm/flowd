@@ -479,9 +479,9 @@ store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
 		strlcat(buf, tmp, len);
 	}
 	if (HASFIELD(PACKETS_OCTETS)) {
-		snprintf(tmp, sizeof(tmp), "packets %lu octets %lu ", 
-		    (u_long)ntohl(flow->counters.flow_packets),
-		    (u_long)ntohl(flow->counters.flow_octets));
+		snprintf(tmp, sizeof(tmp), "packets %llu octets %llu ", 
+		    (u_int64_t)betoh64(flow->counters.flow_packets),
+		    (u_int64_t)betoh64(flow->counters.flow_octets));
 		strlcat(buf, tmp, len);
 	}
 	if (HASFIELD(IF_INDICES)) {

@@ -240,8 +240,10 @@ process_netflow_v1(u_int8_t *pkt, size_t len, struct sockaddr *from,
 		flow.ports.src_port = nf1_flow->src_port;
 		flow.ports.dst_port = nf1_flow->dest_port;
 
-		flow.counters.flow_packets = nf1_flow->flow_packets;
-		flow.counters.flow_octets = nf1_flow->flow_octets;
+#define NTO64(a) (htobe64(ntohl(a)))
+		flow.counters.flow_packets = NTO64(nf1_flow->flow_packets);
+		flow.counters.flow_octets = NTO64(nf1_flow->flow_octets);
+#undef NTO64
 
 		flow.ifndx.if_index_in = nf1_flow->if_index_in;
 		flow.ifndx.if_index_out = nf1_flow->if_index_out;
@@ -321,8 +323,10 @@ process_netflow_v5(u_int8_t *pkt, size_t len, struct sockaddr *from,
 		flow.ports.src_port = nf5_flow->src_port;
 		flow.ports.dst_port = nf5_flow->dest_port;
 
-		flow.counters.flow_packets = nf5_flow->flow_packets;
-		flow.counters.flow_octets = nf5_flow->flow_octets;
+#define NTO64(a) (htobe64(ntohl(a)))
+		flow.counters.flow_packets = NTO64(nf5_flow->flow_packets);
+		flow.counters.flow_octets = NTO64(nf5_flow->flow_octets);
+#undef NTO64
 
 		flow.ifndx.if_index_in = nf5_flow->if_index_in;
 		flow.ifndx.if_index_out = nf5_flow->if_index_out;
