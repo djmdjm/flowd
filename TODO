@@ -7,3 +7,7 @@
 - don't pass sockaddr_storage pointers around, just use (struct sockaddr *)
 
 - Per-peer statistics, esp. errors
+
+- Choice of what gets written to flowlog from flowd.conf
+
+- Checksums/seqno in flowlog to detect corruption
