@@ -6,7 +6,9 @@ Debian (unstable)	OK		some		[1]
 Fedora Core 2		OK		well-tested	[1]
 OpenBSD 3.5+		OK		well-tested
 Redhat 9		OK		tested		[1] [2]
+Redhat 7.3		OK		in production	[1] [2] [4]
 Solaris 9		OK		tested		[1] [3]
+FreeBSD			Reportedly OK			probably [1]
 
 Notes:
 ------
@@ -27,6 +29,11 @@ Python 2.3 (Redhat 9 ships with Python 2.2)
 /usr/ccs/bin to your $PATH. E.g.
 
 PATH=$PATH:/usr/ccs/bin ./configure [...]
+
+[4] The RPM installation on RedHat 7.3 needs a little manual hand-holding, 
+because useradd and groupadd won't create users or groups with leading 
+underscores in their names. You will need to create the _flowd user and group
+manually.
 
 $Id$
 
