@@ -61,7 +61,7 @@ my @fieldspec = (
 	[ 0x00000200,	"IF_INDICES", 		4	],
 	[ 0x00000400,	"AGENT_INFO", 		16	],
 	[ 0x00000800,	"FLOW_TIMES", 		8	],
-	[ 0x00001000,	"AS_INFO", 		12	],
+	[ 0x00001000,	"AS_INFO", 		8	],
 	[ 0x00002000,	"FLOW_ENGINE_INFO", 	8	],
 	[ 0x40000000,	"CRC32", 		4	]
 );
@@ -84,6 +84,7 @@ sub init {
 	my $hdr;
 	my $r;
 	my %fields = ();
+	my $crc = Flowd::CRC32->new();
 
 	# Read initial flow header
 	$r = read($store->{handle}, $hdr, 12);
@@ -91,18 +92,20 @@ sub init {
 	die "read($store->{filename}): $!" if not defined $r;
 	die "early EOF on $store->{filename}" if $r < 12;
 
-	foreach my $fspec (@fieldspec) {
-		$fields{@$fspec[1]} = "";
-		$r = read($store->{handle}, $fields{@$fspec[1]}, @$fspec[2]);
-		die "read($store->{filename}): $!" if not defined $r;
-		die "early EOF on $store->{filename}" if $r < @$fspec[2];
-	}
-
-	printf "%s\n", join(" ", keys(%fields));
+	$crc->update($hdr, 12);
 
 	($self->{fields}, $self->{tag}, $self->{recv_secs})
 		= unpack("NNN", $hdr);
 
+	foreach my $fspec (@fieldspec) {
+		next unless ($self->{fields} & @$fspec[0]);
+		$fields{@$fspec[1]} = "";
+		$r = read($store->{handle}, $fields{@$fspec[1]}, @$fspec[2]);
+		die "read($store->{filename}): $!" if not defined $r;
+		die "early EOF on $store->{filename}" if $r < @$fspec[2];
+		$crc->update($fields{@$fspec[1]}, @$fspec[2]) 
+			unless @$fspec[1] eq "CRC32";
+	}
 }
 
 package Flowd::CRC32;
