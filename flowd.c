@@ -31,6 +31,8 @@
 
 #include "flowd.h"
 #include "privsep.h"
+#include "netflow.h"
+#include "store.h"
 
 static sig_atomic_t exit_flag = 0;
 static sig_atomic_t reopen_flag = 0;
@@ -76,11 +78,12 @@ host_ntop(struct xaddr *a)
 }
 
 static const char *
-from_ntop(struct sockaddr_storage *s)
+from_ntop(struct sockaddr *s)
 {
 	static char hbuf[64], sbuf[32], ret[128];
 
-	if (addr_ss_ntop(s, hbuf, sizeof(hbuf), sbuf, sizeof(sbuf)) == -1)
+	if (addr_ss_ntop((struct sockaddr_storage *)s, hbuf, sizeof(hbuf),
+	    sbuf, sizeof(sbuf)) == -1)
 		return ("error");
 
 	snprintf(ret, sizeof(ret), "[%s]:%s", hbuf, sbuf);
@@ -145,53 +148,175 @@ dump_config(struct flowd_config *c)
 	}
 }
 
-static int
-setup_listener(struct xaddr *addr, u_int16_t port)
+static void 
+process_flow(struct store_flow_complete *flow, struct flowd_config *conf)
 {
-	int fd, fl;
-	struct sockaddr_storage ss;
-
-	if (addr_xaddr_to_ss(addr, &ss, port) == -1)
-		errx(1, "addr_xaddr_to_ss");
-	if ((fd = socket(addr->af, SOCK_DGRAM, 0)) == -1)
-		err(1, "socket");
-
-	fl = 1;
-	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &fl, sizeof(fl)) == -1)
-		err(1, "setsockopt");
-
-	if (bind(fd, (struct sockaddr *)&ss, 
-	    SA_LEN((struct sockaddr *)&ss)) == -1)
-		err(1, "bind");
-
-	/* Set non-blocking */
-	if ((fl = fcntl(fd, F_GETFL, 0)) == -1)
-		err(1, "fcntl(%d, F_GETFL, 0)", fd);
-	fl |= O_NONBLOCK;
-	if (fcntl(fd, F_SETFL, fl) == -1)
-		err(1, "fcntl(%d, F_SETFL, O_NONBLOCK)", fd);
-
-	return (fd);
 }
 
-static void
-listen_init(struct flowd_config *conf)
+static void 
+process_netflow_v1(u_int8_t *pkt, size_t len, struct flowd_config *conf,
+    struct sockaddr *from, socklen_t fromlen)
 {
-	struct listen_addr *la;
+	struct NF1_HEADER *nf1_hdr = (struct NF1_HEADER *)pkt;
+	struct NF1_FLOW *nf1_flow;
+	struct store_flow_complete flow;
+	size_t offset;
+	u_int i, nflows;
 
-	TAILQ_FOREACH(la, &conf->listen_addrs, entry) {
-		if (la->fd != -1)
-			close(la->fd);
+	if (len < sizeof(*nf1_hdr)) {
+		syslog(LOG_WARNING, "short netflow v.1 packet %d bytes from %s",
+		    len, from_ntop(from));
+		return;
+	}
+	nflows = ntohs(nf1_hdr->c.flows);
+	if (nflows == 0 || nflows > NF1_MAXFLOWS) {
+		syslog(LOG_WARNING, "Invalid number of flows (%u) in netflow "
+		    "v.1 packet from %s", nflows, from_ntop(from));
+		return;
+	}
+	if (len != NF1_PACKET_SIZE(nflows)) {
+		syslog(LOG_WARNING, "Inconsistent Netflow v.1 packet from %s: "
+		    "len %u expected %u", from_ntop(from), len,
+		    NF1_PACKET_SIZE(nflows));
+		return;
+	}
 
-		la->fd = setup_listener(&la->addr, la->port);
-		if (la->fd == -1) {
-			errx(1, "Listener setup of [%s]:%d failed", 
-			    host_ntop(&la->addr), la->port);
+	syslog(LOG_DEBUG, "Valid netflow v.1 packet");
+
+	for (i = 0; i < nflows; i++) {
+		offset = NF1_PACKET_SIZE(i);
+		nf1_flow = (struct NF1_FLOW *)(pkt + offset);
+
+		memset(&flow, 0, sizeof(flow));
+
+		flow.hdr.fieldspec_flags = STORE_FIELD_ALL;
+		flow.hdr.fieldspec_flags &= ~STORE_FIELD_AS_INFO;
+		flow.hdr.fieldspec_flags &= ~STORE_FIELD_FLOW_ENGINE_INFO;
+
+		/* flow.hdr.tag is set later */
+		flow.hdr.recv_secs = time(NULL);
+
+		flow.pft.tcp_flags = nf1_flow->tcp_flags;
+		flow.pft.protocol = nf1_flow->protocol;
+		flow.pft.tos = nf1_flow->tos;
+
+		if (addr_ss_to_xaddr((struct sockaddr_storage *)from,
+		    &flow.agent_addr) == -1) {
+			syslog(LOG_WARNING, "Invalid agent address");
+			break;
 		}
-		if (conf->opts & FLOWD_OPT_VERBOSE) {
-			fprintf(stderr, "Listener for [%s]:%d fd = %d\n",
-			    host_ntop(&la->addr), la->port, la->fd);
+		
+		flow.src_addr.v4.s_addr = nf1_flow->src_ip;
+		flow.src_addr.af = AF_INET;
+		flow.dst_addr.v4.s_addr = nf1_flow->dest_ip;
+		flow.dst_addr.af = AF_INET;
+		flow.gateway_addr.v4.s_addr = nf1_flow->nexthop_ip;
+		flow.gateway_addr.af = AF_INET;
+
+		flow.ports.src_port = nf1_flow->src_port;
+		flow.ports.dest_port = nf1_flow->dest_port;
+
+		flow.counters.flow_packets = nf1_flow->flow_packets;
+		flow.counters.flow_octets = nf1_flow->flow_octets;
+
+		flow.ifndx.if_index_in = nf1_flow->if_index_in;
+		flow.ifndx.if_index_out = nf1_flow->if_index_out;
+
+		flow.ainfo.sys_uptime_ms = nf1_hdr->uptime_ms;
+		flow.ainfo.time_sec = nf1_hdr->time_sec;
+		flow.ainfo.time_nanosec = nf1_hdr->time_nanosec;
+
+		flow.ftimes.flow_start = nf1_flow->flow_start;
+		flow.ftimes.flow_finish = nf1_flow->flow_finish;
+
+		process_flow(&flow, conf);
+	}
+}
+
+static void 
+process_netflow_v5(u_int8_t *pkt, size_t len, struct flowd_config *conf,
+    struct sockaddr *from, socklen_t fromlen)
+{
+	struct NF5_HEADER *nf5_hdr = (struct NF5_HEADER *)pkt;
+	struct NF5_FLOW *nf5_flow;
+	struct store_flow_complete flow;
+	size_t offset;
+	u_int i, nflows;
+
+	if (len < sizeof(*nf5_hdr)) {
+		syslog(LOG_WARNING, "short netflow v.5 packet %d bytes from %s",
+		    len, from_ntop(from));
+		return;
+	}
+	nflows = ntohs(nf5_hdr->c.flows);
+	if (nflows == 0 || nflows > NF5_MAXFLOWS) {
+		syslog(LOG_WARNING, "Invalid number of flows (%u) in netflow "
+		    "v.5 packet from %s", nflows, from_ntop(from));
+		return;
+	}
+	if (len != NF5_PACKET_SIZE(nflows)) {
+		syslog(LOG_WARNING, "Inconsistent Netflow v.5 packet from %s: "
+		    "len %u expected %u", from_ntop(from), len,
+		    NF5_PACKET_SIZE(nflows));
+		return;
+	}
+
+	syslog(LOG_DEBUG, "Valid netflow v.5 packet");
+
+	for (i = 0; i < nflows; i++) {
+		offset = NF5_PACKET_SIZE(i);
+		nf5_flow = (struct NF5_FLOW *)(pkt + offset);
+
+		memset(&flow, 0, sizeof(flow));
+
+		flow.hdr.fieldspec_flags = STORE_FIELD_ALL;
+
+		/* flow.hdr.tag is set later */
+		flow.hdr.recv_secs = time(NULL);
+
+		flow.pft.tcp_flags = nf5_flow->tcp_flags;
+		flow.pft.protocol = nf5_flow->protocol;
+		flow.pft.tos = nf5_flow->tos;
+
+		if (addr_ss_to_xaddr((struct sockaddr_storage *)from,
+		    &flow.agent_addr) == -1) {
+			syslog(LOG_WARNING, "Invalid agent address");
+			break;
 		}
+		
+		flow.src_addr.v4.s_addr = nf5_flow->src_ip;
+		flow.src_addr.af = AF_INET;
+		flow.dst_addr.v4.s_addr = nf5_flow->dest_ip;
+		flow.dst_addr.af = AF_INET;
+		flow.gateway_addr.v4.s_addr = nf5_flow->nexthop_ip;
+		flow.gateway_addr.af = AF_INET;
+
+		flow.ports.src_port = nf5_flow->src_port;
+		flow.ports.dest_port = nf5_flow->dest_port;
+
+		flow.counters.flow_packets = nf5_flow->flow_packets;
+		flow.counters.flow_octets = nf5_flow->flow_octets;
+
+		flow.ifndx.if_index_in = nf5_flow->if_index_in;
+		flow.ifndx.if_index_out = nf5_flow->if_index_out;
+
+		flow.ainfo.sys_uptime_ms = nf5_hdr->uptime_ms;
+		flow.ainfo.time_sec = nf5_hdr->time_sec;
+		flow.ainfo.time_nanosec = nf5_hdr->time_nanosec;
+
+		flow.ftimes.flow_start = nf5_flow->flow_start;
+		flow.ftimes.flow_finish = nf5_flow->flow_finish;
+
+		flow.asinf.src_as = nf5_flow->src_as;
+		flow.asinf.dest_as = nf5_flow->dest_as;
+		flow.asinf.src_mask = nf5_flow->src_mask;
+		flow.asinf.dst_mask = nf5_flow->dst_mask;
+
+		flow.finf.engine_type = nf5_hdr->engine_type;
+		flow.finf.engine_id = nf5_hdr->engine_id;
+		flow.finf.flow_sequence = nf5_hdr->flow_sequence;
+
+		process_flow(&flow, conf);
 	}
 }
 
@@ -202,11 +327,12 @@ process_input(struct flowd_config *conf, int fd)
 	socklen_t fromlen;
 	u_int8_t buf[2048];
 	ssize_t len;
+	struct NF_HEADER_COMMON *hdr;
 
  retry:
 	fromlen = sizeof(from);
 	if ((len = recvfrom(fd, buf, sizeof(buf), 0, 
-	    (struct sockaddr *)&from, &fromlen)) == -1) {
+	    (struct sockaddr *)&from, &fromlen)) < 0) {
 		if (errno == EINTR)
 			goto retry;
 		if (errno != EAGAIN)
@@ -214,7 +340,28 @@ process_input(struct flowd_config *conf, int fd)
 		/* XXX ratelimit errors */
 		return;
 	}
-	syslog(LOG_INFO, "recv %d bytes from %s", len, from_ntop(&from));
+	syslog(LOG_DEBUG, "recv %d bytes from %s", len,
+	    from_ntop((struct sockaddr *)&from));
+	if ((size_t)len < sizeof(*hdr)) {
+		syslog(LOG_WARNING, "short packet %d bytes from %s", len,
+		    from_ntop((struct sockaddr *)&from));
+		return;
+	}
+	hdr = (struct NF_HEADER_COMMON *)buf;
+	switch (ntohs(hdr->version)) {
+	case 1:
+		process_netflow_v1(buf, len, conf, (struct sockaddr *)&from,
+		    fromlen);
+		break;
+	case 5:
+		process_netflow_v5(buf, len, conf, (struct sockaddr *)&from,
+		    fromlen);
+		break;
+	default:
+		syslog(LOG_INFO, "Unsupported netflow version %u from %s",
+		    hdr->version, from_ntop((struct sockaddr *)&from));
+		return;
+	}
 }
 
 static void
@@ -290,6 +437,56 @@ flowd_mainloop(struct flowd_config *conf, int monitor_fd)
 
 	if (exit_flag != 0)
 		syslog(LOG_NOTICE, "Exiting on signal %d", exit_flag);
+}
+
+static int
+setup_listener(struct xaddr *addr, u_int16_t port)
+{
+	int fd, fl;
+	struct sockaddr_storage ss;
+
+	if (addr_xaddr_to_ss(addr, &ss, port) == -1)
+		errx(1, "addr_xaddr_to_ss");
+	if ((fd = socket(addr->af, SOCK_DGRAM, 0)) == -1)
+		err(1, "socket");
+
+	fl = 1;
+	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &fl, sizeof(fl)) == -1)
+		err(1, "setsockopt");
+
+	if (bind(fd, (struct sockaddr *)&ss, 
+	    SA_LEN((struct sockaddr *)&ss)) == -1)
+		err(1, "bind");
+
+	/* Set non-blocking */
+	if ((fl = fcntl(fd, F_GETFL, 0)) == -1)
+		err(1, "fcntl(%d, F_GETFL, 0)", fd);
+	fl |= O_NONBLOCK;
+	if (fcntl(fd, F_SETFL, fl) == -1)
+		err(1, "fcntl(%d, F_SETFL, O_NONBLOCK)", fd);
+
+	return (fd);
+}
+
+static void
+listen_init(struct flowd_config *conf)
+{
+	struct listen_addr *la;
+
+	TAILQ_FOREACH(la, &conf->listen_addrs, entry) {
+		if (la->fd != -1)
+			close(la->fd);
+
+		la->fd = setup_listener(&la->addr, la->port);
+		if (la->fd == -1) {
+			errx(1, "Listener setup of [%s]:%d failed", 
+			    host_ntop(&la->addr), la->port);
+		}
+		if (conf->opts & FLOWD_OPT_VERBOSE) {
+			fprintf(stderr, "Listener for [%s]:%d fd = %d\n",
+			    host_ntop(&la->addr), la->port, la->fd);
+		}
+	}
 }
 
 int
