@@ -84,5 +84,31 @@ struct NF5_FLOW {
 				((nflows) * sizeof(struct NF5_FLOW)))
 #define NF5_MAXPACKET_SIZE	(NF5_PACKET_SIZE(NF5_MAXFLOWS))
 
+/* Netflow v.7 */
+struct NF7_HEADER {
+	struct NF_HEADER_COMMON c;
+	u_int32_t uptime_ms, time_sec, time_nanosec, flow_sequence;
+	u_int32_t reserved1;
+} __packed;
+struct NF7_FLOW {
+	u_int32_t src_ip, dest_ip, nexthop_ip;
+	u_int16_t if_index_in, if_index_out;
+	u_int32_t flow_packets, flow_octets;
+	u_int32_t flow_start, flow_finish;
+	u_int16_t src_port, dest_port;
+	u_int8_t flags1;
+	u_int8_t tcp_flags, protocol, tos;
+	u_int16_t src_as, dest_as;
+	u_int8_t src_mask, dst_mask;
+	u_int16_t flags2;
+	u_int32_t router_sc;
+} __packed;
+/* Maximum of 24 flows per packet */
+#define NF7_MAXFLOWS		30
+#define NF7_PACKET_SIZE(nflows)	(sizeof(struct NF7_HEADER) + \
+				((nflows) * sizeof(struct NF7_FLOW)))
+#define NF7_MAXPACKET_SIZE	(NF7_PACKET_SIZE(NF7_MAXFLOWS))
+
+
 #endif /* _NETFLOW_H */
 

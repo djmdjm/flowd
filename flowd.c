@@ -375,6 +375,104 @@ process_netflow_v5(u_int8_t *pkt, size_t len, struct sockaddr *from,
 	}
 }
 
+static void 
+process_netflow_v7(u_int8_t *pkt, size_t len, struct sockaddr *from,
+    socklen_t fromlen, struct flowd_config *conf, int log_fd)
+{
+	struct NF7_HEADER *nf7_hdr = (struct NF7_HEADER *)pkt;
+	struct NF7_FLOW *nf7_flow;
+	struct store_flow_complete flow;
+	size_t offset;
+	u_int i, nflows;
+
+	if (len < sizeof(*nf7_hdr)) {
+		logit(LOG_WARNING, "short netflow v.7 packet %d bytes from %s",
+		    len, from_ntop(from, fromlen));
+		return;
+	}
+	nflows = ntohs(nf7_hdr->c.flows);
+	if (nflows == 0 || nflows > NF7_MAXFLOWS) {
+		logit(LOG_WARNING, "Invalid number of flows (%u) in netflow "
+		    "v.7 packet from %s", nflows, from_ntop(from, fromlen));
+		return;
+	}
+	if (len != NF7_PACKET_SIZE(nflows)) {
+		logit(LOG_WARNING, "Inconsistent Netflow v.7 packet from %s: "
+		    "len %u expected %u", from_ntop(from, fromlen), len,
+		    NF7_PACKET_SIZE(nflows));
+		return;
+	}
+
+	logit(LOG_DEBUG, "Valid netflow v.7 packet %d flows", nflows);
+
+	for (i = 0; i < nflows; i++) {
+		offset = NF7_PACKET_SIZE(i);
+		nf7_flow = (struct NF7_FLOW *)(pkt + offset);
+
+		bzero(&flow, sizeof(flow));
+
+		/* NB. These are converted to network byte order later */
+		flow.hdr.fields = STORE_FIELD_ALL;
+		/* flow.hdr.tag is set later */
+		flow.hdr.fields &= ~STORE_FIELD_TAG;
+		flow.hdr.fields &= ~STORE_FIELD_SRC_ADDR6;
+		flow.hdr.fields &= ~STORE_FIELD_DST_ADDR6;
+		flow.hdr.fields &= ~STORE_FIELD_GATEWAY_ADDR6;
+
+		/*
+		 * XXX: we can parse the (undocumented) flags1 and flags2
+		 * fields of the packet to disable flow fields not set by
+		 * the Cat5k (e.g. in destination-only mls mode)
+		 */
+
+		flow.recv_time.recv_secs = time(NULL);
+
+		flow.pft.tcp_flags = nf7_flow->tcp_flags;
+		flow.pft.protocol = nf7_flow->protocol;
+		flow.pft.tos = nf7_flow->tos;
+
+		if (addr_sa_to_xaddr(from, fromlen, &flow.agent_addr) == -1) {
+			logit(LOG_WARNING, "Invalid agent address");
+			break;
+		}
+		
+		flow.src_addr.v4.s_addr = nf7_flow->src_ip;
+		flow.src_addr.af = AF_INET;
+		flow.dst_addr.v4.s_addr = nf7_flow->dest_ip;
+		flow.dst_addr.af = AF_INET;
+		flow.gateway_addr.v4.s_addr = nf7_flow->nexthop_ip;
+		flow.gateway_addr.af = AF_INET;
+
+		flow.ports.src_port = nf7_flow->src_port;
+		flow.ports.dst_port = nf7_flow->dest_port;
+
+#define NTO64(a) (store_htonll(ntohl(a)))
+		flow.octets.flow_octets = NTO64(nf7_flow->flow_octets);
+		flow.packets.flow_packets = NTO64(nf7_flow->flow_packets);
+#undef NTO64
+
+		flow.ifndx.if_index_in = nf7_flow->if_index_in;
+		flow.ifndx.if_index_out = nf7_flow->if_index_out;
+
+		flow.ainfo.sys_uptime_ms = nf7_hdr->uptime_ms;
+		flow.ainfo.time_sec = nf7_hdr->time_sec;
+		flow.ainfo.time_nanosec = nf7_hdr->time_nanosec;
+		flow.ainfo.netflow_version = nf7_hdr->c.version;
+
+		flow.ftimes.flow_start = nf7_flow->flow_start;
+		flow.ftimes.flow_finish = nf7_flow->flow_finish;
+
+		flow.asinf.src_as = nf7_flow->src_as;
+		flow.asinf.dst_as = nf7_flow->dest_as;
+		flow.asinf.src_mask = nf7_flow->src_mask;
+		flow.asinf.dst_mask = nf7_flow->dst_mask;
+
+		flow.finf.flow_sequence = nf7_hdr->flow_sequence;
+
+		process_flow(&flow, conf, log_fd);
+	}
+}
+
 static void
 process_input(struct flowd_config *conf, int net_fd, int log_fd)
 {
@@ -409,6 +507,10 @@ process_input(struct flowd_config *conf, int net_fd, int log_fd)
 		break;
 	case 5:
 		process_netflow_v5(buf, len, (struct sockaddr *)&from, fromlen,
+		    conf, log_fd);
+		break;
+	case 7:
+		process_netflow_v7(buf, len, (struct sockaddr *)&from, fromlen,
 		    conf, log_fd);
 		break;
 	default:
