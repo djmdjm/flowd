@@ -203,6 +203,21 @@ store_get_flow(int fd, struct store_flow_complete *f, const char **errptr)
 }
 
 int
+store_check_header(int fd, const char **errptr)
+{
+	struct store_header hdr;
+	char ebuf[512];
+	int r;
+
+	if ((r = store_get_header(fd, &hdr, errptr)) != 0)
+		return (r);
+
+	/* store_get_header does all the magic & version checks for us */
+
+	return (0);
+}
+
+int
 store_put_header(int fd, const char **errptr)
 {
 	struct store_header hdr;

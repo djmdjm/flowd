@@ -235,6 +235,7 @@ struct store_flow_complete {
 
 int store_get_header(int fd, struct store_header *hdr, const char **errptr);
 int store_get_flow(int fd, struct store_flow_complete *f, const char **errptr);
+int store_check_header(int fd, const char **errptr);
 int store_put_header(int fd, const char **errptr);
 int store_put_flow(int fd, struct store_flow_complete *flow,
     u_int32_t fieldmask, const char **errptr);

@@ -70,7 +70,7 @@ answer_open_log(struct flowd_config *conf, int client_fd)
 
 	syslog(LOG_DEBUG, "%s: entering", __func__);
 
-	fd = open(conf->log_file, O_WRONLY|O_APPEND|O_CREAT, 0600);
+	fd = open(conf->log_file, O_RDWR|O_APPEND|O_CREAT, 0600);
 	if (fd == -1) {
 		syslog(LOG_ERR, "%s: open: %s", __func__, strerror(errno));
 		return (-1);

@@ -129,6 +129,20 @@ start_log(int monitor_fd)
 		exit(1);
 	default:
 		/* Logfile exists, don't write new header */
+		if (lseek(fd, 0, SEEK_SET) != 0) {
+			syslog(LOG_CRIT, "%s: llseek error, exiting: %s",
+			    __func__, strerror(errno));
+			exit(1);
+		}
+		if (store_check_header(fd, &e) != 0) {
+			syslog(LOG_CRIT, "%s: Exiting on %s", __func__, e);
+			exit(1);
+		}
+		if (lseek(fd, 0, SEEK_END) <= 0) {
+			syslog(LOG_CRIT, "%s: llseek error, exiting: %s",
+			    __func__, strerror(errno));
+			exit(1);
+		}
 		syslog(LOG_DEBUG, "Continuing with existing logfile len %lld", 
 		    (long long)pos);
 		return (fd);
