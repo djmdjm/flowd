@@ -1,4 +1,7 @@
 20040813
+ - (djm) Pull in some portability fixes from portable OpenSSH
+
+20040813
  - (djm) Bring python inteface up to the same level as the perl and C ones
  - (djm) Print tcp_flags as two hex digits, in C API
  - (djm) Improve the README, mention Python API

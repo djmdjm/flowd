@@ -59,7 +59,7 @@ void
 closefrom(int lowfd)
 {
     long fd, maxfd;
-#ifdef HAVE_DIRFD
+#if defined(HAVE_DIRFD) && defined(HAVE_PROC_PID)
     char fdpath[PATH_MAX], *endp;
     struct dirent *dent;
     DIR *dirp;
