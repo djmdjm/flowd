@@ -9,6 +9,8 @@
 - Per-peer statistics, esp. errors
 
 - Negations in filter language, e.g. from ! 10.0.0.0/8
+- Port predicates, e.g. "port 1024-65536"
+- Don't allow port for !(tcp|udp)
 
 - Improve log handling
 
@@ -16,3 +18,4 @@
  to memory buffers (e.g. so they can be sent over the network)
 
 - manpages
+
