@@ -187,9 +187,18 @@ address_port	: STRING		{
 		;
 
 prefix		: STRING '/' number	{
-			char	*s, buf[2048];
+			char *s, *cp, buf[2048];
+			int len;
 
-			snprintf(buf, sizeof(buf), "%s/%u", $1, $3);
+			/* Allow [blah]:foo for IPv6 */
+			cp = $1;
+			len = strlen(cp);
+			if (*cp == '[' && cp[len - 1]  == ']') {
+				cp[len - 1] = '\0';
+				cp++;
+			}
+
+			snprintf(buf, sizeof(buf), "%s/%u", cp, $3);
 			if ((s = strdup(buf)) == NULL)
 				logerrx("string: strdup");
 
@@ -203,8 +212,19 @@ prefix		: STRING '/' number	{
 			free(s);
 		}
 		| STRING		{
-			if (addr_pton_cidr($1, &$$.addr, &$$.len) == -1) {
-				yyerror("could not parse address \"%s\"", $1);
+			char *cp;
+			int len;
+
+			/* Allow [blah]:foo for IPv6 */
+			cp = $1;
+			len = strlen(cp);
+			if (*cp == '[' && cp[len - 1]  == ']') {
+				cp[len - 1] = '\0';
+				cp++;
+			}
+
+			if (addr_pton_cidr(cp, &$$.addr, &$$.len) == -1) {
+				yyerror("could not parse address \"%s\"", cp);
 				free($1);
 				YYERROR;
 			}
