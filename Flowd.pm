@@ -112,12 +112,15 @@ sub init {
 
 	$crc->update($hdr, 12);
 
-	($self->{fields}, $self->{tag}, $self->{recv_secs})
+	$self->{fields} = \%fields;
+	$self->{rawfields} = \%rawfields;
+
+	($fields{fields}, $fields{tag}, $fields{recv_time})
 		= unpack("NNN", $hdr);
 
 	# XXX - merge these two loops
 	foreach my $fspec (@fieldspec) {
-		next unless ($self->{fields} & @$fspec[0]);
+		next unless ($fields{fields} & @$fspec[0]);
 		$rawfields{@$fspec[1]} = "";
 		$r = read($store->{handle}, $rawfields{@$fspec[1]}, @$fspec[2]);
 		die "read($store->{filename}): $!" if not defined $r;
@@ -189,9 +192,6 @@ sub init {
 
 	die "Checksum mismatch"
 		if defined $fields{crc} and $fields{crc} != $crc->final();
-
-	$self->{fields} = \%fields;
-	$self->{rawfields} = \%rawfields;
 
 	return 1;
 }
