@@ -101,6 +101,12 @@ format_rule(struct filter_rule *rule)
 		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
 	}
 #undef FRNEG
+
+	snprintf(tmpbuf, sizeof(tmpbuf),
+	    "# evaluations %llu matches %llu wins %llu",
+	    rule->evaluations, rule->matches, rule->wins);
+	strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
+
 	return (rulebuf);
 }
 
@@ -177,12 +183,15 @@ filter_flow(struct store_flow_complete *flow, struct filter_list *filter)
 
 		m = flow_match(fr, flow);
 
+		fr->evaluations++;
+
 #ifdef FILTER_DEBUG
 		syslog(LOG_DEBUG, "%s: match %s = %d action %d/%d", __func__,
 		    format_rule(fr), m, fr->action.action_what, fr->action.tag);
 #endif
 
 		if (m) {
+			fr->matches++;
 			last_rule = fr;
 			if (fr->quick)
 				break;
@@ -190,6 +199,7 @@ filter_flow(struct store_flow_complete *flow, struct filter_list *filter)
 	}
 
 	if (last_rule != NULL) {
+		last_rule->wins++;
 		action = last_rule->action.action_what;
 		if (action == FF_ACTION_TAG) {
 			flow->hdr.tag = htonl(last_rule->action.tag);

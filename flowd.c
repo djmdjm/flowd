@@ -41,8 +41,7 @@ RCSID("$Id$");
 
 static sig_atomic_t exit_flag = 0;
 static sig_atomic_t reopen_flag = 0;
-
-void dump_config(struct flowd_config *);
+static sig_atomic_t info_flag = 0;
 
 /* Signal handlers */
 static void
@@ -55,6 +54,12 @@ static void
 sighand_reopen(int signo)
 {
 	reopen_flag = 1;
+}
+
+static void
+sighand_info(int signo)
+{
+	info_flag = 1;
 }
 
 /* Display commandline usage information */
@@ -84,7 +89,7 @@ from_ntop(struct sockaddr *s, socklen_t slen)
 	return (ret);
 }
 
-void
+static void
 dump_config(struct flowd_config *c)
 {
 	struct filter_rule *fr;
@@ -166,7 +171,7 @@ process_flow(struct store_flow_complete *flow, struct flowd_config *conf,
 	}
 
 	if (filter_flow(flow, &conf->filter_list) == FF_ACTION_DISCARD)
-		return; /* XXX count against rule */
+		return;
 
 	if (store_put_flow(log_fd, flow, conf->store_mask, &e) != 0) {
 		syslog(LOG_CRIT, "%s: exiting on %s", __func__, e);
@@ -432,6 +437,14 @@ flowd_mainloop(struct flowd_config *conf, int monitor_fd)
 		}
 		if (log_fd == -1)
 			log_fd = start_log(monitor_fd);
+
+		if (info_flag) {
+			struct filter_rule *fr;
+
+			info_flag = 0;
+			TAILQ_FOREACH(fr, &conf->filter_list, entry)
+				syslog(LOG_INFO, "%s", format_rule(fr));
+		}
 		
 		i = poll(pfd, num_fds, INFTIM);
 		if (i <= 0) {
@@ -583,6 +596,10 @@ main(int argc, char **argv)
 	signal(SIGINT, sighand_exit);
 	signal(SIGTERM, sighand_exit);
 	signal(SIGHUP, sighand_reopen);
+	signal(SIGUSR1, sighand_info);
+#ifdef SIGINFO
+	signal(SIGINFO, sighand_info);
+#endif
 
 	flowd_mainloop(&conf, monitor_fd);
 

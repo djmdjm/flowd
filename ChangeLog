@@ -5,6 +5,8 @@
  - (djm) Support negated matching in filter language. E.g. agent ! x.x.x.x/y
  - (djm) Document negated matching in flowd.conf manpage
  - (djm) Install flowd.conf by default
+ - (djm) Track filter rule evaluations, matches and wins
+ - (djm) Install SIGINFO (and USR1) handler to display filter counters
 
 20040730
  - (djm) Release flowd 0.1

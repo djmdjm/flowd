@@ -57,10 +57,13 @@ struct filter_match {
 };
 
 struct filter_rule {
+	TAILQ_ENTRY(filter_rule) entry;
 	struct filter_action	action;
 	int			quick;
 	struct filter_match	match;
-	TAILQ_ENTRY(filter_rule) entry;
+	u_int64_t		evaluations;
+	u_int64_t		matches;
+	u_int64_t		wins;
 };
 TAILQ_HEAD(filter_list, filter_rule);
 
