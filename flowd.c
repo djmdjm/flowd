@@ -33,6 +33,7 @@
 #include "privsep.h"
 #include "netflow.h"
 #include "store.h"
+#include "atomicio.h"
 
 static sig_atomic_t exit_flag = 0;
 static sig_atomic_t reopen_flag = 0;
@@ -104,7 +105,9 @@ dump_config(struct flowd_config *c)
 	}
 
 	TAILQ_FOREACH(fr, &c->filter_list, entry) {
-		if (fr->action.action_what == FF_ACTION_DISCARD)
+		if (fr->action.action_what == FF_ACTION_ACCEPT)
+			fprintf(stderr, "accept ");
+		else if (fr->action.action_what == FF_ACTION_DISCARD)
 			fprintf(stderr, "discard ");
 		else if (fr->action.action_what == FF_ACTION_TAG)
 			fprintf(stderr, "tag %lu ", (u_long)fr->action.tag);
@@ -148,14 +151,41 @@ dump_config(struct flowd_config *c)
 	}
 }
 
+static int
+start_log(int monitor_fd)
+{
+	int fd;
+	struct store_header hdr;
+
+	if ((fd = client_open_log(monitor_fd)) == -1) {
+		syslog(LOG_CRIT, "Logfile open failed, exiting");
+		exit(1);
+	}
+
+	bzero(&hdr, sizeof(hdr));
+	hdr.magic = htonl(STORE_MAGIC);
+	hdr.version = htonl(STORE_VERSION);
+	hdr.start_time = htonl(time(NULL));
+	hdr.flags = htonl(0);
+
+	if (atomicio(vwrite, fd, &hdr, sizeof(hdr)) != sizeof(sizeof(hdr))) {
+		syslog(LOG_CRIT, "%s: write log header failed, exiting: %s",
+		    __func__, strerror(errno));
+		exit(1);
+	}
+
+	return (fd);
+}
+
 static void 
-process_flow(struct store_flow_complete *flow, struct flowd_config *conf)
+process_flow(struct store_flow_complete *flow, struct flowd_config *conf,
+    int log_fd)
 {
 }
 
 static void 
-process_netflow_v1(u_int8_t *pkt, size_t len, struct flowd_config *conf,
-    struct sockaddr *from, socklen_t fromlen)
+process_netflow_v1(u_int8_t *pkt, size_t len, struct sockaddr *from,
+    socklen_t fromlen, struct flowd_config *conf, int log_fd)
 {
 	struct NF1_HEADER *nf1_hdr = (struct NF1_HEADER *)pkt;
 	struct NF1_FLOW *nf1_flow;
@@ -187,7 +217,7 @@ process_netflow_v1(u_int8_t *pkt, size_t len, struct flowd_config *conf,
 		offset = NF1_PACKET_SIZE(i);
 		nf1_flow = (struct NF1_FLOW *)(pkt + offset);
 
-		memset(&flow, 0, sizeof(flow));
+		bzero(&flow, sizeof(flow));
 
 		flow.hdr.fieldspec_flags = STORE_FIELD_ALL;
 		flow.hdr.fieldspec_flags &= ~STORE_FIELD_AS_INFO;
@@ -229,13 +259,13 @@ process_netflow_v1(u_int8_t *pkt, size_t len, struct flowd_config *conf,
 		flow.ftimes.flow_start = nf1_flow->flow_start;
 		flow.ftimes.flow_finish = nf1_flow->flow_finish;
 
-		process_flow(&flow, conf);
+		process_flow(&flow, conf, log_fd);
 	}
 }
 
 static void 
-process_netflow_v5(u_int8_t *pkt, size_t len, struct flowd_config *conf,
-    struct sockaddr *from, socklen_t fromlen)
+process_netflow_v5(u_int8_t *pkt, size_t len, struct sockaddr *from,
+    socklen_t fromlen, struct flowd_config *conf, int log_fd)
 {
 	struct NF5_HEADER *nf5_hdr = (struct NF5_HEADER *)pkt;
 	struct NF5_FLOW *nf5_flow;
@@ -267,7 +297,7 @@ process_netflow_v5(u_int8_t *pkt, size_t len, struct flowd_config *conf,
 		offset = NF5_PACKET_SIZE(i);
 		nf5_flow = (struct NF5_FLOW *)(pkt + offset);
 
-		memset(&flow, 0, sizeof(flow));
+		bzero(&flow, sizeof(flow));
 
 		flow.hdr.fieldspec_flags = STORE_FIELD_ALL;
 
@@ -316,12 +346,12 @@ process_netflow_v5(u_int8_t *pkt, size_t len, struct flowd_config *conf,
 		flow.finf.engine_id = nf5_hdr->engine_id;
 		flow.finf.flow_sequence = nf5_hdr->flow_sequence;
 
-		process_flow(&flow, conf);
+		process_flow(&flow, conf, log_fd);
 	}
 }
 
 static void
-process_input(struct flowd_config *conf, int fd)
+process_input(struct flowd_config *conf, int net_fd, int log_fd)
 {
 	struct sockaddr_storage from;
 	socklen_t fromlen;
@@ -331,7 +361,7 @@ process_input(struct flowd_config *conf, int fd)
 
  retry:
 	fromlen = sizeof(from);
-	if ((len = recvfrom(fd, buf, sizeof(buf), 0, 
+	if ((len = recvfrom(net_fd, buf, sizeof(buf), 0, 
 	    (struct sockaddr *)&from, &fromlen)) < 0) {
 		if (errno == EINTR)
 			goto retry;
@@ -350,12 +380,12 @@ process_input(struct flowd_config *conf, int fd)
 	hdr = (struct NF_HEADER_COMMON *)buf;
 	switch (ntohs(hdr->version)) {
 	case 1:
-		process_netflow_v1(buf, len, conf, (struct sockaddr *)&from,
-		    fromlen);
+		process_netflow_v1(buf, len, (struct sockaddr *)&from, fromlen,
+		    conf, log_fd);
 		break;
 	case 5:
-		process_netflow_v5(buf, len, conf, (struct sockaddr *)&from,
-		    fromlen);
+		process_netflow_v5(buf, len, (struct sockaddr *)&from, fromlen,
+		    conf, log_fd);
 		break;
 	default:
 		syslog(LOG_INFO, "Unsupported netflow version %u from %s",
@@ -400,11 +430,8 @@ flowd_mainloop(struct flowd_config *conf, int monitor_fd)
 			close(log_fd);
 			log_fd = -1;
 		}
-		if (log_fd == -1 && 
-		    (log_fd = client_open_log(monitor_fd)) == -1) {
-			syslog(LOG_CRIT, "Logfile open failed, exiting");
-			exit(1);
-		}
+		if (log_fd == -1)
+			log_fd = start_log(monitor_fd);
 		
 		syslog(LOG_DEBUG, "%s: poll(%d) entering", __func__, num_fds);
 		i = poll(pfd, num_fds, INFTIM);
@@ -429,7 +456,7 @@ flowd_mainloop(struct flowd_config *conf, int monitor_fd)
 				syslog(LOG_DEBUG, "%s: event on listener #%d "
 				    "fd %d 0x%x", __func__, i - 1, pfd[i].fd, 
 				    pfd[i].revents);
-				process_input(conf, pfd[i].fd);
+				process_input(conf, pfd[i].fd, log_fd);
 			}
 			i++;
 		}
