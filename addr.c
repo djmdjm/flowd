@@ -43,7 +43,7 @@ addr_unicast_masklen(int af)
 }
 
 static inline int
-masklen_valid(int af, unsigned int masklen)
+masklen_valid(int af, u_int masklen)
 {
 	if (masklen < 0)
 		return (-1);
@@ -136,7 +136,7 @@ addr_invert(struct xaddr *n)
 }
 
 int
-addr_netmask(int af, unsigned int l, struct xaddr *n)
+addr_netmask(int af, u_int l, struct xaddr *n)
 {
 	int i;
 
@@ -163,7 +163,7 @@ addr_netmask(int af, unsigned int l, struct xaddr *n)
 }
 
 int
-addr_hostmask(int af, unsigned int l, struct xaddr *n)
+addr_hostmask(int af, u_int l, struct xaddr *n)
 {
 	if (addr_netmask(af, l, n) == -1 || addr_invert(n) == -1)
 		return (-1);
@@ -171,7 +171,7 @@ addr_hostmask(int af, unsigned int l, struct xaddr *n)
 }
 
 int
-addr_and(struct xaddr *dst, struct xaddr *a, struct xaddr *b)
+addr_and(struct xaddr *dst, const struct xaddr *a, const struct xaddr *b)
 {
 	int i;
 
@@ -194,7 +194,7 @@ addr_and(struct xaddr *dst, struct xaddr *a, struct xaddr *b)
 }
 
 int
-addr_or(struct xaddr *dst, struct xaddr *a, struct xaddr *b)
+addr_or(struct xaddr *dst, const struct xaddr *a, const struct xaddr *b)
 {
 	int i;
 
@@ -216,7 +216,7 @@ addr_or(struct xaddr *dst, struct xaddr *a, struct xaddr *b)
 }
 
 int
-addr_cmp(struct xaddr *a, struct xaddr *b)
+addr_cmp(const struct xaddr *a, const struct xaddr *b)
 {
 	int i;
 
@@ -249,7 +249,7 @@ addr_cmp(struct xaddr *a, struct xaddr *b)
 }
 
 int
-addr_is_all0s(struct xaddr *a)
+addr_is_all0s(const struct xaddr *a)
 {
 	int i;
 
@@ -267,7 +267,7 @@ addr_is_all0s(struct xaddr *a)
 }
 
 int
-addr_host_is_all0s(struct xaddr *a, unsigned int masklen)
+addr_host_is_all0s(const struct xaddr *a, u_int masklen)
 {
 	struct xaddr tmp_addr, tmp_mask, tmp_result;
 
@@ -280,7 +280,7 @@ addr_host_is_all0s(struct xaddr *a, unsigned int masklen)
 }
 
 int
-addr_host_is_all1s(struct xaddr *a, unsigned int masklen)
+addr_host_is_all1s(const struct xaddr *a, u_int masklen)
 {
 	struct xaddr tmp_addr, tmp_mask, tmp_result;
 
@@ -295,7 +295,7 @@ addr_host_is_all1s(struct xaddr *a, unsigned int masklen)
 }
 
 int
-addr_host_to_all0s(struct xaddr *a, unsigned int masklen)
+addr_host_to_all0s(struct xaddr *a, u_int masklen)
 {
 	struct xaddr tmp_mask;
 	
@@ -307,7 +307,7 @@ addr_host_to_all0s(struct xaddr *a, unsigned int masklen)
 }
 
 int
-addr_host_to_all1s(struct xaddr *a, unsigned int masklen)
+addr_host_to_all1s(struct xaddr *a, u_int masklen)
 {
 	struct xaddr tmp_mask;
 	
@@ -391,7 +391,7 @@ addr_ss_ntop(struct sockaddr_storage *ss, char *h, size_t hlen,
 }
 
 int
-addr_pton_cidr(const char *p, struct xaddr *n, unsigned int *l)
+addr_pton_cidr(const char *p, struct xaddr *n, u_int *l)
 {
 	struct xaddr tmp;
 	long unsigned int masklen = -1;
@@ -423,4 +423,19 @@ addr_pton_cidr(const char *p, struct xaddr *n, unsigned int *l)
 		*l = masklen;
 
 	return (0);
+}
+
+int
+addr_netmatch(const struct xaddr *host, const struct xaddr *net, u_int masklen)
+{
+	struct xaddr tmp_mask, tmp_result;
+
+	if (host->af != net->af)
+		return(-1);
+
+	if (addr_netmask(host->af, masklen, &tmp_mask) == -1)
+		return (-1);
+	if (addr_and(&tmp_result, host, &tmp_mask) == -1)
+		return (-1);
+	return (addr_cmp(&tmp_result, net));
 }
