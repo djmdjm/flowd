@@ -47,10 +47,9 @@ restart() {
 	start
 }
 
-# Enable this once we support runtime reconfigure
-#reload() {
-#	kill `cat /var/run/flowd.pid`
-#}
+reload() {
+	kill -HUP `cat /var/run/flowd.pid`
+}
 
 # See how we were called.
 case "$1" in
@@ -67,8 +66,7 @@ case "$1" in
 	restart
 	;;
   reload)
-	restart
-	#reload
+	reload
 	;;
   condrestart)
 	[ -f /var/lock/subsys/flowd ] && restart || :

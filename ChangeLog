@@ -6,6 +6,7 @@
  - (djm) Document signals and tidy
  - (djm) Portability and warning fixes
  - (djm) Add python install script and mention it in INSTALL
+ - (djm) Enable reload method in initscript, now that it works
 
 20040812
  - (djm) Parse and verify config in a subprocess, avoiding all memory leaks
