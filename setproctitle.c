@@ -64,8 +64,6 @@ static char *argv_start = NULL;
 static size_t argv_env_len = 0;
 #endif
 
-#endif /* HAVE_SETPROCTITLE */
-
 void
 compat_init_setproctitle(int argc, char ***argvp)
 {
@@ -115,15 +113,15 @@ compat_init_setproctitle(int argc, char ***argvp)
 
 	/* 
 	 * Copy environment 
-	 * XXX - will truncate env on strdup fail
 	 */
 	for (i = 0; envp[i] != NULL; i++)
-		environ[i] = strdup(envp[i]);
+		if ((environ[i] = strdup(envp[i])) == NULL)
+			errx(1, "setproctitle strdup");
+
 	environ[i] = NULL;
 #endif /* SPT_REUSEARGV */
 }
 
-#ifndef HAVE_SETPROCTITLE
 void
 setproctitle(const char *fmt, ...)
 {
