@@ -14,6 +14,7 @@
 
 use strict;
 use warnings;
+use Math::BigInt;
 use Socket;
 use Socket6;
 
@@ -161,6 +162,16 @@ sub init {
 				= unpack "nn", $rawfields{$field};
 			next;
 		} elsif ($field eq "PACKETS_OCTETS") {
+			(my $p1, my $p2, my $o1, my $o2)
+				= unpack "NNNN", $rawfields{$field};
+
+			$fields{flow_packets} = Math::BigInt->new($p1);
+			$fields{flow_packets}->blsft(32);
+			$fields{flow_packets}->badd($p2);
+
+			$fields{flow_octets} = Math::BigInt->new($o1);
+			$fields{flow_octets}->blsft(32);
+			$fields{flow_octets}->badd($o2);
 		} elsif ($field eq "IF_INDICES") {
 			($fields{if_index_in}, $fields{if_index_out})
 				= unpack "nn", $rawfields{$field};
@@ -175,8 +186,8 @@ sub init {
 				= unpack "NN", $rawfields{$field};
 			next;
 		} elsif ($field eq "AS_INFO") {
-			($fields{src_as}, $fields{dst_as}, $fields{src_mask},
-			 $fields{dst_mask}, my $pad)
+			($fields{src_as}, $fields{dst_as},
+			 $fields{src_masklen}, $fields{dst_masklen}, my $pad)
 				= unpack "nnCCn", $rawfields{$field};
 			next;
 		} elsif ($field eq "FLOW_ENGINE_INFO") {
