@@ -57,9 +57,6 @@ option may be used to specify a
 .Ar output_path
 to which all the flows that have been read and passed any filters are written.
 .Pp
-Using a combination of these three flags, binary log files may be displayed, 
-concatenated and filtered.
-.Pp
 The command-line options are as follows:
 .Bl -tag -width Ds
 .It Fl U
@@ -83,6 +80,12 @@ manual (under the
 and 
 .Cm Filter
 sections respectively.)
+Any other directives are ignored.
+If no
+.Ar store
+directives are specified in the 
+.Ar filter_file
+then the default is to preserve all the fields in the input flow logs.
 .It Fl q
 Operate quietly. If this argment is specified,
 .Nm
@@ -102,4 +105,5 @@ Displays commandline usage information.
 .Sh AUTHORS
 Damien Miller <djm@mindrot.org>
 .Sh SEE ALSO
-.Xr flowd 8
+.Xr flowd 8 ,
+.Xr flowd.conf 5
