@@ -99,7 +99,7 @@ sighand_child(int signo)
 static void
 sighand_reopen(int signo)
 {
-	if (!child_exited && child_pid <= 1)
+	if (!child_exited && child_pid > 1)
 		if (kill(child_pid, signo) != 0)
 			_exit(1);
 }

@@ -543,6 +543,7 @@ flowd_mainloop(struct flowd_config *conf, int monitor_fd)
 		if (reopen_flag && log_fd != -1) {
 			close(log_fd);
 			log_fd = -1;
+			reopen_flag = 0;
 		}
 		if (log_fd == -1)
 			log_fd = start_log(monitor_fd);
