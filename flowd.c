@@ -446,12 +446,8 @@ flowd_mainloop(struct flowd_config *conf, int monitor_fd)
 
 		i = 1;
 		TAILQ_FOREACH(la, &conf->listen_addrs, entry) {
-			if ((pfd[i].revents & POLLIN) != 0) {
-				syslog(LOG_DEBUG, "%s: event on listener #%d "
-				    "fd %d 0x%x", __func__, i - 1, pfd[i].fd, 
-				    pfd[i].revents);
+			if ((pfd[i].revents & POLLIN) != 0)
 				process_input(conf, pfd[i].fd, log_fd);
-			}
 			i++;
 		}
 	}
