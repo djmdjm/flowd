@@ -175,7 +175,7 @@ address_port	: STRING		{
 				YYERROR;
 			}
 
-			if (!addr_pton(cp, &$$.addr) == -1) {
+			if (addr_pton(cp, &$$.addr) == -1) {
 				yyerror("could not parse address \"%s\"", cp);
 				free($1);
 				YYERROR;
@@ -195,7 +195,7 @@ prefix		: STRING '/' number	{
 
 			free($1);
 
-			if (!addr_pton_cidr(s, &$$.addr, &$$.len) == -1) {
+			if (addr_pton_cidr(s, &$$.addr, &$$.len) == -1) {
 				yyerror("could not parse address \"%s\"", s);
 				free(s);
 				YYERROR;
@@ -203,7 +203,7 @@ prefix		: STRING '/' number	{
 			free(s);
 		}
 		| STRING		{
-			if (!addr_pton_cidr($1, &$$.addr, &$$.len) == -1) {
+			if (addr_pton_cidr($1, &$$.addr, &$$.len) == -1) {
 				yyerror("could not parse address \"%s\"", $1);
 				free($1);
 				YYERROR;
