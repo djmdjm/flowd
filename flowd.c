@@ -41,6 +41,7 @@ RCSID("$Id$");
 
 static sig_atomic_t exit_flag = 0;
 static sig_atomic_t reconf_flag = 0;
+static sig_atomic_t reopen_flag = 0;
 static sig_atomic_t info_flag = 0;
 
 /* Signal handlers */
@@ -54,6 +55,13 @@ static void
 sighand_reconf(int signo)
 {
 	reconf_flag = 1;
+	reopen_flag = 1;
+}
+
+static void
+sighand_reopen(int signo)
+{
+	reopen_flag = 1;
 }
 
 static void
@@ -454,11 +462,12 @@ flowd_mainloop(struct flowd_config *conf, int monitor_fd)
 	/* Main loop */
 	log_fd = -1;
 	for(;exit_flag == 0;) {
+		if (reopen_flag && log_fd != -1) {
+			close(log_fd);
+			log_fd = -1;
+			reopen_flag = 0;
+		}
 		if (reconf_flag) {
-			if (log_fd != -1) {
-				close(log_fd);
-				log_fd = -1;
-			}
 			if (client_reconfigure(monitor_fd, conf) == -1) {
 				syslog(LOG_ERR, "reconfigure failed, exiting");
 				exit(1);
@@ -574,7 +583,8 @@ main(int argc, char **argv)
 	signal(SIGINT, sighand_exit);
 	signal(SIGTERM, sighand_exit);
 	signal(SIGHUP, sighand_reconf);
-	signal(SIGUSR1, sighand_info);
+	signal(SIGUSR1, sighand_reopen);
+	signal(SIGUSR2, sighand_info);
 #ifdef SIGINFO
 	signal(SIGINFO, sighand_info);
 #endif

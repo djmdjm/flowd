@@ -683,7 +683,7 @@ sighand_child(int signo)
 }
 
 static void
-sighand_reopen(int signo)
+sighand_relay(int signo)
 {
 	if (!child_exited && child_pid > 1)
 		if (kill(child_pid, signo) != 0)
@@ -819,8 +819,11 @@ privsep_init(struct flowd_config *conf, int *child_to_monitor_sock,
 
 		signal(SIGINT, sighand_exit);
 		signal(SIGTERM, sighand_exit);
-		signal(SIGHUP, sighand_reopen);
 		signal(SIGCHLD, sighand_child);
+		signal(SIGHUP, sighand_relay);
+		signal(SIGINFO, sighand_relay);
+		signal(SIGUSR1, sighand_relay);
+		signal(SIGUSR2, sighand_relay);
 
 		privsep_master(conf, config_path);
 	}
