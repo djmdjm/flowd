@@ -60,6 +60,7 @@ A collection of tools for use with flowd
 %setup
 
 %build
+[ -f configure -a -f config.h.in ] || autoreconf
 %configure --enable-gcc-warnings
 
 make
@@ -67,6 +68,9 @@ make
 %if %{python_pkg}
 ./setup.py build
 %endif
+
+(cd Flowd ; CFLAGS="$RPM_OPT_FLAGS" perl Makefile.PL \
+	PREFIX=$RPM_BUILD_ROOT/usr INSTALLDIRS=vendor; make )
 
 %install
 rm -rf $RPM_BUILD_ROOT
@@ -79,8 +83,20 @@ install -d $RPM_BUILD_ROOT/etc/rc.d/init.d
 install -m755 flowd.init $RPM_BUILD_ROOT/etc/rc.d/init.d/flowd
 
 # Perl module
-install -d $RPM_BUILD_ROOT/%{perl_sitearch}/
-install -m755 Flowd.pm $RPM_BUILD_ROOT/%{perl_sitearch}/
+(cd Flowd; make install)
+find ${RPM_BUILD_ROOT}/usr/lib*/perl5 \
+	\( -name perllocal.pod -o -name .packlist \) -exec rm -v {} \;
+find ${RPM_BUILD_ROOT}/usr/lib*/perl5 \
+	-type f -print | sed "s@^$RPM_BUILD_ROOT@@g" > flowd-perl-filelist
+find ${RPM_BUILD_ROOT}%{_mandir} \
+	-type f | grep -E '[0-9]pm(.gz)?$' | \
+	sed "s@^$RPM_BUILD_ROOT@@g;s@\$@*@" >> \
+	flowd-perl-filelist
+
+if [ "$(cat flowd-perl-filelist)X" = "X" ] ; then
+    echo "ERROR: EMPTY FILE LIST"
+    exit -1
+fi
 
 # Python module
 %if %{python_pkg}
@@ -123,10 +139,9 @@ fi
 %attr(0755,root,root) %config /etc/rc.d/init.d/flowd
 %attr(0755,root,root) %{_sbindir}/flowd
 
-%files perl
+%files perl -f flowd-perl-filelist
 %defattr(-,root,root)
 %doc reader.pl
-%attr(0644,root,root) %{perl_sitearch}/Flowd.pm
 
 %if %{python_pkg}
 %files python -f INSTALLED_OBJECTS

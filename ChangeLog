@@ -6,6 +6,7 @@
  - (djm) More length checking in deserialise function
  - (djm) Implement most of the Perl API in native code, using the C API
  - (djm) Adjust docs and tools for new Perl/Python API
+ - (djm) Package Perl module stuff in RPM spec
 
 20041030
  - (djm) Rework flow reading C API to be more friendly to wrapping into Perl
