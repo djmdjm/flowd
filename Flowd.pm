@@ -14,6 +14,8 @@
 
 use strict;
 use warnings;
+use Socket;
+use Socket6;
 
 package Flowd::Store;
 
@@ -63,21 +65,21 @@ package Flowd::FlowRec;
 
 my @fieldspec = (
 #	  Field Flag	Field Name		Length
-	[ 0x00000001,	"PROTO_FLAGS_TOS", 	4	],
-	[ 0x00000002,	"AGENT_ADDR4", 		4	],
-	[ 0x00000004,	"AGENT_ADDR6", 		16	],
-	[ 0x00000008,	"SRCDST_ADDR4", 	8	],
-	[ 0x00000010,	"SRCDST_ADDR6", 	32	],
-	[ 0x00000020,	"GATEWAY_ADDR4", 	4	],
-	[ 0x00000040,	"GATEWAY_ADDR6", 	16	],
-	[ 0x00000080,	"SRCDST_PORT", 		4	],
-	[ 0x00000100,	"PACKETS_OCTETS", 	16	],
-	[ 0x00000200,	"IF_INDICES", 		4	],
-	[ 0x00000400,	"AGENT_INFO", 		16	],
-	[ 0x00000800,	"FLOW_TIMES", 		8	],
-	[ 0x00001000,	"AS_INFO", 		8	],
-	[ 0x00002000,	"FLOW_ENGINE_INFO", 	8	],
-	[ 0x40000000,	"CRC32", 		4	]
+	[ 0x00000001,	"PROTO_FLAGS_TOS",	4	],
+	[ 0x00000002,	"AGENT_ADDR4",		4	],
+	[ 0x00000004,	"AGENT_ADDR6",		16	],
+	[ 0x00000008,	"SRCDST_ADDR4",		8	],
+	[ 0x00000010,	"SRCDST_ADDR6",		32	],
+	[ 0x00000020,	"GATEWAY_ADDR4",	4	],
+	[ 0x00000040,	"GATEWAY_ADDR6",	16	],
+	[ 0x00000080,	"SRCDST_PORT",		4	],
+	[ 0x00000100,	"PACKETS_OCTETS",	16	],
+	[ 0x00000200,	"IF_INDICES",		4	],
+	[ 0x00000400,	"AGENT_INFO",		16	],
+	[ 0x00000800,	"FLOW_TIMES",		8	],
+	[ 0x00001000,	"AS_INFO",		8	],
+	[ 0x00002000,	"FLOW_ENGINE_INFO",	8	],
+	[ 0x40000000,	"CRC32",		4	]
 );
 
 sub new {
@@ -87,7 +89,7 @@ sub new {
 	my $self = {};
 	bless($self, $class);
 
-	$self->init(@args);
+	return undef if not $self->init(@args);
 
 	return $self;
 }
@@ -97,6 +99,7 @@ sub init {
 	my $store = shift;
 	my $hdr;
 	my $r;
+	my %rawfields = ();
 	my %fields = ();
 	my $crc = Flowd::CRC32->new();
 
@@ -104,6 +107,7 @@ sub init {
 	$r = read($store->{handle}, $hdr, 12);
 
 	die "read($store->{filename}): $!" if not defined $r;
+	return 0 if $r == 0;
 	die "early EOF on $store->{filename}" if $r < 12;
 
 	$crc->update($hdr, 12);
@@ -111,15 +115,85 @@ sub init {
 	($self->{fields}, $self->{tag}, $self->{recv_secs})
 		= unpack("NNN", $hdr);
 
+	# XXX - merge these two loops
 	foreach my $fspec (@fieldspec) {
 		next unless ($self->{fields} & @$fspec[0]);
-		$fields{@$fspec[1]} = "";
-		$r = read($store->{handle}, $fields{@$fspec[1]}, @$fspec[2]);
+		$rawfields{@$fspec[1]} = "";
+		$r = read($store->{handle}, $rawfields{@$fspec[1]}, @$fspec[2]);
 		die "read($store->{filename}): $!" if not defined $r;
 		die "early EOF on $store->{filename}" if $r < @$fspec[2];
-		$crc->update($fields{@$fspec[1]}, @$fspec[2]) 
+		$crc->update($rawfields{@$fspec[1]}, @$fspec[2]) 
 			unless @$fspec[1] eq "CRC32";
 	}
+
+	foreach my $field (keys %rawfields) {
+		if ($field eq "PROTO_FLAGS_TOS") {
+			($fields{tcp_flags}, $fields{protocol},  $fields{tos})
+				= unpack "CCC", $rawfields{$field};
+			next;
+		} elsif ($field eq "AGENT_ADDR4") {
+			$fields{agent_addr} = Socket6::inet_ntop(
+			    Socket::PF_INET, $rawfields{$field});
+		} elsif ($field eq "AGENT_ADDR6") {
+			$fields{agent_addr} = Socket6::inet_ntop(
+			    Socket6::PF_INET6, $rawfields{$field});
+		} elsif ($field eq "SRCDST_ADDR4") {
+			$fields{src_addr} = Socket6::inet_ntop(
+			    Socket::PF_INET, substr($rawfields{$field}, 0, 4));
+			$fields{dst_addr} = Socket6::inet_ntop(
+			    Socket::PF_INET, substr($rawfields{$field}, 4, 4));
+		} elsif ($field eq "SRCDST_ADDR6") {
+			$fields{src_addr} = Socket6::inet_ntop(
+			    Socket::PF_INET6, substr($rawfields{$field}, 0, 16));
+			$fields{dst_addr} = Socket6::inet_ntop(
+			    Socket::PF_INET6, substr($rawfields{$field}, 16, 16));
+		} elsif ($field eq "GATEWAY_ADDR4") {
+			$fields{gateway_addr} = Socket6::inet_ntop(
+			    Socket::PF_INET, $rawfields{$field});
+		} elsif ($field eq "GATEWAY_ADDR6") {
+			$fields{gateway_addr} = Socket6::inet_ntop(
+			    Socket6::PF_INET6, $rawfields{$field});
+		} elsif ($field eq "SRCDST_PORT") {
+			($fields{src_port}, $fields{dst_port})
+				= unpack "nn", $rawfields{$field};
+			next;
+		} elsif ($field eq "PACKETS_OCTETS") {
+		} elsif ($field eq "IF_INDICES") {
+			($fields{if_index_in}, $fields{if_index_out})
+				= unpack "nn", $rawfields{$field};
+			next;
+		} elsif ($field eq "AGENT_INFO") {
+			($fields{sys_uptime_ms}, $fields{time_sec},
+			 $fields{time_nanosec}, $fields{netflow_version}, 
+			 my $pad) = unpack "NNNn", $rawfields{$field};
+			next;
+		} elsif ($field eq "FLOW_TIMES") {
+			($fields{flow_start}, $fields{flow_finish})
+				= unpack "NN", $rawfields{$field};
+			next;
+		} elsif ($field eq "AS_INFO") {
+			($fields{src_as}, $fields{dst_as}, $fields{src_mask},
+			 $fields{dst_mask}, my $pad)
+				= unpack "nnCCn", $rawfields{$field};
+			next;
+		} elsif ($field eq "FLOW_ENGINE_INFO") {
+			($fields{engine_type}, $fields{engine_id},
+			 my $pad, $fields{flow_sequence})
+			 	= unpack "CCnN", $rawfields{$field};
+			next;
+		} elsif ($field eq "CRC32") {
+			($fields{crc}) = unpack "N", $rawfields{$field};
+			next;
+		}
+	}
+
+	die "Checksum mismatch"
+		if defined $fields{crc} and $fields{crc} != $crc->final();
+
+	$self->{fields} = \%fields;
+	$self->{rawfields} = \%rawfields;
+
+	return 1;
 }
 
 package Flowd::CRC32;
