@@ -59,28 +59,53 @@ sub init {
 sub readflow {
 	my $self = shift;
 
-	return Flowd::FlowRec->new($self);
+	return Flowd::Flow->new($self);
 }
 
-package Flowd::FlowRec;
+package Flowd::Flow;
+
+use constant {
+	PROTO_FLAGS_TOS		=> 0x00000001,
+	AGENT_ADDR4		=> 0x00000002,
+	AGENT_ADDR6		=> 0x00000004,
+	SRCDST_ADDR4		=> 0x00000008,
+	SRCDST_ADDR6		=> 0x00000010,
+	GATEWAY_ADDR4		=> 0x00000020,
+	GATEWAY_ADDR6		=> 0x00000040,
+	SRCDST_PORT		=> 0x00000080,
+	PACKETS_OCTETS		=> 0x00000100,
+	IF_INDICES		=> 0x00000200,
+	AGENT_INFO		=> 0x00000400,
+	FLOW_TIMES		=> 0x00000800,
+	AS_INFO			=> 0x00001000,
+	FLOW_ENGINE_INFO	=> 0x00002000,
+	CRC32			=> 0x40000000,
+
+# Some useful combinations
+	AGENT_ADDR		=> 0x00000006,
+	SRCDST_ADDR		=> 0x00000018,
+	GATEWAY_ADDR		=> 0x00000060,
+	BRIEF			=> 0x0000019f,
+	ALL			=> 0x40003fff
+};
 
 my @fieldspec = (
-#	  Field Flag	Field Name		Length
-	[ 0x00000001,	"PROTO_FLAGS_TOS",	4	],
-	[ 0x00000002,	"AGENT_ADDR4",		4	],
-	[ 0x00000004,	"AGENT_ADDR6",		16	],
-	[ 0x00000008,	"SRCDST_ADDR4",		8	],
-	[ 0x00000010,	"SRCDST_ADDR6",		32	],
-	[ 0x00000020,	"GATEWAY_ADDR4",	4	],
-	[ 0x00000040,	"GATEWAY_ADDR6",	16	],
-	[ 0x00000080,	"SRCDST_PORT",		4	],
-	[ 0x00000100,	"PACKETS_OCTETS",	16	],
-	[ 0x00000200,	"IF_INDICES",		4	],
-	[ 0x00000400,	"AGENT_INFO",		16	],
-	[ 0x00000800,	"FLOW_TIMES",		8	],
-	[ 0x00001000,	"AS_INFO",		8	],
-	[ 0x00002000,	"FLOW_ENGINE_INFO",	8	],
-	[ 0x40000000,	"CRC32",		4	]
+#	  Field Flag		Field Name		Length
+	[ PROTO_FLAGS_TOS,	"PROTO_FLAGS_TOS",	4	],
+	[ AGENT_ADDR4,		"AGENT_ADDR4",		4	],
+	[ AGENT_ADDR6,		"AGENT_ADDR6",		16	],
+	[ SRCDST_ADDR4,		"SRCDST_ADDR4",		8	],
+	[ SRCDST_ADDR6,		"SRCDST_ADDR6",		32	],
+	[ GATEWAY_ADDR4,	"GATEWAY_ADDR4",	4	],
+	[ GATEWAY_ADDR6,	"GATEWAY_ADDR6",	16	],
+	[ SRCDST_PORT,		"SRCDST_PORT",		4	],
+	[ PACKETS_OCTETS,	"PACKETS_OCTETS",	16	],
+	[ IF_INDICES,		"IF_INDICES",		4	],
+	[ AGENT_INFO,		"AGENT_INFO",		16	],
+	[ FLOW_TIMES,		"FLOW_TIMES",		8	],
+	[ AS_INFO,		"AS_INFO",		8	],
+	[ FLOW_ENGINE_INFO,	"FLOW_ENGINE_INFO",	8	],
+	[ CRC32,		"CRC32",		4	]
 );
 
 sub new {
@@ -205,6 +230,122 @@ sub init {
 		if defined $fields{crc} and $fields{crc} != $crc->final();
 
 	return 1;
+}
+
+sub iso_time {
+	my $timet = shift;
+	my $utc = 0;
+	my @tm;
+
+	@tm = localtime($timet) unless $utc;
+	@tm = gmtime($timet) if $utc;
+
+	return sprintf("%04u-%02u-%02uT%02u:%02u:%02u", 
+	    1900 + $tm[5], 1 + $tm[4], $tm[3], $tm[2], $tm[1], $tm[0]);
+}
+
+sub interval_time {
+	my $t = shift;
+	my @ivs = (
+		[ "m", 60 ], [ "h", 60 ], [ "d", 24 ], 
+		[ "w", 7 ], [ "y", 52 ] 
+	);
+	my $ret = "s";
+
+	foreach my $iv (@ivs) {
+		$ret = sprintf "%u%s", $t % @$iv[1], $ret;
+		$t = int($t / @$iv[1]);
+		last if $t <= 0;
+		$ret = @$iv[0] . $ret;
+	}
+	return $ret;
+}
+
+sub interval_time_ms
+{
+	my $tms = shift;
+
+	return sprintf "%s.%03u", interval_time($tms / 1000), $tms % 1000,	
+}
+
+sub format
+{
+	my $self = shift;
+	my $field_mask = shift;
+	my $utc_flag = shift;
+	my $fields = $self->{fields}->{fields} & $field_mask;
+
+	my $ret = "";
+
+	$ret .= sprintf "FLOW tag %u %s ", $self->{fields}->{tag},
+	    iso_time($self->{fields}->{recv_time}, $utc_flag);
+
+	if ($fields & PROTO_FLAGS_TOS) {
+		$ret .= sprintf "proto %u ", $self->{fields}->{protocol};
+		$ret .= sprintf "tcpflags %02x ", $self->{fields}->{tcp_flags};
+		$ret .= sprintf "tos %02x ", $self->{fields}->{tos};
+	}
+	if ($fields & AGENT_ADDR) {
+		$ret .= sprintf "agent %s ", $self->{fields}->{agent_addr};
+	}
+	if ($fields & SRCDST_ADDR) {
+		$ret .= sprintf "src %s", $self->{fields}->{src_addr};
+		if ($fields & SRCDST_PORT) {
+			$ret .= sprintf ":%u", $self->{fields}->{src_port};
+		}
+		$ret .= " ";
+		$ret .= sprintf "dst %s", $self->{fields}->{dst_addr};
+		if ($fields & SRCDST_PORT) {
+			$ret .= sprintf ":%u", $self->{fields}->{dst_port};
+		}
+		$ret .= " ";
+	}
+	if ($fields & GATEWAY_ADDR) {
+		$ret .= sprintf "gateway %s ", $self->{fields}->{gateway_addr};
+	}
+	if ($fields & PACKETS_OCTETS) {
+		$ret .= sprintf "packets %s ", $self->{fields}->{flow_packets};
+		$ret .= sprintf "octets %s ", $self->{fields}->{flow_octets};
+	}
+	if ($fields & IF_INDICES) {
+		$ret .= sprintf "in_if %u ", $self->{fields}->{if_index_in};
+		$ret .= sprintf "out_if %u ", $self->{fields}->{if_index_out};
+	}
+	if ($fields & AGENT_INFO) {
+		$ret .= sprintf "sys_uptime_ms %s ",
+		    interval_time_ms($self->{fields}->{sys_uptime_ms});
+		$ret .= sprintf "time_sec %s ",
+		    iso_time($self->{fields}->{time_sec}, $utc_flag);
+		$ret .= sprintf "time_nanosec %u ",
+		    $self->{fields}->{time_nanosec};
+		$ret .= sprintf "netflow ver %u ",
+			$self->{fields}->{netflow_version};
+	}
+	if ($fields & FLOW_TIMES) {
+		$ret .= sprintf "flow_start %s ",
+		    interval_time_ms($self->{fields}->{flow_start});
+		$ret .= sprintf "flow_finish %s ",
+		    interval_time_ms($self->{fields}->{flow_finish});
+	}
+	if ($fields & AS_INFO) {
+		$ret .= sprintf "src_AS %u ", $self->{fields}->{src_as};
+		$ret .= sprintf "src_masklen %u ",
+		    $self->{fields}->{src_masklen};
+		$ret .= sprintf "dst_AS %u ", $self->{fields}->{dst_as};
+		$ret .= sprintf "dst_masklen %u ",
+		    $self->{fields}->{dst_masklen};
+	}
+	if ($fields & FLOW_ENGINE_INFO) {
+		$ret .= sprintf "engine_type %u ",
+		    $self->{fields}->{engine_type};
+		$ret .= sprintf "engine_id %u ", $self->{fields}->{engine_id};
+		$ret .= sprintf "seq %u ", $self->{fields}->{flow_sequence};
+	}
+	if ($fields & CRC32) {
+		$ret .= sprintf "crc32 %08x ", $self->{fields}->{crc};
+	}
+
+	return $ret;
 }
 
 package Flowd::CRC32;
