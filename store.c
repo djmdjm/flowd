@@ -375,7 +375,7 @@ store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
     int utc_flag)
 {
 	char tmp[256];
-	u_int32_t fields, tt;
+	u_int32_t fields;
 
 	*buf = '\0';
 
