@@ -162,6 +162,13 @@ start_log(int monitor_fd)
 		exit(1);
 	}
 
+	/* Only write out the header if we are at the start of the file */
+	if (lseek(fd, 0, SEEK_CUR) == 0) {
+		syslog(LOG_DEBUG, "Continuing with existing logfile");
+		return (fd);
+	}
+
+	syslog(LOG_DEBUG, "Writing new logfile header");
 	bzero(&hdr, sizeof(hdr));
 	hdr.magic = htonl(STORE_MAGIC);
 	hdr.version = htonl(STORE_VERSION);
@@ -180,23 +187,33 @@ start_log(int monitor_fd)
 static int
 store_flow(int fd, struct store_flow_complete *flow)
 {
-	u_int32_t fieldspec_flags;
 	struct store_flow_AGENT_ADDR_V4 aa4;
 	struct store_flow_AGENT_ADDR_V6 aa6;
 	struct store_flow_SRCDST_ADDR_V4 sda4;
 	struct store_flow_SRCDST_ADDR_V6 sda6;
+	struct store_flow_GATEWAY_ADDR_V4 gwa4;
+	struct store_flow_GATEWAY_ADDR_V6 gwa6;
+	u_int32_t fieldspec;
+	off_t startpos;
 
-	fieldspec_flags = ntohl(flow->hdr.fieldspec_flags);
+	/* Remember where we started, so we can back errors out */	
+	if ((startpos = lseek(fd, 0, SEEK_CUR)) == -1) {
+		syslog(LOG_CRIT, "%s: lseek: %s", __func__, strerror(errno));
+		return (-1);
+	}
+
+	/* Convert addresses and set AF fields correctly */
 
 	switch(flow->agent_addr.af) {
 	case AF_INET:
 		memcpy(&aa4.flow_agent_addr, &flow->agent_addr.v4,
 		    sizeof(aa4.flow_agent_addr));
+		flow->hdr.fieldspec_flags |= STORE_FIELD_AGENT_ADDR4;
 		break;
 	case AF_INET6:
 		memcpy(&aa6.flow_agent_addr, &flow->agent_addr.v6,
 		    sizeof(aa6.flow_agent_addr));
-		fieldspec_flags |= STORE_FLOW_AGENT_IS_V6;
+		flow->hdr.fieldspec_flags |= STORE_FIELD_AGENT_ADDR6;
 		break;
 	default:
 		syslog(LOG_WARNING, "%s: silly agent addr af", __func__);
@@ -210,20 +227,88 @@ store_flow(int fd, struct store_flow_complete *flow)
 		    sizeof(sda4.src_addr));
 		memcpy(&sda4.dst_addr, &flow->dst_addr.v4,
 		    sizeof(sda4.dst_addr));
+		flow->hdr.fieldspec_flags |= STORE_FIELD_SRCDST_ADDR4;
 		break;
 	case AF_INET6:
 		memcpy(&sda6.src_addr, &flow->src_addr.v6,
 		    sizeof(sda6.src_addr));
 		memcpy(&sda6.dst_addr, &flow->dst_addr.v6,
 		    sizeof(sda6.dst_addr));
-		fieldspec_flags |= STORE_FLOW_ADDRS_ARE_V6;
+		flow->hdr.fieldspec_flags |= STORE_FIELD_SRCDST_ADDR6;
 		break;
 	default:
-		syslog(LOG_WARNING, "%s: silly agent addr af", __func__);
+		syslog(LOG_WARNING, "%s: silly src/dst addr af", __func__);
 		return (-1);
 	}
 	
-	return (-1); /* XXX */
+	switch(flow->gateway_addr.af) {
+	case AF_INET:
+		memcpy(&gwa4.gateway_addr, &flow->gateway_addr.v4,
+		    sizeof(gwa4.gateway_addr));
+		flow->hdr.fieldspec_flags |= STORE_FIELD_GATEWAY_ADDR4;
+		break;
+	case AF_INET6:
+		memcpy(&gwa6.gateway_addr, &flow->gateway_addr.v6,
+		    sizeof(gwa6.gateway_addr));
+		flow->hdr.fieldspec_flags |= STORE_FIELD_GATEWAY_ADDR6;
+		break;
+	default:
+		syslog(LOG_WARNING, "%s: silly gateway addr af", __func__);
+		return (-1);
+	}
+
+	fieldspec = flow->hdr.fieldspec_flags;
+
+	flow->hdr.tag = htonl(flow->hdr.tag);
+	flow->hdr.recv_secs = htonl(flow->hdr.recv_secs);
+	flow->hdr.fieldspec_flags = htonl(flow->hdr.fieldspec_flags);
+
+	/* Now write out the flow */
+	if (atomicio(vwrite, fd, &flow->hdr, sizeof(flow->hdr)) !=
+	    sizeof(flow->hdr))
+		goto fail;
+
+#define WRITEOUT(spec, what, len) do {  \
+		if ((fieldspec & (spec)) && atomicio(vwrite, fd, (what), \
+		    (len)) != len)  \
+			goto fail; \
+		} while (0)
+
+	WRITEOUT(STORE_FIELD_AGENT_ADDR4, &aa4, sizeof(aa4));
+	WRITEOUT(STORE_FIELD_AGENT_ADDR6, &aa6, sizeof(aa6));
+	WRITEOUT(STORE_FIELD_SRCDST_ADDR4, &sda4, sizeof(sda4));
+	WRITEOUT(STORE_FIELD_SRCDST_ADDR6, &sda6, sizeof(sda6));
+	WRITEOUT(STORE_FIELD_GATEWAY_ADDR4, &gwa4, sizeof(gwa4));
+	WRITEOUT(STORE_FIELD_GATEWAY_ADDR6, &gwa6, sizeof(gwa6));
+	WRITEOUT(STORE_FIELD_SRCDST_PORT, &flow->ports, sizeof(flow->ports));
+	WRITEOUT(STORE_FIELD_PACKETS_OCTETS, &flow->counters, sizeof(flow->counters));
+	WRITEOUT(STORE_FIELD_IF_INDICES, &flow->ifndx, sizeof(flow->ifndx));
+	WRITEOUT(STORE_FIELD_AGENT_INFO, &flow->ainfo, sizeof(flow->ainfo));
+	WRITEOUT(STORE_FIELD_FLOW_TIMES, &flow->ftimes, sizeof(flow->ftimes));
+	WRITEOUT(STORE_FIELD_AS_INFO, &flow->asinf, sizeof(flow->asinf));
+	WRITEOUT(STORE_FIELD_FLOW_ENGINE_INFO, &flow->finf, sizeof(flow->finf));
+#undef WRITEOUT
+
+	return (0);
+
+ fail:
+	syslog(LOG_ERR, "%s: write failed: %s", __func__, strerror(errno));
+
+	/* Try to rewind to starting position, so we don't corrupt flow store */	
+	if (lseek(fd, startpos, SEEK_SET) == -1) {
+		syslog(LOG_ERR, "%s: lseek: %s", __func__, strerror(errno));
+		goto hardfail;
+	}
+	if (ftruncate(fd, startpos) == -1) {
+		syslog(LOG_ERR, "%s: ftruncate: %s", __func__, strerror(errno));
+		goto hardfail;
+	}
+	/* Partial flow record has been removed */
+	return (-1);
+
+ hardfail:
+	syslog(LOG_CRIT, "%s: couldn't back error, exiting", __func__);
+	exit(1);
 }
 
 static void 
@@ -239,10 +324,6 @@ process_flow(struct store_flow_complete *flow, struct flowd_config *conf,
 
 	if (filter_flow(flow, &conf->filter_list) == FF_ACTION_DISCARD)
 		return; /* XXX log? count (against rule?) */
-
-	flow->hdr.fieldspec_flags = htonl(flow->hdr.fieldspec_flags);
-	flow->hdr.tag = htonl(flow->hdr.tag);
-	flow->hdr.recv_secs = htonl(flow->hdr.recv_secs);
 
 	if (store_flow(log_fd, flow) == -1)
 		syslog(LOG_WARNING, "%s: store_flow failed", __func__);

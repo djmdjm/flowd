@@ -40,42 +40,32 @@ struct store_header {
 	u_int32_t		flags;	/* Currently 0 */
 } __packed;
 
-
-/* Extract flags from store_flow.fieldspec_flags */
-#define STORE_RECORD_FLAGS(x)		((x) & 0xff000000)
-
-/* Extract field specification from store_flow.fieldspec_flags */
-#define STORE_RECORD_FIELDS(x)		((x) & 0x00ffffff)
-
-/* Flow flags */
-#define STORE_FLOW_AGENT_IS_V6		(1<<24)	/* agent_addr is v6  */
-#define STORE_FLOW_ADDRS_ARE_V6		(1<<25)	/* flow addrs are v6  */
-
 /*
  * Optional flow fields, specify what is stored for the flow
  * NB - the flow records appear in this order on disk
  */
 #define STORE_FIELD_PROTO_FLAGS_TOS	(1U)
-#define STORE_FIELD_AGENT_ADDR		(1U<<1)
-#define STORE_FIELD_SRCDST_ADDR		(1U<<2)
-#define STORE_FIELD_GATEWAY_ADDR	(1U<<3)
-#define STORE_FIELD_SRCDST_PORT		(1U<<4)
-#define STORE_FIELD_PACKETS_OCTETS	(1U<<5)
-#define STORE_FIELD_IF_INDICES		(1U<<6)
-#define STORE_FIELD_AGENT_INFO		(1U<<7)
-#define STORE_FIELD_FLOW_TIMES		(1U<<8)
-#define STORE_FIELD_AS_INFO		(1U<<9)
-#define STORE_FIELD_FLOW_ENGINE_INFO	(1U<<10)
+#define STORE_FIELD_AGENT_ADDR4		(1U<<1)
+#define STORE_FIELD_AGENT_ADDR6		(1U<<2)
+#define STORE_FIELD_SRCDST_ADDR4	(1U<<3)
+#define STORE_FIELD_SRCDST_ADDR6	(1U<<4)
+#define STORE_FIELD_GATEWAY_ADDR4	(1U<<5)
+#define STORE_FIELD_GATEWAY_ADDR6	(1U<<6)
+#define STORE_FIELD_SRCDST_PORT		(1U<<7)
+#define STORE_FIELD_PACKETS_OCTETS	(1U<<8)
+#define STORE_FIELD_IF_INDICES		(1U<<9)
+#define STORE_FIELD_AGENT_INFO		(1U<<10)
+#define STORE_FIELD_FLOW_TIMES		(1U<<11)
+#define STORE_FIELD_AS_INFO		(1U<<12)
+#define STORE_FIELD_FLOW_ENGINE_INFO	(1U<<13)
 
 /* #define STORE_FIELD_RESERVED		(1U<<31) */
 
 #define STORE_FIELD_ALL			\
-	(STORE_FIELD_PROTO_FLAGS_TOS|STORE_FIELD_AGENT_ADDR|\
-	 STORE_FIELD_SRCDST_ADDR|STORE_FIELD_GATEWAY_ADDR|\
-	 STORE_FIELD_SRCDST_PORT|STORE_FIELD_PACKETS_OCTETS|\
-	 STORE_FIELD_IF_INDICES|STORE_FIELD_AGENT_INFO|\
-	 STORE_FIELD_FLOW_TIMES|STORE_FIELD_AS_INFO|\
-	 STORE_FIELD_FLOW_ENGINE_INFO)
+	(STORE_FIELD_PROTO_FLAGS_TOS|STORE_FIELD_SRCDST_PORT|\
+	 STORE_FIELD_PACKETS_OCTETS|STORE_FIELD_IF_INDICES|\
+	 STORE_FIELD_AGENT_INFO|STORE_FIELD_FLOW_TIMES|\
+	 STORE_FIELD_AS_INFO|STORE_FIELD_FLOW_ENGINE_INFO)
 
 /* Start of flow record - present for every flow */
 struct store_flow {
