@@ -462,11 +462,15 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 	u_int32_t fields, origfields;
 	off_t startpos;
 	u_int8_t buf[512];
-	int len, r, saved_errno;
+	int len, r, saved_errno, ispipe = 0;
 
 	/* Remember where we started, so we can back errors out */
-	if ((startpos = lseek(fd, 0, SEEK_CUR)) == -1)
-		SFAIL(STORE_ERR_IO_SEEK, "lseek", 1);
+	if ((startpos = lseek(fd, 0, SEEK_CUR)) == -1) {
+		if (errno == ESPIPE)
+			ispipe = 1;
+		else
+			SFAIL(STORE_ERR_IO_SEEK, "lseek", 1);
+	}
 
 	origfields = ntohl(flow->hdr.fields);
 	fields = origfields & fieldmask;
@@ -484,6 +488,9 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 
 	if (r == len)
 		return (STORE_ERR_OK);
+
+	if (ispipe)
+		SFAIL(STORE_ERR_CORRUPT, "corrupting failure on pipe", 1);
 
 	/* Try to rewind to starting position, so we don't corrupt flow store */
 	if (lseek(fd, startpos, SEEK_SET) == -1)

@@ -1,3 +1,8 @@
+20050204
+ - (djm) Support writing flow records to pipes and sockets in store.c
+ - (djm) Add support to flowd-reader to allow reading from stdin and writing 
+   to stdout
+
 20050114
  - (djm) Release 0.8
 
