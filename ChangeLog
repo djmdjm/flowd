@@ -8,6 +8,7 @@
  - (djm) Track filter rule evaluations, matches and wins
  - (djm) Install SIGINFO (and USR1) handler to display filter counters
  - (djm) Simplify perl module and add a little POD 
+ - (djm) Create an RPM package (works on FC2 at least)
 
 20040730
  - (djm) Release flowd 0.1

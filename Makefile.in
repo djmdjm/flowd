@@ -75,10 +75,10 @@ install:
 	$(srcdir)/mkinstalldirs $(DESTDIR)$(bindir)
 	$(srcdir)/mkinstalldirs $(DESTDIR)$(mandir)/man5
 	$(srcdir)/mkinstalldirs $(DESTDIR)$(mandir)/man8
-	$(INSTALL) -m 0600 -s flowd.conf $(sysconfdir)
-	$(INSTALL) -m 0755 -s flowd $(sbindir)/flowd
-	$(INSTALL) -m 0755 -s flowd-reader $(bindir)/flowd-reader
-	$(INSTALL) -m 0644 flowd.8 $(mandir)/man8/flowd.8
-	$(INSTALL) -m 0644 flowd.conf.5 $(mandir)/man5/flowd.conf.5
-	$(INSTALL) -m 0644 flowd-reader.8 $(mandir)/man8/flowd-reader.8
+	$(INSTALL) -m 0600 -s flowd.conf $(DESTDIR)$(sysconfdir)
+	$(INSTALL) -m 0755 -s flowd $(DESTDIR)$(sbindir)/flowd
+	$(INSTALL) -m 0755 -s flowd-reader $(DESTDIR)$(bindir)/flowd-reader
+	$(INSTALL) -m 0644 flowd.8 $(DESTDIR)$(mandir)/man8/flowd.8
+	$(INSTALL) -m 0644 flowd.conf.5 $(DESTDIR)$(mandir)/man5/flowd.conf.5
+	$(INSTALL) -m 0644 flowd-reader.8 $(DESTDIR)$(mandir)/man8/flowd-reader.8
 
