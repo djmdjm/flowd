@@ -14,10 +14,10 @@ srcdir=@srcdir@
 top_srcdir=@top_srcdir@
 localstatedir=@localstatedir@
 
-PIDFILEDIR=$(localstatedir)/run
+PIDFILEDIR=@PIDPATH@
 
-PATHFLAGS=-DSYSCONFDIR='"$(sysconfdir)"' -DPIDFILEDIR='"$(PIDFILEDIR)"'
-PROGFLAGS=-DPROGVER='"$(PROGVER)"'
+PATHFLAGS=-DSYSCONFDIR="\"$(sysconfdir)\"" -DPIDFILEDIR="\"$(PIDFILEDIR)\""
+PROGFLAGS=-DPROGVER="\"$(PROGVER)\""
 
 VPATH=@srcdir@
 CC=@CC@
@@ -69,9 +69,13 @@ strip:
 	strip $(TARGETS)
 
 install:
+	$(srcdir)/mkinstalldirs $(DESTDIR)$(sbindir)
+	$(srcdir)/mkinstalldirs $(DESTDIR)$(bindir)
+	$(srcdir)/mkinstalldirs $(DESTDIR)$(mandir)/man5
+	$(srcdir)/mkinstalldirs $(DESTDIR)$(mandir)/man8
 	$(INSTALL) -m 0755 -s flowd $(sbindir)/flowd
 	$(INSTALL) -m 0755 -s flowd-reader $(bindir)/flowd-reader
-	#$(INSTALL) -m 0644 flowd.8 $(mandir)/man8/flowd.8
-	#$(INSTALL) -m 0644 flowd.conf.5 $(mandir)/man5/flowd.conf.5
-	#$(INSTALL) -m 0644 flowd-reader.8 $(mandir)/man8/flowd-reader.8
+	$(INSTALL) -m 0644 flowd.8 $(mandir)/man8/flowd.8
+	$(INSTALL) -m 0644 flowd.conf.5 $(mandir)/man5/flowd.conf.5
+	$(INSTALL) -m 0644 flowd-reader.8 $(mandir)/man8/flowd-reader.8
 

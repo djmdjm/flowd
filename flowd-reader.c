@@ -30,10 +30,18 @@
 
 RCSID("$Id$");
 
+#define PROGNAME	"flowd-reader"
+
 static void
 usage(void)
 {
-	fprintf(stderr, "Usage: flowd-reader [-U] flow-log [flow-log ...]\n");
+	fprintf(stderr, "Usage: %s [options] flow-log [flow-log ...]\n",
+	    PROGNAME);
+	fprintf(stderr, "This is %s version %s. Valid commandline options:\n",
+	    PROGNAME, PROGVER);
+	fprintf(stderr, "  -v    Display all available flow information\n");
+	fprintf(stderr, "  -U    Report times in UTC rather than local time\n");
+	fprintf(stderr, "  -h    Display this help\n");
 }
 
 int
