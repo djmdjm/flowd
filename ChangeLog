@@ -5,6 +5,7 @@
  - (djm) Store agent address for v.9 flows
  - (djm) Add some tools to the tools/ directory
  - (djm) Add tools/ directory to RPM
+ - (djm) Make RPM tools subpackage
  - (djm) Release flowd-0.6
 
 20040921

@@ -31,6 +31,10 @@ Group: Applications/Internet
 Requires: python
 %endif
 
+%package tools
+Summary: Collection of example flowd tools
+Group: Applications/Internet
+
 %description
 This is flowd, a NetFlow collector daemon intended to be small, fast and secure.
 
@@ -47,6 +51,9 @@ reader application
 This is a Python API to the binary flowd network flow log format and an 
 example reader application
 %endif
+
+%description tools
+A collection of tools for use with flowd
 
 %prep
 
@@ -127,7 +134,14 @@ fi
 %doc reader.py
 %endif
 
+%files tools
+%defattr(-,root,root)
+%doc tools/*
+
 %changelog
+* Fri Sep 24 2004 Damien Miller <djm@mindrot.org>
+- Add tools subpackage
+
 * Tue Aug 17 2004 Damien Miller <djm@mindrot.org>
 - Unbreak for Redhat 9
 
