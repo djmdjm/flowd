@@ -1,4 +1,8 @@
-20040813
+20040817
+ - (djm) Make sure we reinstate signal handers after invocation, fixes 
+   exit on 2nd reconfigure on Solaris
+
+20040816
  - (djm) Pull in some portability fixes from portable OpenSSH
  - (djm) Crank version
  - (djm) Portability fixes for Redhat 9

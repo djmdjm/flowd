@@ -48,6 +48,7 @@ static void
 sighand_exit(int signo)
 {
 	exit_flag = signo;
+	signal(signo, sighand_exit);
 }
 
 static void
@@ -55,18 +56,21 @@ sighand_reconf(int signo)
 {
 	reconf_flag = 1;
 	reopen_flag = 1;
+	signal(signo, sighand_reconf);
 }
 
 static void
 sighand_reopen(int signo)
 {
 	reopen_flag = 1;
+	signal(signo, sighand_reopen);
 }
 
 static void
 sighand_info(int signo)
 {
 	info_flag = 1;
+	signal(signo, sighand_info);
 }
 
 /* Display commandline usage information */

@@ -672,6 +672,7 @@ sighand_relay(int signo)
 	if (!child_exited && child_pid > 1)
 		if (kill(child_pid, signo) != 0)
 			_exit(1);
+	signal(signo, sighand_relay);
 }
 
 static void
