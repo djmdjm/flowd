@@ -81,13 +81,10 @@ answer_open_log(struct flowd_config *conf, int client_fd)
 static void
 sighand_exit(int signo)
 {
-	if (monitor_to_child_sock != -1) {
+	if (monitor_to_child_sock != -1)
 		shutdown(monitor_to_child_sock, SHUT_RDWR);
-		close(monitor_to_child_sock);
-	}
 	if (!child_exited && child_pid > 1)
 		kill(child_pid, signo);
-	_exit(0);
 }
 
 static void
@@ -104,12 +101,64 @@ sighand_reopen(int signo)
 			_exit(1);
 }
 
+static void
+privsep_master(struct flowd_config *conf)
+{
+	int status, what, r;
+
+	for (;!child_exited;) {
+		r = atomicio(read, monitor_to_child_sock, &what, sizeof(what));
+		if (r == 0) {
+			syslog(LOG_DEBUG, "%s: child exited", __func__);
+			break;
+		}
+		if (r != sizeof(what)) {
+			syslog(LOG_ERR, "%s: read: %s", __func__,
+			    strerror(errno));
+			unlink(conf->pid_file);
+			exit(1);
+		}
+
+		switch (what) {
+		case C2M_MSG_OPEN_LOG:
+			if (answer_open_log(conf, monitor_to_child_sock)) {
+				unlink(conf->pid_file);
+				exit(1);
+			}
+			break;
+		default:
+			syslog(LOG_ERR, "Unknown message %d", what);
+			break;
+		}
+	}
+
+	r = 0;
+	if (child_exited) {
+		if (waitpid(child_pid, &status, 0) == -1) {
+			syslog(LOG_ERR, "%s: waitpid: %s", __func__,
+			    strerror(errno));
+			r = 1;
+		} else if (!WIFEXITED(status)) { 
+			syslog(LOG_ERR, "child exited abnormally");
+			r = 1;
+		} else if (WEXITSTATUS(status) != 0) {
+			syslog(LOG_ERR, "child exited with status %d",
+			    WEXITSTATUS(status));
+			r = 1;
+		}
+	}
+
+	unlink(conf->pid_file);
+	exit(r);
+}
+
 void
 privsep_init(struct flowd_config *conf, int *child_to_monitor_sock)
 {
-	int s[2], devnull, status, what, r;
+	int s[2], devnull;
 	struct passwd *pw;
 	struct listen_addr *la;
+	FILE *pid_file;
 
 	syslog(LOG_DEBUG, "%s: entering", __func__);
 
@@ -139,6 +188,8 @@ privsep_init(struct flowd_config *conf, int *child_to_monitor_sock)
 		err(1, "fork");
 	case 0: /* Child */
 		close(monitor_to_child_sock);
+		if (setsid() == -1)
+			err(1, "setsid");
 		if (chdir(pw->pw_dir) == -1)
 			err(1, "chdir(%s)", pw->pw_dir);
 		if (chroot(pw->pw_dir) == -1)
@@ -174,53 +225,25 @@ privsep_init(struct flowd_config *conf, int *child_to_monitor_sock)
 			la->fd = -1;
 		}
 		setproctitle("monitor");
-		break;
-	}
-
-	signal(SIGINT, sighand_exit);
-	signal(SIGTERM, sighand_exit);
-	signal(SIGHUP, sighand_reopen);
-	signal(SIGCHLD, sighand_child);
-
-	for (;!child_exited;) {
-		r = atomicio(read, monitor_to_child_sock, &what, sizeof(what));
-		if (r == 0) {
-			syslog(LOG_DEBUG, "%s: child exited", __func__);
-			break;
-		}
-		if (r != sizeof(what)) {
-			syslog(LOG_ERR, "%s: read: %s", __func__,
+		if ((pid_file = fopen(conf->pid_file, "w")) == NULL) {
+			syslog(LOG_ERR, "fopen(%s): %s", conf->pid_file,
 			    strerror(errno));
 			exit(1);
 		}
-
-		switch (what) {
-		case C2M_MSG_OPEN_LOG:
-			if (answer_open_log(conf, monitor_to_child_sock))
-				exit(1);
-			break;
-		default:
-			syslog(LOG_ERR, "Unknown message %d", what);
-			break;
-		}
-	}
-
-	r = 0;
-	if (child_exited) {
-		if (waitpid(child_pid, &status, 0) == -1) {
-			syslog(LOG_ERR, "%s: waitpid: %s", __func__,
+		if (fprintf(pid_file, "%ld\n", (long)getpid()) == -1) {
+			syslog(LOG_ERR, "fprintf(pid_file): %s", 
 			    strerror(errno));
-			r = 1;
-		} else if (!WIFEXITED(status)) { 
-			syslog(LOG_ERR, "child exited abnormally");
-			r = 1;
-		} else if (WEXITSTATUS(status) != 0) {
-			syslog(LOG_ERR, "child exited with status %d",
-			    WEXITSTATUS(status));
-			r = 1;
+			exit(1);
 		}
-	}
+		fclose(pid_file);
 
-	exit(r);
+		signal(SIGINT, sighand_exit);
+		signal(SIGTERM, sighand_exit);
+		signal(SIGHUP, sighand_reopen);
+		signal(SIGCHLD, sighand_child);
+
+		privsep_master(conf);
+	}
+	/* NOTREACHED */
 }
 

@@ -521,7 +521,7 @@ main(int argc, char **argv)
 	extern int optind;
 	char *config_file = DEFAULT_CONFIG;
 	struct flowd_config conf = {
-		NULL, 0, 0, 
+		NULL, NULL, 0, 0, 
 		TAILQ_HEAD_INITIALIZER(conf.listen_addrs),
 		TAILQ_HEAD_INITIALIZER(conf.filter_list)
 	};
@@ -558,6 +558,8 @@ main(int argc, char **argv)
 		errx(1, "No listening addresses specified");
 	if (conf.log_file == NULL)
 		errx(1, "No log file specified");
+	if (conf.pid_file == NULL)
+		conf.pid_file = DEFAULT_PIDFILE;
 
 	/* dump_config(&conf); */
 

@@ -26,6 +26,7 @@
 #define PROGNAME	"flowd"
 #define PROGVER		"0"
 #define DEFAULT_CONFIG	"/etc/flowd.conf"
+#define DEFAULT_PIDFILE	"/var/run/flowd.pid"
 #define PRIVSEP_USER	"_flowd"
 
 struct listen_addr {
@@ -40,6 +41,7 @@ TAILQ_HEAD(listen_addrs, listen_addr);
 #define FLOWD_OPT_VERBOSE		(1<<1)
 struct flowd_config {
 	char			*log_file;
+	char			*pid_file;
 	u_int32_t		store_mask;
 	u_int32_t		opts;
 	struct listen_addrs	listen_addrs;

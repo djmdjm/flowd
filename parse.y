@@ -90,7 +90,7 @@ typedef struct {
 
 %}
 
-%token	LISTEN ON LOGFILE STORE
+%token	LISTEN ON LOGFILE STORE PIDFILE
 %token	TAG ACCEPT DISCARD QUICK AGENT SRC DST PORT PROTO TOS ANY
 %token	ERROR
 %token	<v.string>		STRING
@@ -224,6 +224,11 @@ conf_main	: LISTEN ON address_port	{
 			if (conf->log_file != NULL)
 				free(conf->log_file);
 			conf->log_file = $2;
+		}
+		| PIDFILE string		{
+			if (conf->pid_file != NULL)
+				free(conf->pid_file);
+			conf->pid_file = $2;
 		}
 		| STORE logspec		{ conf->store_mask |= $2; }
 		;
@@ -467,6 +472,7 @@ lookup(char *s)
 		{ "listen",		LISTEN},
 		{ "logfile",		LOGFILE},
 		{ "on",			ON},
+		{ "pidfile",		PIDFILE},
 		{ "port",		PORT},
 		{ "proto",		PROTO},
 		{ "quick",		QUICK},
