@@ -70,10 +70,12 @@ strip:
 	strip $(TARGETS)
 
 install:
+	$(srcdir)/mkinstalldirs $(DESTDIR)$(sysconfdir)
 	$(srcdir)/mkinstalldirs $(DESTDIR)$(sbindir)
 	$(srcdir)/mkinstalldirs $(DESTDIR)$(bindir)
 	$(srcdir)/mkinstalldirs $(DESTDIR)$(mandir)/man5
 	$(srcdir)/mkinstalldirs $(DESTDIR)$(mandir)/man8
+	$(INSTALL) -m 0600 -s flowd.conf $(sysconfdir)
 	$(INSTALL) -m 0755 -s flowd $(sbindir)/flowd
 	$(INSTALL) -m 0755 -s flowd-reader $(bindir)/flowd-reader
 	$(INSTALL) -m 0644 flowd.8 $(mandir)/man8/flowd.8
