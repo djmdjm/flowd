@@ -97,6 +97,10 @@ option.
 Specify an
 .Ar output_file
 to which all flows that have been read and have passed any filters are written.
+The flows are written in the
+.Nm flowd
+binary log format.
+This option is useful when filtering or concatenating flow log files.
 .It Fl v
 Reports all information in the flow log, rather than the default brief subset.
 .It Fl h
