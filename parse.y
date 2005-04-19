@@ -248,7 +248,7 @@ prefix		: STRING '/' number	{
 				free(s);
 				YYERROR;
 			}
-			if (addr_host_is_all0s($$.addr, $$.len) != 0) {
+			if (addr_host_is_all0s(&$$.addr, $$.len) != 0) {
 				yyerror("invalid address/masklength \"%s\"", s);
 				free(s);
 				YYERROR;
