@@ -22,6 +22,7 @@
 #include <sys/types.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <syslog.h>
 
 #include "common.h"
 #include "sys-queue.h"

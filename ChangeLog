@@ -1,5 +1,6 @@
 20050420
  - (djm) Fix broken src port filter, spotted by kolya AT centel.ru
+ - (djm) Fix compilation with FILTER_DEBUG; spotted by kolya AT centel.ru
 
 20050404
  - (djm) Error on inconsistent addr/masklen in config file. Spotted by 
