@@ -566,7 +566,7 @@ match_src	: /* empty */			{ bzero(&$$, sizeof($$)); }
 				yyerror("invalid port number");
 				YYERROR;
 			}
-			if ($$.dst_addr.af != 0)
+			if ($$.src_addr.af != 0)
 				$$.match_what |= FF_MATCH_SRC_ADDR;
 			$$.match_what |= FF_MATCH_SRC_PORT;
 			$$.match_negate |= $2 ? FF_MATCH_SRC_ADDR : 0;
