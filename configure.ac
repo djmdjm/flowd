@@ -89,7 +89,7 @@ AC_ARG_WITH(libs,
 	[ if test "x$withval" != "xno" ; then LIBS="$LIBS $withval"; fi ]	
 )
 
-AC_CHECK_HEADERS(dirent.h sys/ndir.h sys/dir.h ndir.h sys/pstat.h endian.h sys/cdefs.h paths.h strings.h sys/time.h)
+AC_CHECK_HEADERS(dirent.h sys/ndir.h sys/dir.h ndir.h sys/pstat.h endian.h sys/cdefs.h paths.h strings.h sys/time.h time.h)
 
 AC_CHECK_MEMBER([struct sockaddr.sa_len], 
 	[AC_DEFINE([SOCK_HAS_LEN], 1, [struct sockaddr contains length])], ,

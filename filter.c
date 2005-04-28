@@ -35,6 +35,9 @@ format_rule(const struct filter_rule *rule)
 {
 	char tmpbuf[128];
 	static char rulebuf[1024];
+	const char *days[7] = {
+	    "sun", "mon", "tue", "wed", "thu", "fri", "sat"
+	};
 
 	*rulebuf = '\0';
 
@@ -110,16 +113,39 @@ format_rule(const struct filter_rule *rule)
 		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
 	}
 	if (rule->match.match_what & FF_MATCH_TCP_FLAGS) {
-		snprintf(tmpbuf, sizeof(tmpbuf), "%stcp_flags",
-		    FRNEG(TCP_FLAGS));
+		snprintf(tmpbuf, sizeof(tmpbuf), "tcp_flags ");
 		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
 		if (rule->match.tcp_flags_mask != 0xff) {
-			snprintf(tmpbuf, sizeof(tmpbuf), " mask 0x%02x",
+			snprintf(tmpbuf, sizeof(tmpbuf), "mask 0x%02x ",
 			    rule->match.tcp_flags_mask);
 			strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
 		}
-		snprintf(tmpbuf, sizeof(tmpbuf), " equals 0x%02x",
+		snprintf(tmpbuf, sizeof(tmpbuf), "%sequals 0x%02x ",
+		    FRNEG(TCP_FLAGS),
 		    rule->match.tcp_flags_equals);
+		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
+	}
+	if (rule->match.match_what & FF_MATCH_DAYTIME &&
+	    rule->match.day != -1) {
+		snprintf(tmpbuf, sizeof(tmpbuf), "day %s ",
+		    (rule->match.day < 1 || rule->match.day > 8) ? 
+		    "INVALID" : days[rule->match.day - 1]);
+		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
+	}
+	if (rule->match.match_what & FF_MATCH_DAYTIME &&
+	    rule->match.after != -1) {
+		snprintf(tmpbuf, sizeof(tmpbuf), "after %02d:%02d:%02d ",
+		    rule->match.after / 3600, 
+		    (rule->match.after / 60) % 60, 
+		    rule->match.after % 60);
+		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
+	}
+	if (rule->match.match_what & FF_MATCH_DAYTIME &&
+	    rule->match.before != -1) {
+		snprintf(tmpbuf, sizeof(tmpbuf), "before %02d:%02d:%02d ",
+		    rule->match.before / 3600, 
+		    (rule->match.before / 60) % 60, 
+		    rule->match.before % 60);
 		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
 	}
 
@@ -131,6 +157,27 @@ format_rule(const struct filter_rule *rule)
 	strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
 
 	return (rulebuf);
+}
+
+static int
+flow_time_match(time_t recv_secs, int day, int after, int before)
+{
+	struct tm *tm;
+	int secs;
+
+	tm = localtime(&recv_secs);
+
+	if (day != -1 && day != tm->tm_wday)
+		return (0);
+
+	secs = tm->tm_sec + (tm->tm_min * 60) + (tm->tm_hour * 3600);
+
+	if ((before != -1) && secs > before)
+		return (0);
+	if ((after != -1) && secs < after)
+		return (0);
+	
+	return (1);
 }
 
 static int
@@ -196,6 +243,12 @@ flow_match(const struct filter_rule *rule,
 		    rule->match.tcp_flags_equals);
 		FRRET(TCP_FLAGS);
 	}
+	if (FRMATCH(DAYTIME)) {
+		m = flow_time_match(ntohl(flow->recv_time.recv_secs), 
+		    rule->match.day, rule->match.after, rule->match.before);
+		FRRET(DAYTIME);
+	}
+
 #undef FRMATCH
 #undef FRNEG
 #undef FRRETVAL

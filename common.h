@@ -34,6 +34,9 @@
 #include <sys/poll.h>
 #include <unistd.h>
 
+#if defined(HAVE_TIME_H)
+# include <time.h>
+#endif
 #if defined(HAVE_PATHS_H)
 # include <paths.h>
 #endif

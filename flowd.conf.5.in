@@ -271,7 +271,7 @@ The rule parameters specify the NetFlow records to which a rule applies.
 Most parameters are optional.
 If a parameter is specified, the rule only applies to packets with
 matching attributes.
-The matching sense of any clause in a filter rule may be negated by placing a
+The matching sense of some clauses in a filter rule may be negated by placing a
 .Cm !\&
 operator between a filter keyword and its parameter.
 .Bl -tag -width xxxxxxxx
@@ -361,6 +361,12 @@ and
 .Ar flags
 may be specified as decimal or hexidecimal numbers.
 NB. This clause may only be applied to rules matching TCP flows.
+.It Ar day Ar <sun|mon|tue|wed|thu|fri|sat>
+This rule only applies for flows received on the specified day of the week.
+.It Ar after Ar <HH:MM:SS>
+This rule only applies for flows received after the specified time of day.
+.It Ar before Ar <HH:MM:SS>
+This rule only applies for flows received before the specified time of day.
 .El
 .Pp
 This is an example of the filtering language in action:
@@ -380,6 +386,11 @@ accept tag 0x100 src any port 80 proto tcp
 discard src ! 192.2.0.33 dst any port 12345 proto tcp
 # Ignore unestablished TCP flows (ACK = 0x10, SYN = 0x02)
 discard proto tcp tcp_flags mask 0x12 !equals 0x12
+# Accept flows received between 9am and 5pm
+accept after 09:00:0 before 17:00:00
+# Ignore flows sent on weekends
+discard day sat
+discard day sun
 .Ed
 .Pp
 .Sh AUTHORS

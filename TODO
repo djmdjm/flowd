@@ -19,6 +19,7 @@
  - Port predicates, e.g. "port 1024-65536", "port > 1024"
  - packets, octets (need predicates)
  - other fields, in particular netflow version
+ - time of day filtering on flow_start|flow_finish
 
 - Improve log handling
  - E.g. multiple log files, based on tag?

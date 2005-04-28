@@ -95,15 +95,15 @@ typedef struct {
 
 %token	LISTEN ON JOIN GROUP LOGFILE STORE PIDFILE FLOW SOURCE
 %token	ALL TAG ACCEPT DISCARD QUICK AGENT SRC DST PORT PROTO TOS ANY
-%token	TCP_FLAGS EQUALS MASK INET INET6
+%token	TCP_FLAGS EQUALS MASK INET INET6 DAY AFTER BEFORE
 %token	ERROR
 %token	<v.string>		STRING
-%type	<v.number>		number quick logspec not octet tcp_flags tcp_mask af
+%type	<v.number>		number quick logspec not octet tcp_flags tcp_mask af dayname daytime 
 %type	<v.string>		string
 %type	<v.addr>		address
 %type	<v.addrport>		address_port
 %type	<v.prefix>		prefix prefix_or_any
-%type	<v.filter_match>	match_agent match_src match_dst match_proto match_tos match_tcp_flags match_af
+%type	<v.filter_match>	match_agent match_src match_dst match_proto match_tos match_tcp_flags match_af match_day match_after match_before
 %type	<v.filter_action>	action tag
 %%
 
@@ -284,6 +284,53 @@ not		: '!'		{ $$ = 1; }
 		| /* empty */	{ $$ = 0; }
 		;
 
+dayname		: STRING	{
+			if (strcasecmp($1, "sun") == 0 ||
+			    strcasecmp($1, "sunday") == 0)
+				$$ = 1;
+			else if (strcasecmp($1, "mon") == 0 ||
+			    strcasecmp($1, "monday") == 0)
+				$$ = 2;
+			else if (strcasecmp($1, "tue") == 0 ||
+			    strcasecmp($1, "tuesday") == 0)
+				$$ = 3;
+			else if (strcasecmp($1, "wed") == 0 ||
+			    strcasecmp($1, "wednesday") == 0)
+				$$ = 4;
+			else if (strcasecmp($1, "thu") == 0 ||
+			    strcasecmp($1, "thursday") == 0)
+				$$ = 5;
+			else if (strcasecmp($1, "fri") == 0 ||
+			    strcasecmp($1, "friday") == 0)
+				$$ = 6;
+			else if (strcasecmp($1, "sat") == 0 ||
+			    strcasecmp($1, "saturday") == 0)
+				$$ = 7;
+			else {
+				yyerror("invalid day of week \"%s\"", $1);
+				free($1);
+				YYERROR;
+			}
+			free($1);
+		}
+		;
+
+daytime		: STRING	{
+			int h, m, s;
+
+			if (sscanf($1, "%d:%d:%d", &h, &m, &s) != 3 ||
+			    h < 0 || h > 23 || 
+			    m < 0 || m > 59 || 
+			    s < 0 || s > 59) {
+				yyerror("invalid time of day \"%s\"", $1);
+				free($1);
+				YYERROR;
+			}
+			free($1);
+			$$ = s + (m * 60) + (h * 3600);
+		}
+		;
+
 conf_main	: LISTEN ON address_port	{
 			struct listen_addr	*la;
 
@@ -386,7 +433,7 @@ logspec		: STRING	{
 			free($1);
 		}
 
-filterrule	: action tag quick match_agent match_af match_src match_dst match_proto match_tos match_tcp_flags
+filterrule	: action tag quick match_agent match_af match_src match_dst match_proto match_tos match_tcp_flags match_day match_after match_before
 		{
 			struct filter_rule	*r;
 
@@ -437,6 +484,18 @@ filterrule	: action tag quick match_agent match_af match_src match_dst match_pro
 			r->match.tcp_flags_equals = $10.tcp_flags_equals;
 			r->match.match_what |= $10.match_what;
 			r->match.match_negate |= $10.match_negate;
+
+			r->match.day = $11.day - 1;
+			r->match.match_what |= $11.match_what;
+			r->match.match_negate |= $11.match_negate;
+
+			r->match.after = $12.after - 1;
+			r->match.match_what |= $12.match_what;
+			r->match.match_negate |= $12.match_negate;
+
+			r->match.before = $13.before - 1;
+			r->match.match_what |= $13.match_what;
+			r->match.match_negate |= $13.match_negate;
 
 			if ((r->match.match_what & 
 			    (FF_MATCH_SRC_PORT|FF_MATCH_DST_PORT)) && 
@@ -651,6 +710,31 @@ match_tcp_flags	: /* empty */			{ bzero(&$$, sizeof($$)); }
 			$$.match_negate |= $3 ? FF_MATCH_TCP_FLAGS : 0;
 		}
 		;
+
+match_day	: /* empty */	{ bzero(&$$, sizeof($$)); }
+		| DAY dayname {
+			bzero(&$$, sizeof($$));
+			$$.day = $2 + 1;
+			$$.match_what |= FF_MATCH_DAYTIME;
+		}
+		;
+
+match_after	: /* empty */			{ bzero(&$$, sizeof($$)); }
+		| AFTER daytime {
+			bzero(&$$, sizeof($$));
+			$$.after = $2 + 1;
+			$$.match_what |= FF_MATCH_DAYTIME;
+		}
+		;
+
+match_before	: /* empty */			{ bzero(&$$, sizeof($$)); }
+		| BEFORE daytime {
+			bzero(&$$, sizeof($$));
+			$$.before = $2 + 1;
+			$$.match_what |= FF_MATCH_DAYTIME;
+		}
+		;
+
 %%
 
 struct keywords {
@@ -687,9 +771,12 @@ lookup(char *s)
 	/* this has to be sorted always */
 	static const struct keywords keywords[] = {
 		{ "accept",		ACCEPT},
+		{ "after",		AFTER},
 		{ "agent",		AGENT},
 		{ "all",		ALL},
 		{ "any",		ANY},
+		{ "before",		BEFORE},
+		{ "day",		DAY},
 		{ "discard",		DISCARD},
 		{ "dst",		DST},
 		{ "equals",		EQUALS},

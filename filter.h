@@ -43,6 +43,7 @@ struct filter_action {
 #define FF_MATCH_AGENT_ADDR	(1<<6)
 #define FF_MATCH_TCP_FLAGS	(1<<7)
 #define FF_MATCH_AF		(1<<8)
+#define FF_MATCH_DAYTIME	(1<<9)
 struct filter_match {
 	u_int32_t	match_what;
 	u_int32_t	match_negate;
@@ -59,6 +60,9 @@ struct filter_match {
 	int		tos;
 	int		tcp_flags_mask;
 	int		tcp_flags_equals;
+	int		day;
+	int		after;
+	int		before;
 };
 
 struct filter_rule {
