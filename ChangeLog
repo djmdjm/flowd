@@ -1,5 +1,7 @@
 20050428
  - (djm) Add day and time-of-day filters
+ - (djm) Add option to disable privdropping, allows execution as non root for
+   future regression tests
 
 20050420
  - (djm) Fix broken src port filter, spotted by kolya AT centel.ru

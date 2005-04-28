@@ -482,6 +482,9 @@ send_config(int fd, struct flowd_config *conf)
 static int
 drop_privs(struct passwd *pw, int do_chroot)
 {
+	logitm(LOG_DEBUG, "drop_privs: dropping privs %s chroot",
+	    do_chroot ? "with" : "without");
+
 	if (setsid() == -1) {
 		logitm(LOG_ERR, "setsid");
 		return (-1);
@@ -576,8 +579,11 @@ child_get_config(const char *path, struct flowd_config *conf)
 			logitm(LOG_ERR, "fopen(%s)", path);
 			exit(1);
 		}
-		if (drop_privs(pw, 0) == -1)
+
+		if ((conf->opts & FLOWD_OPT_INSECURE) == 0 &&
+		    drop_privs(pw, 0) == -1)
 			exit(1);
+
 		ok = (parse_config(path, cfg, &newconf, 0) == 0);
 		fclose(cfg);
 		if (atomicio(vwrite, s[1], &ok, sizeof(ok)) != sizeof(ok)) {
@@ -634,7 +640,8 @@ read_config(const char *path, struct flowd_config *conf)
 	logit(LOG_DEBUG, "%s: entering", __func__);
 
 	/* Preserve options not set in config file */
-	opts = (conf->opts & (FLOWD_OPT_DONT_FORK|FLOWD_OPT_VERBOSE));
+	opts = conf->opts &
+	    (FLOWD_OPT_DONT_FORK|FLOWD_OPT_VERBOSE|FLOWD_OPT_INSECURE);
 
 	if (child_get_config(path, conf))
 		return (-1);
@@ -733,6 +740,10 @@ answer_reconfigure(struct flowd_config *conf, int client_fd,
 	TAILQ_INIT(&newconf.allowed_devices);
 	TAILQ_INIT(&newconf.join_groups);
 
+	/* Transcribe flags not set in config file */
+	newconf.opts |= (conf->opts &
+	    (FLOWD_OPT_DONT_FORK|FLOWD_OPT_VERBOSE|FLOWD_OPT_INSECURE));
+
 	logit(LOG_DEBUG, "%s: entering", __func__);
 
 	ok = 1;
@@ -740,7 +751,6 @@ answer_reconfigure(struct flowd_config *conf, int client_fd,
 		logit(LOG_ERR, "New config has errors");
 		ok = 0;
 	}
-	newconf.opts |= (conf->opts & (FLOWD_OPT_DONT_FORK|FLOWD_OPT_VERBOSE));
 
 	TAILQ_FOREACH(la, &newconf.listen_addrs, entry) {
 		if ((la->fd = open_listener(&la->addr, la->port,
@@ -903,7 +913,8 @@ privsep_init(struct flowd_config *conf, int *child_to_monitor_sock,
 		    (conf->opts & FLOWD_OPT_DONT_FORK));
 		close(monitor_to_child_sock);
 
-		if (drop_privs(pw, 1) == -1)
+		if ((conf->opts & FLOWD_OPT_INSECURE) == 0 &&
+		    drop_privs(pw, 1) == -1)
 			exit(1);
 
 		if ((conf->opts & FLOWD_OPT_DONT_FORK) == 0 &&

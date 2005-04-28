@@ -68,6 +68,7 @@ TAILQ_HEAD(join_groups, join_group);
 
 #define FLOWD_OPT_DONT_FORK		(1)
 #define FLOWD_OPT_VERBOSE		(1<<1)
+#define FLOWD_OPT_INSECURE		(1<<2)
 struct flowd_config {
 	char			*log_file;
 	char			*pid_file;

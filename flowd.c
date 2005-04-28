@@ -1183,8 +1183,14 @@ main(int argc, char **argv)
 	SPLAY_INIT(&peers.peer_tree);
 	TAILQ_INIT(&peers.peer_list);
 
-	while ((ch = getopt(argc, argv, "dghD:f:")) != -1) {
+	while ((ch = getopt(argc, argv, "dghD:f:X:")) != -1) {
 		switch (ch) {
+		case 'X':
+			if (strcmp(optarg, "INSECURE") == 0)
+				conf.opts |= FLOWD_OPT_INSECURE;
+			else
+				logerrx("Invalid debugging option %s", optarg);
+			break;
 		case 'd':
 			conf.opts |= FLOWD_OPT_DONT_FORK;
 			conf.opts |= FLOWD_OPT_VERBOSE;
