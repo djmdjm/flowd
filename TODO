@@ -20,6 +20,7 @@
  - packets, octets (need predicates)
  - other fields, in particular netflow version
  - time of day filtering on flow_start|flow_finish
+ - clarify what happens when fields are missing
 
 - Improve log handling
  - E.g. multiple log files, based on tag?
