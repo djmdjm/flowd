@@ -20,7 +20,7 @@ use 5.006;
 use strict;
 use warnings;
 
-use constant VERSION		=> "0.8";
+use constant VERSION		=> "0.8.5";
 
 # Flowd log header fields
 use constant TAG		=> 0x00000001;
@@ -74,7 +74,7 @@ our @EXPORT = qw(
 	
 );
 
-our $VERSION = '0.8';
+our $VERSION = '0.8.5';
 
 require XSLoader;
 XSLoader::load('Flowd', $VERSION);
