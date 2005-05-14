@@ -482,7 +482,7 @@ send_config(int fd, struct flowd_config *conf)
 static int
 drop_privs(struct passwd *pw, int do_chroot)
 {
-	logitm(LOG_DEBUG, "drop_privs: dropping privs %s chroot",
+	logit(LOG_DEBUG, "drop_privs: dropping privs %s chroot",
 	    do_chroot ? "with" : "without");
 
 	if (setsid() == -1) {
