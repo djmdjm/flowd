@@ -60,7 +60,7 @@ struct filter_match {
 	int		tos;
 	int		tcp_flags_mask;
 	int		tcp_flags_equals;
-	int		day;
+	int		day_mask;
 	int		after;
 	int		before;
 };

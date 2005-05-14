@@ -361,11 +361,31 @@ and
 .Ar flags
 may be specified as decimal or hexidecimal numbers.
 NB. This clause may only be applied to rules matching TCP flows.
-.It Ar day Ar <sun|mon|tue|wed|thu|fri|sat>
-This rule only applies for flows received on the specified day of the week.
-.It Ar after Ar <HH:MM:SS>
+.It Ar days Ar <day> | <day>-<day> | Xo
+.Sm off
+.Ar <day>
+.Oo ,\&<day> Oo ,\&... Oc Oc
+.Sm on
+.Xc
+This rule only applies for flows received on the specified days of the week.
+Days may be selected as a comma separated list of names (e.g. 
+.Ar monday,tuesday,wednesday )
+or as a hyphen separated range.
+Abbreviations are allowed, e.g.
+.Ar mon-fri .
+.It Ar after Xo
+.Sm off
+.Ar <HH:MM
+.Oo :SS Oc >
+.Sm on
+.Xc
 This rule only applies for flows received after the specified time of day.
-.It Ar before Ar <HH:MM:SS>
+.It Ar before Xo
+.Sm off
+.Ar <HH:MM
+.Oo :SS Oc >
+.Sm on
+.Xc
 This rule only applies for flows received before the specified time of day.
 .El
 .Pp
@@ -386,11 +406,10 @@ accept tag 0x100 src any port 80 proto tcp
 discard src ! 192.2.0.33 dst any port 12345 proto tcp
 # Ignore unestablished TCP flows (ACK = 0x10, SYN = 0x02)
 discard proto tcp tcp_flags mask 0x12 !equals 0x12
-# Accept flows received between 9am and 5pm
-accept after 09:00:0 before 17:00:00
+# Tag flows received during business hours
+accept days Monday-Friday after 08:30:00 before 17:30:00
 # Ignore flows sent on weekends
-discard day sat
-discard day sun
+discard days Sat,Sun
 .Ed
 .Pp
 .Sh AUTHORS

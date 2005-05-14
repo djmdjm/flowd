@@ -91,14 +91,22 @@ typedef struct {
 	int lineno;
 } YYSTYPE;
 
+static const char *days[7] = {
+    "sun", "mon", "tue", "wed", "thu", "fri", "sat"
+};
+
+static const char *longdays[7] = {
+    "sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"
+};
+
 %}
 
 %token	LISTEN ON JOIN GROUP LOGFILE STORE PIDFILE FLOW SOURCE
 %token	ALL TAG ACCEPT DISCARD QUICK AGENT SRC DST PORT PROTO TOS ANY
-%token	TCP_FLAGS EQUALS MASK INET INET6 DAY AFTER BEFORE
+%token	TCP_FLAGS EQUALS MASK INET INET6 DAYS AFTER BEFORE
 %token	ERROR
 %token	<v.string>		STRING
-%type	<v.number>		number quick logspec not octet tcp_flags tcp_mask af dayname daytime 
+%type	<v.number>		number quick logspec not octet tcp_flags tcp_mask af dayname dayrange daylist dayspec daytime 
 %type	<v.string>		string
 %type	<v.addr>		address
 %type	<v.addrport>		address_port
@@ -285,28 +293,16 @@ not		: '!'		{ $$ = 1; }
 		;
 
 dayname		: STRING	{
-			if (strcasecmp($1, "sun") == 0 ||
-			    strcasecmp($1, "sunday") == 0)
-				$$ = 1;
-			else if (strcasecmp($1, "mon") == 0 ||
-			    strcasecmp($1, "monday") == 0)
-				$$ = 2;
-			else if (strcasecmp($1, "tue") == 0 ||
-			    strcasecmp($1, "tuesday") == 0)
-				$$ = 3;
-			else if (strcasecmp($1, "wed") == 0 ||
-			    strcasecmp($1, "wednesday") == 0)
-				$$ = 4;
-			else if (strcasecmp($1, "thu") == 0 ||
-			    strcasecmp($1, "thursday") == 0)
-				$$ = 5;
-			else if (strcasecmp($1, "fri") == 0 ||
-			    strcasecmp($1, "friday") == 0)
-				$$ = 6;
-			else if (strcasecmp($1, "sat") == 0 ||
-			    strcasecmp($1, "saturday") == 0)
-				$$ = 7;
-			else {
+			int i;
+
+			for (i = 0; i < 7; i++) {
+				if (strcasecmp($1, days[i]) == 0 ||
+				    strcasecmp($1, longdays[i]) == 0) {
+					$$ = i;
+					break;
+				}
+			}
+			if (i >= 7) {
 				yyerror("invalid day of week \"%s\"", $1);
 				free($1);
 				YYERROR;
@@ -315,11 +311,42 @@ dayname		: STRING	{
 		}
 		;
 
-daytime		: STRING	{
-			int h, m, s;
+dayrange	: dayname '-' dayname	{
+			int i, start, finish;
 
-			if (sscanf($1, "%d:%d:%d", &h, &m, &s) != 3 ||
-			    h < 0 || h > 23 || 
+			start = $1;
+			finish = $3;
+
+			if (finish < start)
+				finish += 7;
+
+			$$ = 0;
+			for (i = start; i <= finish; i++)
+				$$ |= (1 << (i % 7));
+		}
+
+daylist		: dayname ',' dayname	{ $$ = (1 << $1) | (1 << $3); }
+		| daylist ',' dayname	{ $$ = $1 | (1 << $3); }
+
+dayspec		: dayname		{ $$ = (1 << $1); }
+		| daylist		{ $$ = $1; }
+		| dayrange		{ $$ = $1; }
+
+daytime		: STRING	{
+			int h, m, s, n;
+
+			n = sscanf($1, "%d:%d:%d", &h, &m, &s);
+
+			if (n < 2) {
+				yyerror("invalid time spec \"%s\"", $1);
+				free($1);
+				YYERROR;
+			}
+
+			if (n < 3)
+				s = 0;
+
+			if (h < 0 || h > 23 || 
 			    m < 0 || m > 59 || 
 			    s < 0 || s > 59) {
 				yyerror("invalid time of day \"%s\"", $1);
@@ -485,7 +512,7 @@ filterrule	: action tag quick match_agent match_af match_src match_dst match_pro
 			r->match.match_what |= $10.match_what;
 			r->match.match_negate |= $10.match_negate;
 
-			r->match.day = $11.day - 1;
+			r->match.day_mask = $11.day_mask;
 			r->match.match_what |= $11.match_what;
 			r->match.match_negate |= $11.match_negate;
 
@@ -712,9 +739,9 @@ match_tcp_flags	: /* empty */			{ bzero(&$$, sizeof($$)); }
 		;
 
 match_day	: /* empty */	{ bzero(&$$, sizeof($$)); }
-		| DAY dayname {
+		| DAYS dayspec {
 			bzero(&$$, sizeof($$));
-			$$.day = $2 + 1;
+			$$.day_mask = $2;
 			$$.match_what |= FF_MATCH_DAYTIME;
 		}
 		;
@@ -776,7 +803,7 @@ lookup(char *s)
 		{ "all",		ALL},
 		{ "any",		ANY},
 		{ "before",		BEFORE},
-		{ "day",		DAY},
+		{ "days",		DAYS},
 		{ "discard",		DISCARD},
 		{ "dst",		DST},
 		{ "equals",		EQUALS},
@@ -977,7 +1004,7 @@ top:
 	(isalnum(x) || (ispunct(x) && x != '(' && x != ')' && \
 	x != '{' && x != '}' && x != '<' && x != '>' && \
 	x != '!' && x != '=' && x != '/' && x != '#' && \
-	x != ','))
+	x != ',' && x != '-'))
 
 	if (isalnum(c) || c == '[' || c == ':' || c == '_' || c == '*') {
 		do {

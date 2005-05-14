@@ -38,6 +38,7 @@ format_rule(const struct filter_rule *rule)
 	const char *days[7] = {
 	    "sun", "mon", "tue", "wed", "thu", "fri", "sat"
 	};
+	int i, j;
 
 	*rulebuf = '\0';
 
@@ -126,10 +127,24 @@ format_rule(const struct filter_rule *rule)
 		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
 	}
 	if (rule->match.match_what & FF_MATCH_DAYTIME &&
-	    rule->match.day != -1) {
-		snprintf(tmpbuf, sizeof(tmpbuf), "day %s ",
-		    (rule->match.day < 1 || rule->match.day > 8) ? 
-		    "INVALID" : days[rule->match.day - 1]);
+	    rule->match.day_mask != 0) {
+		strlcat(rulebuf, "days ", sizeof(rulebuf));
+	    	*tmpbuf = '\0';
+		j = rule->match.day_mask;
+	    	for (i = 0; i < 7; i++) {
+			if ((j & 1) != 0) {
+				if (*tmpbuf != '\0')
+					strlcat(tmpbuf, ",", sizeof(tmpbuf));
+				strlcat(tmpbuf, days[i], sizeof(tmpbuf));
+			}
+			j >>= 1;
+		}
+		if (j) {
+			if (*tmpbuf != '\0')
+				strlcat(tmpbuf, ",", sizeof(tmpbuf));
+			strlcat(tmpbuf, "INVALID", sizeof(tmpbuf));
+		}
+		strlcat(tmpbuf, " ", sizeof(tmpbuf));
 		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
 	}
 	if (rule->match.match_what & FF_MATCH_DAYTIME &&
@@ -160,14 +175,14 @@ format_rule(const struct filter_rule *rule)
 }
 
 static int
-flow_time_match(time_t recv_secs, int day, int after, int before)
+flow_time_match(time_t recv_secs, int day_mask, int after, int before)
 {
 	struct tm *tm;
 	int secs;
 
 	tm = localtime(&recv_secs);
 
-	if (day != -1 && day != tm->tm_wday)
+	if (day_mask != 0 && (day_mask & (1 << tm->tm_wday)) == 0)
 		return (0);
 
 	secs = tm->tm_sec + (tm->tm_min * 60) + (tm->tm_hour * 3600);
@@ -245,7 +260,8 @@ flow_match(const struct filter_rule *rule,
 	}
 	if (FRMATCH(DAYTIME)) {
 		m = flow_time_match(ntohl(flow->recv_time.recv_secs), 
-		    rule->match.day, rule->match.after, rule->match.before);
+		    rule->match.day_mask, rule->match.after,
+		    rule->match.before);
 		FRRET(DAYTIME);
 	}
 

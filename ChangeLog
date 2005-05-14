@@ -1,5 +1,6 @@
 20050514
  - (djm) Fix spurious error message
+ - (djm) Improve day filters, allowing lists and ranges of days
 
 20050428
  - (djm) Add day and time-of-day filters
