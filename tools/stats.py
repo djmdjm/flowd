@@ -250,7 +250,6 @@ class flow_statistics:
 		self.average_clockskew_samples = 0
 		self.src_port = flow_statistic()
 		self.dst_port = flow_statistic()
-		self.protocol = flow_statistic()
 		self.src_addr = flow_statistic()
 		self.dst_addr = flow_statistic()
 		self.fromto = flow_statistic()
@@ -377,8 +376,6 @@ class flow_statistics:
 		ret += str(self.dst_port)
 		ret += "protocols:\n"
 		ret += str(self.protocol)
-		ret += "protocols:\n"
-		ret += str(self.protocol)
 		ret += "source address:\n"
 		ret += str(self.src_addr)
 		ret += "destination address:\n"
@@ -428,7 +425,7 @@ def draw_charts(stats, prefix = None, title = None):
 	pylab.xlabel("Flow length (bytes)")
 	pylab.title("%sFlow length histogram" % fig_title)
 	pylab.savefig(fig_prefix + "octets_histogram.ps")
-	sys.stderr.write("Wrote %s\n" % fig_prefix + "octets_histogram.ps")
+	sys.stderr.write("Wrote %s\n" % (fig_prefix + "octets_histogram.ps)")
 	pylab.close()
 
 	bytes_thru = stats.octets_history.tolist(skew = stats.average_clockskew)
@@ -448,7 +445,7 @@ def draw_charts(stats, prefix = None, title = None):
 	pylab.xlabel("Time")
 	pylab.grid(True)
 	pylab.savefig(fig_prefix + "data_thru.ps")
-	sys.stderr.write("Wrote %s\n" % fig_prefix + "data_thru.ps")
+	sys.stderr.write("Wrote %s\n" % (fig_prefix + "data_thru.ps"))
 	pylab.close()
 
 	pkts_thru = stats.packets_history.tolist(skew = stats.average_clockskew)
@@ -468,7 +465,7 @@ def draw_charts(stats, prefix = None, title = None):
 	pylab.xlabel("Time")
 	pylab.grid(True)
 	pylab.savefig(fig_prefix + "pkts_thru.ps")
-	sys.stderr.write("Wrote %s\n" % fig_prefix + "pkts_thru.ps")
+	sys.stderr.write("Wrote %s\n" % (fig_prefix + "pkts_thru.ps"))
 	pylab.close()
 
 	flow_thru = stats.flows_history.tolist()
@@ -488,7 +485,7 @@ def draw_charts(stats, prefix = None, title = None):
 	pylab.xlabel("Time")
 	pylab.grid(True)
 	pylab.savefig(fig_prefix + "flow_thru.ps")
-	sys.stderr.write("Wrote %s\n" % fig_prefix + "flow_thru.ps")
+	sys.stderr.write("Wrote %s\n" % (fig_prefix + "flow_thru.ps"))
 	pylab.close()
 	print "\n\n\n"
 
