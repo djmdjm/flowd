@@ -49,7 +49,7 @@ for detailed notes on platform support and testing.
 
 Large parts of this code have been shamelessly taken from OpenBSD, in
 particular bgpd (the configuration parser) and OpenSSH (the privsep
-fd passing and CRC23 code), sudo and libc. All of this code is under
+fd passing and CRC32 code), sudo and libc. All of this code is under
 BSD-like licenses, but read the LICENSE file for details.
 
 Damien Miller <djm@mindrot.org>
