@@ -156,7 +156,7 @@ pidfile "/var/run/flowd.pid"
 .Ed
 .Pp
 The default is to create a PID file in
-.Pa @PIDPATH@/run/flowd.pid
+.Pa @PIDPATH@/flowd.pid
 .El
 .Sh STORAGE FIELD SELECTION
 After filtering,
