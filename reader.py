@@ -24,7 +24,8 @@ import sys
 import getopt
 
 def usage():
-	print >> sys.stderr, "reader.pl (flowd.py version %s)" % flowd.VERSION
+	print >> sys.stderr, "reader.pl (flowd.py version %s)" % \
+	    flowd.__version__
 	print >> sys.stderr, "Usage: reader.pl [options] [flowd-store]";
 	print >> sys.stderr, "Options:";
 	print >> sys.stderr, "      -h       Display this help";
@@ -58,27 +59,18 @@ def main():
 		usage()
 
 	if verbose:
-		mask = flowd.flow.ALL
+		mask = flowd.DISPLAY_ALL
 	else:
-		mask = flowd.flow.BRIEF
+		mask = flowd.DISPLAY_BRIEF
 
 	for ffile in args:
-		flog = flowd.log(ffile)
+		flog = flowd.FlowLog(ffile)
 		try:
-			print "LOGFILE " + ffile + " started at " + \
-			    flowd.iso_time(flog.start_time, utc = utc)
+			print "LOGFILE " + ffile
 		except IOError:
 			break;
 
-		while 1:
-			flow = flog.readflow()
-			if flow is None:
-				break
-			try:
-				print flow.format(field_mask = mask, utc = utc)
-			except IOError:
-				break;
-
-		flog.finish()
+		for flow in flog:
+			print flow.format(mask = mask, utc = utc)
 
 if __name__ == '__main__': main()

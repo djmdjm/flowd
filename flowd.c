@@ -119,36 +119,9 @@ static int
 start_log(int monitor_fd)
 {
 	int fd;
-	off_t pos;
-	char ebuf[512];
 
 	if ((fd = client_open_log(monitor_fd)) == -1)
 		logerrx("Logfile open failed, exiting");
-
-	/* Only write out the header if we are at the start of the file */
-	switch ((pos = lseek(fd, 0, SEEK_END))) {
-	case 0:
-		/* New file, continue below */
-		break;
-	case -1:
-		logerr("%s: lseek error, exiting", __func__);
-	default:
-		/* Logfile exists, don't write new header */
-		if (lseek(fd, 0, SEEK_SET) != 0)
-			logerr("%s: lseek error, exiting", __func__);
-		if (store_check_header(fd, ebuf, sizeof(ebuf)) != STORE_ERR_OK)
-			logerrx("%s: Exiting on %s", __func__, ebuf);
-		if (lseek(fd, 0, SEEK_END) <= 0)
-			logerr("%s: lseek error, exiting", __func__);
-		logit(LOG_DEBUG, "Continuing with existing logfile len %lld",
-		    (long long)pos);
-		return (fd);
-	}
-
-	logit(LOG_DEBUG, "Writing new logfile header");
-
-	if (store_put_header(fd, ebuf, sizeof(ebuf)) != STORE_ERR_OK)
-		logerrx("%s: Exiting on %s", __func__, ebuf);
 
 	return (fd);
 }
@@ -168,14 +141,14 @@ process_flow(struct store_flow_complete *flow, struct flowd_config *conf,
 
 	/* Prepare for writing */
 	flow->hdr.fields = htonl(flow->hdr.fields);
-
-	flow->recv_time.recv_secs = htonl(flow->recv_time.recv_secs);
+	flow->recv_time.recv_sec = htonl(flow->recv_time.recv_sec);
+	flow->recv_time.recv_usec = htonl(flow->recv_time.recv_usec);
 
 	if (conf->opts & FLOWD_OPT_VERBOSE) {
 		char fbuf[1024];
 
 		store_format_flow(flow, fbuf, sizeof(fbuf), 0,
-		    STORE_DISPLAY_ALL);
+		    STORE_DISPLAY_ALL, 0);
 		logit(LOG_DEBUG, "%s: flow %s", __func__, fbuf);
 	}
 
@@ -199,6 +172,7 @@ process_netflow_v1(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
 	struct store_flow_complete flow;
 	size_t offset;
 	u_int i, nflows;
+	struct timeval tv;
 
 	if (len < sizeof(*nf1_hdr)) {
 		peer->ninvalid++;
@@ -240,7 +214,9 @@ process_netflow_v1(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
 		flow.hdr.fields &= ~STORE_FIELD_AS_INFO;
 		flow.hdr.fields &= ~STORE_FIELD_FLOW_ENGINE_INFO;
 
-		flow.recv_time.recv_secs = time(NULL);
+		gettimeofday(&tv, NULL);
+		flow.recv_time.recv_sec = tv.tv_sec;
+		flow.recv_time.recv_usec = tv.tv_usec;
 
 		flow.pft.tcp_flags = nf1_flow->tcp_flags;
 		flow.pft.protocol = nf1_flow->protocol;
@@ -288,6 +264,7 @@ process_netflow_v5(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
 	struct store_flow_complete flow;
 	size_t offset;
 	u_int i, nflows;
+	struct timeval tv;
 
 	if (len < sizeof(*nf5_hdr)) {
 		peer->ninvalid++;
@@ -327,7 +304,9 @@ process_netflow_v5(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
 		flow.hdr.fields &= ~STORE_FIELD_DST_ADDR6;
 		flow.hdr.fields &= ~STORE_FIELD_GATEWAY_ADDR6;
 
-		flow.recv_time.recv_secs = time(NULL);
+		gettimeofday(&tv, NULL);
+		flow.recv_time.recv_sec = tv.tv_sec;
+		flow.recv_time.recv_usec = tv.tv_usec;
 
 		flow.pft.tcp_flags = nf5_flow->tcp_flags;
 		flow.pft.protocol = nf5_flow->protocol;
@@ -384,6 +363,7 @@ process_netflow_v7(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
 	struct store_flow_complete flow;
 	size_t offset;
 	u_int i, nflows;
+	struct timeval tv;
 
 	if (len < sizeof(*nf7_hdr)) {
 		peer->ninvalid++;
@@ -429,7 +409,9 @@ process_netflow_v7(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
 		 * the Cat5k (e.g. destination-only mls nde mode)
 		 */
 
-		flow.recv_time.recv_secs = time(NULL);
+		gettimeofday(&tv, NULL);
+		flow.recv_time.recv_sec = tv.tv_sec;
+		flow.recv_time.recv_usec = tv.tv_usec;
 
 		flow.pft.tcp_flags = nf7_flow->tcp_flags;
 		flow.pft.protocol = nf7_flow->protocol;
@@ -660,9 +642,10 @@ nf9_check_rec_len(u_int type, u_int len)
 static int
 nf9_flowset_to_store(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
     struct NF9_HEADER *nf9_hdr, struct peer_nf9_template *template,
-    struct store_flow_complete *flow)
+    u_int32_t source_id, struct store_flow_complete *flow)
 {
 	u_int offset, i;
+	struct timeval tv;
 
 	if (template->total_len > len)
 		return (-1);
@@ -675,7 +658,10 @@ nf9_flowset_to_store(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
 	flow->ainfo.time_sec = nf9_hdr->time_sec;
 	flow->ainfo.netflow_version = nf9_hdr->c.version;
 	flow->finf.flow_sequence = nf9_hdr->package_sequence;
-	flow->recv_time.recv_secs = time(NULL);
+	flow->finf.source_id = htonl(source_id);
+	gettimeofday(&tv, NULL);
+	flow->recv_time.recv_sec = tv.tv_sec;
+	flow->recv_time.recv_usec = tv.tv_usec;
 	memcpy(&flow->agent_addr, flow_source, sizeof(flow->agent_addr));
 
 	offset = 0;
@@ -693,7 +679,7 @@ nf9_flowset_to_store(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
 
 static int
 process_netflow_v9_template(u_int8_t *pkt, size_t len, struct peer_state *peer,
-    struct peers *peers, u_int source_id)
+    struct peers *peers, u_int32_t source_id)
 {
 	struct NF9_TEMPLATE_FLOWSET_HEADER *tmplh;
 	struct NF9_TEMPLATE_FLOWSET_RECORD *tmplr;
@@ -785,7 +771,7 @@ process_netflow_v9_template(u_int8_t *pkt, size_t len, struct peer_state *peer,
 
 static int
 process_netflow_v9_data(u_int8_t *pkt, size_t len, struct peer_state *peer,
-    u_int source_id, struct NF9_HEADER *nf9_hdr, struct flowd_config *conf,
+    u_int32_t source_id, struct NF9_HEADER *nf9_hdr, struct flowd_config *conf,
     int log_fd, u_int *num_flows)
 {
 	struct store_flow_complete *flows;
@@ -835,7 +821,8 @@ process_netflow_v9_data(u_int8_t *pkt, size_t len, struct peer_state *peer,
 
 	for (i = 0; i < num_flowsets; i++) {
 		if (nf9_flowset_to_store(pkt + offset, template->total_len,
-		    &peer->from, nf9_hdr, template, &flows[i]) == -1) {
+		    &peer->from, nf9_hdr, template, source_id, 
+		    &flows[i]) == -1) {
 			peer->ninvalid++;
 			free(flows);
 			logit(LOG_WARNING, "invalid netflow v.9 data flowset "
@@ -863,8 +850,8 @@ process_netflow_v9(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
 {
 	struct NF9_HEADER *nf9_hdr = (struct NF9_HEADER *)pkt;
 	struct NF9_FLOWSET_HEADER_COMMON *flowset;
-	u_int i, count, flowset_id, flowset_len, flowset_flows, total_flows;
-	u_int offset, source_id;
+	u_int32_t i, count, flowset_id, flowset_len, flowset_flows;
+	u_int32_t offset, source_id, total_flows;
 
 	if (len < sizeof(*nf9_hdr)) {
 		peer->ninvalid++;

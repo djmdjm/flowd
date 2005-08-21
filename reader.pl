@@ -35,12 +35,10 @@ usage() unless (defined $ARGV[0]);
 foreach my $ffile (@ARGV) {
 	my $log = Flowd->new($ffile);
 	
-	printf "LOGFILE %s started at %s\n",
-	    $ffile, Flowd::iso_time($log->{start_time}, 0);
+	printf "LOGFILE %s \n", $ffile;
 	
 	while (my $flow = $log->read_flow()) {
-		print $log->format(Flowd::BRIEF, 0, $flow);
-		print "\n";
+		print $log->format(Flowd::BRIEF, 0, $flow) . "\n";
 	}
 	$log->finish();
 }

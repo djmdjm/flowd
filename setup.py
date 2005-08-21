@@ -19,19 +19,28 @@
 import sys
 from distutils.core import setup, Extension
 
+DEFS = [
+	( 'PROGVER',  '"0.9"' ),
+
+# These might need to be adjusted if your platform's sizeof(unsigned long) != 4
+	( 'FL_T_U32', 'T_ULONG' ),
+	( 'FL_T_U16', 'T_USHORT' ),
+	( 'FL_T_U8',  'T_UBYTE' )
+]
+
 if __name__ == '__main__':
 	if sys.hexversion < 0x02030000:
 		print >> sys.stderr, "error: " + \
-		    "flowd.py requires python >= 2.3"
+		    "flowd requires python >= 2.3"
 		sys.exit(1)
 
-	flowd_serialiser = Extension('flowd_serialiser',
+	flowd = Extension('flowd',
 		sources = ['flowd_python.c'],
-		define_macros = [('PROGVER', '"0.8.5"')],
+		define_macros = DEFS,
 		libraries = ['flowd'],
 		library_dirs = ['.', '../..'])
 	setup(	name = "flowd",
-		version = "0.8.5",
+		version = "0.9",
 		author = "Damien Miller",
 		author_email = "djm@mindrot.org",
 		url = "http://www.mindrot.org/flowd.html",
@@ -41,6 +50,5 @@ This is an API to parse the binary flow logs written by the flowd network flow
 collector.
 """,
 		license = "BSD",
-		py_modules = ['flowd'],
-		ext_modules = [flowd_serialiser]
+		ext_modules = [flowd]
 	     )

@@ -38,14 +38,23 @@ struct store_addr4 {
 	u_int8_t	d[4];
 } __packed;
 
-#define STORE_MAGIC			0x012cf047
-#define STORE_VERSION			0x00000002
-/* Start of flow log file */
-struct store_header {
-	u_int32_t		magic;
-	u_int32_t		version;
-	u_int32_t		start_time;
-	u_int32_t		flags;	/* Currently 0 */
+#define STORE_VER_MIN_MASK	((1 << 5) - 1)
+#define STORE_VER_MAJ_MASK	((1 << 3) - 1)
+#define STORE_MKVER(maj,min)	(((maj & STORE_VER_MAJ_MASK) << 5) | \
+				  (min & STORE_VER_MIN_MASK))
+#define STORE_VER_GET_MAJ(ver)	((ver >> 5) & STORE_VER_MAJ_MASK)
+#define STORE_VER_GET_MIN(ver)	(ver & STORE_VER_MIN_MASK)
+
+#define STORE_VER_MAJOR		3
+#define STORE_VER_MINOR		0
+#define STORE_VERSION		STORE_MKVER(STORE_VER_MAJOR, STORE_VER_MINOR)
+
+/* Start of flow record - present for every flow */
+struct store_flow {
+	u_int8_t		version;
+	u_int8_t		len_words; /* len in 4 byte words not inc hdr */
+	u_int16_t		reserved;
+	u_int32_t		fields;
 } __packed;
 
 /*
@@ -100,11 +109,6 @@ struct store_header {
 					 STORE_FIELD_AGENT_ADDR4|\
 					 STORE_FIELD_AGENT_ADDR6)
 
-/* Start of flow record - present for every flow */
-struct store_flow {
-	u_int32_t		fields;
-} __packed;
-
 /*
  * Optional flow records
  * NB. suffixes must match the corresponding STORE_FIELD_ define (see store.c)
@@ -117,7 +121,8 @@ struct store_flow_TAG {
 
 /* Optional flow field - present if STORE_FIELD_RECV_TIME */
 struct store_flow_RECV_TIME {
-	u_int32_t		recv_secs;
+	u_int32_t		recv_sec;
+	u_int32_t		recv_usec;
 } __packed;
 
 /* Optional flow field - present if STORE_FIELD_PROTO_FLAGS_TOS */
@@ -182,8 +187,8 @@ struct store_flow_OCTETS {
 
 /* Optional flow field - present if STORE_FIELD_IF_INDICES */
 struct store_flow_IF_INDICES {
-	u_int16_t		if_index_in;
-	u_int16_t		if_index_out;
+	u_int32_t		if_index_in;
+	u_int32_t		if_index_out;
 } __packed;
 
 /* Optional flow field - present if STORE_FIELD_AGENT_INFO */
@@ -203,8 +208,8 @@ struct store_flow_FLOW_TIMES {
 
 /* Optional flow field - present if STORE_FIELD_AS_INFO */
 struct store_flow_AS_INFO {
-	u_int16_t		src_as;
-	u_int16_t		dst_as;
+	u_int32_t		src_as;
+	u_int32_t		dst_as;
 	u_int8_t		src_mask;
 	u_int8_t		dst_mask;
 	u_int16_t		pad;
@@ -212,10 +217,10 @@ struct store_flow_AS_INFO {
 
 /* Optional flow field - present if STORE_FIELD_FLOW_ENGINE_INFO */
 struct store_flow_FLOW_ENGINE_INFO {
-	u_int8_t		engine_type;
-	u_int8_t		engine_id;
-	u_int16_t		pad;
+	u_int16_t		engine_type;
+	u_int16_t		engine_id;
 	u_int32_t		flow_sequence;
+	u_int32_t		source_id;
 } __packed;
 
 /* Optional flow field - present if STORE_FIELD_CRC32 */
@@ -257,23 +262,32 @@ struct store_flow_complete {
 #define STORE_ERR_IO_SEEK			0x09
 #define STORE_ERR_CORRUPT			0x10
 
-int store_get_header(int fd, struct store_header *hdr, char *ebuf, int elen);
+/* file descriptor oriented interface (tries to back out on failure */
 int store_get_flow(int fd, struct store_flow_complete *f, char *ebuf, int elen);
-int store_check_header(int fd, char *ebuf, int elen);
-int store_put_header(int fd, char *ebuf, int elen);
 int store_put_flow(int fd, struct store_flow_complete *flow,
     u_int32_t fieldmask, char *ebuf, int elen);
-int store_validate_header(struct store_header *hdr, char *ebuf, int elen);
-int store_calc_flow_len(struct store_flow *hdr);
+
+/* Simple FILE* oriented interface, doesn't backout on failure */
+int store_read_flow(FILE *f, struct store_flow_complete *flow, char *ebuf,
+    int elen);
+int store_write_flow(FILE *f, struct store_flow_complete *flow,
+    u_int32_t fieldmask, char *ebuf, int elen);
+
+/* Serialisation and deserialisation */
 int store_flow_deserialise(u_int8_t *buf, int len,
     struct store_flow_complete *f, char *ebuf, int elen);
 int store_flow_serialise(struct store_flow_complete *f, u_int8_t *buf, int buflen,
     int *flowlen, char *ebuf, int elen);
+int store_calc_flow_len(struct store_flow *hdr);
 
+/* Formatting and conversion */
+void store_format_flow(struct store_flow_complete *flow, char *buf,
+    size_t len, int utc_flag, u_int32_t display_mask, int hostorder);
+void store_swab_flow(struct store_flow_complete *flow, int to_net);
+
+/* Utility functions */
 const char *iso_time(time_t t, int utc_flag);
 const char *interval_time(time_t t);
-void store_format_flow(struct store_flow_complete *flow, char *buf,
-    size_t len, int utc_flag, u_int32_t display_mask);
 u_int64_t store_ntohll(u_int64_t v);
 u_int64_t store_htonll(u_int64_t v);
 

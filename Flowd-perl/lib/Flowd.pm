@@ -142,18 +142,6 @@ sub init {
 	$self->{filename} = $filename;
 	open($fhandle, "<$filename") or die "open($filename): $!";
 	$self->{handle} = $fhandle;
-
-	# Read initial header
-	$r = read($self->{handle}, $hdr, 16);
-
-	die "read($filename): $!" if not defined $r;
-	die "early EOF on $filename" if $r < 16;
-
-	($self->{magic}, $self->{version},
-	 $self->{start_time}, $self->{flags}) = unpack("NNNN", $hdr);
-
-	die "bad magic" unless $self->{magic} == 0x012cf047;
-	die "unsupported version" unless $self->{version} == 0x00000002;
 }
 
 sub finish {
@@ -202,8 +190,9 @@ sub format
 		$ret .= sprintf "tag %u ", $flowfields->{tag};
 	}
 	if ($fields & RECV_TIME) {
-		$ret .= sprintf "recv_time %s ", 
-		    Flowd::iso_time($flowfields->{recv_secs}, $utc_flag);
+		$ret .= sprintf "recv_time %s.%05d ", 
+		    Flowd::iso_time($flowfields->{recv_sec}, $utc_flag),
+		    $flowfields->{recv_usec};
 	}
 	if ($fields & PROTO_FLAGS_TOS) {
 		$ret .= sprintf "proto %u ", $flowfields->{protocol};

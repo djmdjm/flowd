@@ -55,30 +55,6 @@ RCSID("$Id$");
 	} while (0)
 
 int
-store_validate_header(struct store_header *hdr, char *ebuf, int elen)
-{
-	if (ntohl(hdr->magic) != STORE_MAGIC)
-		SFAILX(STORE_ERR_BAD_MAGIC, "Bad magic", 0);
-	if (ntohl(hdr->version) != STORE_VERSION)
-		SFAILX(STORE_ERR_UNSUP_VERSION, "Unsupported version", 0);
-
-	return (STORE_ERR_OK);
-}
-
-int
-store_get_header(int fd, struct store_header *hdr, char *ebuf, int elen)
-{
-	ssize_t r;
-
-	if ((r = atomicio(read, fd, hdr, sizeof(*hdr))) == -1)
-		SFAIL(STORE_ERR_IO, "read error", 0);
-	if (r < (ssize_t)sizeof(*hdr))
-		SFAILX(STORE_ERR_EOF, "premature EOF", 0);
-
-	return (store_validate_header(hdr, ebuf, elen));
-}
-
-int
 store_calc_flow_len(struct store_flow *hdr)
 {
 	int ret = 0;
@@ -123,7 +99,7 @@ int
 store_flow_deserialise(u_int8_t *buf, int len, struct store_flow_complete *f,
     char *ebuf, int elen)
 {
-	int offset, r;
+	int offset, allow_extra;
 	struct store_flow_AGENT_ADDR4 aa4;
 	struct store_flow_AGENT_ADDR6 aa6;
 	struct store_flow_SRC_ADDR4 sa4;
@@ -132,29 +108,28 @@ store_flow_deserialise(u_int8_t *buf, int len, struct store_flow_complete *f,
 	struct store_flow_DST_ADDR6 da6;
 	struct store_flow_GATEWAY_ADDR4 ga4;
 	struct store_flow_GATEWAY_ADDR6 ga6;
-	u_int32_t fields, crc;
+	u_int32_t donefields, fields, crc;
 
 	bzero(f, sizeof(*f));
 	crc32_start(&crc);
-
-	memcpy(&f->hdr.fields, buf, sizeof(f->hdr.fields));
 
 	if (len < sizeof(f->hdr))
 		SFAILX(STORE_ERR_BUFFER_SIZE,
 		    "supplied length is too small", 1);
 
-	if ((r = store_calc_flow_len((struct store_flow *)buf)) == -1)
-		SFAILX(STORE_ERR_FLOW_INVALID,
-		    "unsupported flow fields specified", 0);
+	memcpy(&f->hdr, buf, sizeof(f->hdr));
 
-	if (len - sizeof(f->hdr) < r)
+	if (STORE_VER_GET_MAJ(f->hdr.version) != STORE_VER_MAJOR)
+		SFAILX(STORE_ERR_UNSUP_VERSION, "Unsupported version", 0);
+	allow_extra = (STORE_VER_GET_MIN(f->hdr.version) > STORE_VER_MINOR);
+
+	if (len - sizeof(f->hdr) < (f->hdr.len_words * 4))
 		SFAILX(STORE_ERR_BUFFER_SIZE,
-		    "calulated flow length is less than supplied len", 1);
+		    "incomplete flow record supplied", 1);
 
 	crc32_update((u_char *)&f->hdr, sizeof(f->hdr), &crc);
 
-	fields = ntohl(f->hdr.fields);
-
+	donefields = fields = ntohl(f->hdr.fields);
 	offset = sizeof(f->hdr);
 
 #define RFIELD(flag, dest) do { \
@@ -166,6 +141,7 @@ store_flow_deserialise(u_int8_t *buf, int len, struct store_flow_complete *f,
 				crc32_update((u_char *)&dest, sizeof(dest), \
 				    &crc); \
 			} \
+			donefields &= ~STORE_FIELD_##flag; \
 		} } while (0)
 
 	RFIELD(TAG, f->tag);
@@ -187,6 +163,19 @@ store_flow_deserialise(u_int8_t *buf, int len, struct store_flow_complete *f,
 	RFIELD(FLOW_TIMES, f->ftimes);
 	RFIELD(AS_INFO, f->asinf);
 	RFIELD(FLOW_ENGINE_INFO, f->finf);
+
+	/* Other fields might live here if minor version > ours */
+	if ((donefields & ~STORE_FIELD_CRC32) != 0) {
+		if (allow_extra) {
+			/* Skip fields we don't understand */
+			offset = (f->hdr.len_words * 4) + sizeof(f->hdr) - 
+			    sizeof(f->crc32);
+			fields = ntohl(f->hdr.fields) & STORE_FIELD_ALL;
+		} else {
+			/* There shouldn't be any extra if minor_ver <= ours */
+			SFAILX(-1, "Flow has unknown fields", 0);
+		}
+	}
 	RFIELD(CRC32, f->crc32);
 
 	/* Sanity check and convert addresses */
@@ -242,9 +231,7 @@ store_get_flow(int fd, struct store_flow_complete *f, char *ebuf, int elen)
 	if (r < sizeof(struct store_flow))
 		SFAILX(STORE_ERR_EOF, "EOF reading flow header", 0);
 
-	if ((len = store_calc_flow_len((struct store_flow *)buf)) == -1)
-		SFAILX(STORE_ERR_FLOW_INVALID,
-		    "unsupported flow fields specified", 0);
+	len = ((struct store_flow *)buf)->len_words * 4;
 	if (len > sizeof(buf) - sizeof(struct store_flow))
 		SFAILX(STORE_ERR_INTERNAL,
 		    "Internal error: flow buffer too small", 1);
@@ -259,38 +246,31 @@ store_get_flow(int fd, struct store_flow_complete *f, char *ebuf, int elen)
 }
 
 int
-store_check_header(int fd, char *ebuf, int elen)
+store_read_flow(FILE *f, struct store_flow_complete *flow, char *ebuf, int elen)
 {
-	struct store_header hdr;
-	int r;
+	int r, len;
+	u_int8_t buf[512];
 
-	if ((r = store_get_header(fd, &hdr, ebuf, elen)) != STORE_ERR_OK)
-		return (r);
+	/* Read header */
+	r = fread(buf, sizeof(struct store_flow), 1, f);
+	if (r == 0)
+		SFAILX(STORE_ERR_EOF, "EOF reading flow header", 0);
+	if (r != 1)
+		SFAIL(STORE_ERR_IO, "read flow header", 0);
 
-	/* store_get_header does all the magic & version checks for us */
+	len = ((struct store_flow *)buf)->len_words * 4;
+	if (len > sizeof(buf) - sizeof(struct store_flow))
+		SFAILX(STORE_ERR_INTERNAL,
+		    "Internal error: flow buffer too small", 1);
 
-	return (STORE_ERR_OK);
-}
+	r = fread(buf + sizeof(struct store_flow), len, 1, f);
+	if (r == 0)
+		SFAILX(STORE_ERR_EOF, "EOF reading flow data", 0);
+	if (r != 1)
+		SFAIL(STORE_ERR_IO, "read flow data", 0);
 
-int
-store_put_header(int fd, char *ebuf, int elen)
-{
-	struct store_header hdr;
-	int r;
-
-	bzero(&hdr, sizeof(hdr));
-	hdr.magic = htonl(STORE_MAGIC);
-	hdr.version = htonl(STORE_VERSION);
-	hdr.start_time = htonl(time(NULL));
-	hdr.flags = htonl(0);
-
-	r = atomicio(vwrite, fd, &hdr, sizeof(hdr));
-	if (r == -1)
-		SFAIL(STORE_ERR_IO, "write error on header", 0);
-	if (r < (ssize_t)sizeof(hdr))
-		SFAILX(STORE_ERR_EOF, "EOF while writing header", 0);
-
-	return (STORE_ERR_OK);
+	return (store_flow_deserialise(buf, len + sizeof(struct store_flow),
+	    flow, ebuf, elen));
 }
 
 int
@@ -306,8 +286,9 @@ store_flow_serialise(struct store_flow_complete *f, u_int8_t *buf, int buflen,
 	struct store_flow_GATEWAY_ADDR4 gwa4;
 	struct store_flow_GATEWAY_ADDR6 gwa6;
 	u_int32_t fields, crc;
-	int offset;
+	int len, offset;
 
+	f->hdr.version = STORE_VERSION;
 	fields = ntohl(f->hdr.fields);
 
 	/* Convert addresses and set AF fields correctly */
@@ -404,16 +385,24 @@ store_flow_serialise(struct store_flow_complete *f, u_int8_t *buf, int buflen,
 		SFAILX(STORE_ERR_FLOW_INVALID, "silly gateway addr af", 1);
 	}
 
-	crc32_start(&crc);
-	offset = 0;
-
 	/* Fields have probably changes as a result of address conversion */
 	f->hdr.fields = htonl(fields);
-	if (store_calc_flow_len(&f->hdr) > buflen)
-		SFAILX(STORE_ERR_BUFFER_SIZE, "flow buffer too small", 1);
 
-	memcpy(buf + offset, &f->hdr, sizeof(f->hdr));
-	offset += sizeof(f->hdr);
+	len = store_calc_flow_len(&f->hdr);
+	if ((len & 3) != 0)
+		SFAILX(STORE_ERR_INTERNAL, "len & 3 != 0", 1);
+	if (len > buflen)
+		SFAILX(STORE_ERR_BUFFER_SIZE, "flow buffer too small", 1);
+	if (len == -1)
+		SFAILX(STORE_ERR_FLOW_INVALID,
+		    "unsupported flow fields specified", 0);
+	f->hdr.len_words = len / 4;
+	f->hdr.reserved = 0;
+
+	memcpy(buf, &f->hdr, sizeof(f->hdr));
+	offset = sizeof(f->hdr);
+
+	crc32_start(&crc);
 	crc32_update((u_char *)&f->hdr, sizeof(f->hdr), &crc);
 
 #define WFIELD(spec, what) do {						\
@@ -451,6 +440,9 @@ store_flow_serialise(struct store_flow_complete *f, u_int8_t *buf, int buflen,
 	WFIELD(CRC32, f->crc32);
 #undef WFIELD
 
+	if (len + sizeof(f->hdr) != offset)
+		SFAILX(STORE_ERR_INTERNAL, "len != offset", 1);
+
 	*flowlen = offset;
 	return (STORE_ERR_OK);
 }
@@ -461,7 +453,7 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 {
 	u_int32_t fields, origfields;
 	off_t startpos;
-	u_int8_t buf[512];
+	u_int8_t buf[1024];
 	int len, r, saved_errno, ispipe = 0;
 
 	/* Remember where we started, so we can back errors out */
@@ -504,6 +496,32 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 		SFAIL(STORE_ERR_IO, "write flow", 0);
 	else
 		SFAILX(STORE_ERR_EOF, "EOF on write flow", 0);
+}
+
+int
+store_write_flow(FILE *f, struct store_flow_complete *flow, u_int32_t fieldmask,
+    char *ebuf, int elen)
+{
+	u_int32_t fields, origfields;
+	u_int8_t buf[1024];
+	int len, r;
+
+	origfields = ntohl(flow->hdr.fields);
+	fields = origfields & fieldmask;
+	flow->hdr.fields = htonl(fields);
+
+	r = store_flow_serialise(flow, buf, sizeof(buf), &len, ebuf, elen);
+	flow->hdr.fields = htonl(origfields);
+
+	if (r != STORE_ERR_OK)
+		return (r);
+	r = fwrite(buf, len, 1, f);
+	if (r == 0)
+		SFAILX(STORE_ERR_EOF, "EOF on write flow", 0);
+	if (r != 1)
+		SFAIL(STORE_ERR_IO, "fwrite flow", 0);
+
+	return (STORE_ERR_OK);
 }
 
 const char *
@@ -549,26 +567,94 @@ interval_time(time_t t)
 	return (buf);
 }
 
+/*
+ * Some helper functions for store_format_flow() and store_swab_flow(), 
+ * so we can switch between host and network byte order easily.
+ */
+static u_int64_t
+store_swp_ntoh64(u_int64_t v)
+{
+	return store_ntohll(v);
+}
+
+static u_int32_t
+store_swp_ntoh32(u_int32_t v)
+{
+	return ntohl(v);
+}
+
+static u_int16_t
+store_swp_ntoh16(u_int16_t v)
+{
+	return ntohs(v);
+}
+
+static u_int64_t
+store_swp_hton64(u_int64_t v)
+{
+	return store_htonll(v);
+}
+
+static u_int32_t
+store_swp_hton32(u_int32_t v)
+{
+	return htonl(v);
+}
+
+static u_int16_t
+store_swp_hton16(u_int16_t v)
+{
+	return htons(v);
+}
+
+static u_int64_t
+store_swp_fake64(u_int64_t v)
+{
+	return v;
+}
+
+static u_int32_t
+store_swp_fake32(u_int32_t v)
+{
+	return v;
+}
+
+static u_int16_t
+store_swp_fake16(u_int16_t v)
+{
+	return v;
+}
+
 void
 store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
-    int utc_flag, u_int32_t display_mask)
+    int utc_flag, u_int32_t display_mask, int hostorder)
 {
 	char tmp[256];
 	u_int32_t fields;
+	u_int64_t (*fmt_ntoh64)(u_int64_t) = store_swp_ntoh64;
+	u_int32_t (*fmt_ntoh32)(u_int32_t) = store_swp_ntoh32;
+	u_int16_t (*fmt_ntoh16)(u_int16_t) = store_swp_ntoh16;
+
+	if (hostorder) {
+		fmt_ntoh64 = store_swp_fake64;
+		fmt_ntoh32 = store_swp_fake32;
+		fmt_ntoh16 = store_swp_fake16;
+	}
 
 	*buf = '\0';
 
-	fields = ntohl(flow->hdr.fields) & display_mask;
+	fields = fmt_ntoh32(flow->hdr.fields) & display_mask;
 
 	strlcat(buf, "FLOW ", len);
 
 	if (SHASFIELD(TAG)) {
-		snprintf(tmp, sizeof(tmp), "tag %u ", ntohl(flow->tag.tag));
+		snprintf(tmp, sizeof(tmp), "tag %u ", fmt_ntoh32(flow->tag.tag));
 		strlcat(buf, tmp, len);
 	}
 	if (SHASFIELD(RECV_TIME)) {
-		snprintf(tmp, sizeof(tmp), "recv_time %s ",
-		    iso_time(ntohl(flow->recv_time.recv_secs), utc_flag));
+		snprintf(tmp, sizeof(tmp), "recv_time %s.%05d ",
+		    iso_time(fmt_ntoh32(flow->recv_time.recv_sec), utc_flag),
+		    fmt_ntoh32(flow->recv_time.recv_usec));
 		strlcat(buf, tmp, len);
 	}
 	if (SHASFIELD(PROTO_FLAGS_TOS)) {
@@ -591,7 +677,7 @@ store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
 		strlcat(buf, tmp, len);
 		if (SHASFIELD(SRCDST_PORT)) {
 			snprintf(tmp, sizeof(tmp), ":%d",
-			    ntohs(flow->ports.src_port));
+			    fmt_ntoh16(flow->ports.src_port));
 			strlcat(buf, tmp, len);
 		}
 		strlcat(buf, " ", len);
@@ -602,7 +688,7 @@ store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
 		strlcat(buf, tmp, len);
 		if (SHASFIELD(SRCDST_PORT)) {
 			snprintf(tmp, sizeof(tmp), ":%d",
-			    ntohs(flow->ports.dst_port));
+			    fmt_ntoh16(flow->ports.dst_port));
 			strlcat(buf, tmp, len);
 		}
 		strlcat(buf, " ", len);
@@ -614,63 +700,106 @@ store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
 	}
 	if (SHASFIELD(PACKETS)) {
 		snprintf(tmp, sizeof(tmp), "packets %llu ",
-		    store_ntohll(flow->packets.flow_packets));
+		    fmt_ntoh64(flow->packets.flow_packets));
 		strlcat(buf, tmp, len);
 	}
 	if (SHASFIELD(OCTETS)) {
 		snprintf(tmp, sizeof(tmp), "octets %llu ",
-		    store_ntohll(flow->octets.flow_octets));
+		    fmt_ntoh64(flow->octets.flow_octets));
 		strlcat(buf, tmp, len);
 	}
 	if (SHASFIELD(IF_INDICES)) {
 		snprintf(tmp, sizeof(tmp), "in_if %d out_if %d ",
-			ntohs(flow->ifndx.if_index_in),
-			ntohs(flow->ifndx.if_index_out));
+			fmt_ntoh16(flow->ifndx.if_index_in),
+			fmt_ntoh16(flow->ifndx.if_index_out));
 		strlcat(buf, tmp, len);
 	}
 	if (SHASFIELD(AGENT_INFO)) {
 		snprintf(tmp, sizeof(tmp), "sys_uptime_ms %s.%03u ",
-		    interval_time(ntohl(flow->ainfo.sys_uptime_ms) / 1000),
-		    ntohl(flow->ainfo.sys_uptime_ms) % 1000);
+		    interval_time(fmt_ntoh32(flow->ainfo.sys_uptime_ms) / 1000),
+		    fmt_ntoh32(flow->ainfo.sys_uptime_ms) % 1000);
 		strlcat(buf, tmp, len);
 		snprintf(tmp, sizeof(tmp), "time_sec %s ",
-		    iso_time(ntohl(flow->ainfo.time_sec), utc_flag));
+		    iso_time(fmt_ntoh32(flow->ainfo.time_sec), utc_flag));
 		strlcat(buf, tmp, len);
 		snprintf(tmp, sizeof(tmp), "time_nanosec %lu netflow ver %u ",
-		    (u_long)ntohl(flow->ainfo.time_nanosec),
-		    ntohs(flow->ainfo.netflow_version));
+		    (u_long)fmt_ntoh32(flow->ainfo.time_nanosec),
+		    fmt_ntoh16(flow->ainfo.netflow_version));
 		strlcat(buf, tmp, len);
 	}
 	if (SHASFIELD(FLOW_TIMES)) {
 		snprintf(tmp, sizeof(tmp), "flow_start %s.%03u ",
-		    interval_time(ntohl(flow->ftimes.flow_start) / 1000),
-		    ntohl(flow->ftimes.flow_start) % 1000);
+		    interval_time(fmt_ntoh32(flow->ftimes.flow_start) / 1000),
+		    fmt_ntoh32(flow->ftimes.flow_start) % 1000);
 		strlcat(buf, tmp, len);
 		snprintf(tmp, sizeof(tmp), "flow_finish %s.%03u ",
-		    interval_time(ntohl(flow->ftimes.flow_finish) / 1000),
-		    ntohl(flow->ftimes.flow_finish) % 1000);
+		    interval_time(fmt_ntoh32(flow->ftimes.flow_finish) / 1000),
+		    fmt_ntoh32(flow->ftimes.flow_finish) % 1000);
 		strlcat(buf, tmp, len);
 	}
 	if (SHASFIELD(AS_INFO)) {
 		snprintf(tmp, sizeof(tmp), "src_AS %u src_masklen %u ",
-		    ntohs(flow->asinf.src_as), flow->asinf.src_mask);
+		    fmt_ntoh16(flow->asinf.src_as), flow->asinf.src_mask);
 		strlcat(buf, tmp, len);
 		snprintf(tmp, sizeof(tmp), "dst_AS %u dst_masklen %u ",
-		    ntohs(flow->asinf.dst_as), flow->asinf.dst_mask);
+		    fmt_ntoh16(flow->asinf.dst_as), flow->asinf.dst_mask);
 		strlcat(buf, tmp, len);
 	}
 	if (SHASFIELD(FLOW_ENGINE_INFO)) {
 		snprintf(tmp, sizeof(tmp),
-		    "engine_type %u engine_id %u seq %lu ",
-		    flow->finf.engine_type,  flow->finf.engine_id,
-		    (u_long)ntohl(flow->finf.flow_sequence));
+		    "engine_type %u engine_id %u seq %lu source %lu ",
+		    fmt_ntoh16(flow->finf.engine_type), 
+		    fmt_ntoh16(flow->finf.engine_id),
+		    (u_long)fmt_ntoh32(flow->finf.flow_sequence), 
+		    (u_long)fmt_ntoh32(flow->finf.source_id));
 		strlcat(buf, tmp, len);
 	}
 	if (SHASFIELD(CRC32)) {
 		snprintf(tmp, sizeof(tmp), "crc32 %08x ",
-		    ntohl(flow->crc32.crc32));
+		    fmt_ntoh32(flow->crc32.crc32));
 		strlcat(buf, tmp, len);
 	}
+}
+
+
+void
+store_swab_flow(struct store_flow_complete *flow, int to_net)
+{
+	u_int64_t (*sw64)(u_int64_t) = store_swp_ntoh64;
+	u_int32_t (*sw32)(u_int32_t) = store_swp_ntoh32;
+	u_int16_t (*sw16)(u_int16_t) = store_swp_ntoh16;
+
+	if (to_net) {
+		sw64 = store_swp_hton64;
+		sw32 = store_swp_hton32;
+		sw16 = store_swp_hton16;
+	}
+
+#define FLSWAB(n,w) flow->w = sw##n(flow->w)
+	FLSWAB(32, hdr.fields);
+	FLSWAB(32, tag.tag);
+	FLSWAB(32, recv_time.recv_sec);
+	FLSWAB(32, recv_time.recv_usec);
+	FLSWAB(16, ports.src_port);
+	FLSWAB(16, ports.dst_port);
+	FLSWAB(64, packets.flow_packets);
+	FLSWAB(64, octets.flow_octets);
+	FLSWAB(32, ifndx.if_index_in);
+	FLSWAB(32, ifndx.if_index_out);
+	FLSWAB(32, ainfo.sys_uptime_ms);
+	FLSWAB(32, ainfo.time_sec);
+	FLSWAB(32, ainfo.time_nanosec);
+	FLSWAB(16, ainfo.netflow_version);
+	FLSWAB(32, ftimes.flow_start);
+	FLSWAB(32, ftimes.flow_finish);
+	FLSWAB(32, asinf.src_as);
+	FLSWAB(32, asinf.dst_as);
+	FLSWAB(16, finf.engine_type);
+	FLSWAB(16, finf.engine_id);
+	FLSWAB(32, finf.flow_sequence);
+	FLSWAB(16, finf.source_id);
+	FLSWAB(32, crc32.crc32);
+#undef FLSWAB
 }
 
 u_int64_t

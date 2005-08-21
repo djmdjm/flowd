@@ -40,7 +40,8 @@ TARGETS=flowd flowd-reader
 
 all: $(TARGETS)
 
-LIBFLOWD_OBJS=		atomicio.o addr.o store.o crc32.o strlcpy.o strlcat.o
+LIBFLOWD_OBJS=		atomicio.o addr.o store.o store-v2.o crc32.o \
+			strlcpy.o strlcat.o
 LIBFLOWD_HEADERS=	addr.h crc32.h store.h
 FLOWD_OBJS=		flowd.o privsep_fdpass.o privsep.o filter.o \
 			parse.o log.o daemon.o peer.o \

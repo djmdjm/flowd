@@ -29,6 +29,7 @@
 #include "common.h"
 #include "flowd.h"
 #include "store.h"
+#include "store-v2.h"
 #include "atomicio.h"
 
 RCSID("$Id$");
@@ -40,6 +41,7 @@ usage(void)
 	    PROGNAME);
 	fprintf(stderr, "This is %s version %s. Valid commandline options:\n",
 	    PROGNAME, PROGVER);
+	fprintf(stderr, "  -L       Read/convert legacy flow logs\n");
 	fprintf(stderr, "  -q       Don't print flows to stdout (use with -o)\n");
 	fprintf(stderr, "  -d       Print debugging information\n");
 	fprintf(stderr, "  -f path  Filter flows using rule file\n");
@@ -53,47 +55,15 @@ static int
 open_start_log(const char *path, int debug)
 {
 	int fd;
-	off_t pos;
-	char ebuf[512];
 
 	if (path == NULL) {
 		/* Logfile on stdout */
 		fd = STDOUT_FILENO;
-	} else {
-		if ((fd = open(path, O_RDWR|O_APPEND|O_CREAT, 0600)) == -1)
-			logerr("open(%s)", path);
-
-		/* Only write out the header if we are at the start of the file */
-		switch ((pos = lseek(fd, 0, SEEK_END))) {
-		case 0:
-			/* New file, continue below */
-			break;
-		case -1:
-			logerr("lseek");
-		default:
-			/* Logfile exists, don't write new header */
-			if (lseek(fd, 0, SEEK_SET) != 0)
-				logerr("lseek");
-			if (store_check_header(fd, ebuf, sizeof(ebuf)) != 
-			    STORE_ERR_OK)
-				logerrx("Store error: %s", ebuf);
-			if (lseek(fd, 0, SEEK_END) <= 0) {
-				fprintf(stderr, "lseek: %s\n", strerror(errno));
-				exit(1);
-			}
-			if (debug) {
-				fprintf(stderr, "Continuing with existing "
-				    "logfile len %lld\n", (long long)pos);
-			}
-			return (fd);
-		}
-	}
+	} else if ((fd = open(path, O_RDWR|O_APPEND|O_CREAT, 0600)) == -1)
+		logerr("open(%s)", path);
 
 	if (debug)
 		fprintf(stderr, "Writing new logfile header\n");
-
-	if (store_put_header(fd, ebuf, sizeof(ebuf)) != STORE_ERR_OK)
-		logerrx("Store error: %s", ebuf);
 
 	return (fd);
 }
@@ -106,26 +76,30 @@ main(int argc, char **argv)
 	extern char *optarg;
 	extern int optind;
 	struct store_flow_complete flow;
-	struct store_header hdr;
+	struct store_v2_flow_complete flow_v2;
 	char buf[2048], ebuf[512];
 	const char *ffile, *ofile;
 	FILE *ffilef;
-	int ofd;
+	int ofd, read_legacy;
 	u_int32_t disp_mask;
 	struct flowd_config filter_config;
+	struct store_v2_header hdr_v2;
 
-	utc = verbose = debug = 0;
+	utc = verbose = debug = read_legacy = 0;
 	ofile = ffile = NULL;
 	ofd = -1;
 	ffilef = NULL;
 
 	bzero(&filter_config, sizeof(filter_config));
 
-	while ((ch = getopt(argc, argv, "Udf:ho:qv")) != -1) {
+	while ((ch = getopt(argc, argv, "LUdf:ho:qv")) != -1) {
 		switch (ch) {
 		case 'h':
 			usage();
 			return (0);
+		case 'L':
+			read_legacy = 1;
+			break;
 		case 'U':
 			utc = 1;
 			break;
@@ -190,31 +164,44 @@ main(int argc, char **argv)
 		else if ((fd = open(argv[i], O_RDONLY)) == -1)
 			logerr("open(%s)", argv[i]);
 
-		if (store_get_header(fd, &hdr, ebuf,
+		if (read_legacy && store_v2_get_header(fd, &hdr_v2, ebuf,
 		    sizeof(ebuf)) != STORE_ERR_OK)
-		    	logerrx("%s", ebuf);
+			logerrx("%s", ebuf);
 
 		if (verbose >= 0) {
-			printf("LOGFILE %s started at %s\n", argv[i],
-			    iso_time(ntohl(hdr.start_time), utc));
+			printf("LOGFILE %s", argv[i]);
+			if (read_legacy)
+				printf(" started at %s",
+				    iso_time(ntohl(hdr_v2.start_time), utc));
+			printf("\n");
 			fflush(stdout);
 		}
 
 		for (;;) {
 			bzero(&flow, sizeof(flow));
 
-			if ((r = store_get_flow(fd, &flow, ebuf,
-			    sizeof(ebuf))) == STORE_ERR_EOF)
+			if (read_legacy)
+				r = store_v2_get_flow(fd, &flow_v2, ebuf,
+				    sizeof(ebuf));
+			else
+				r = store_get_flow(fd, &flow, ebuf,
+				    sizeof(ebuf));
+				
+			if (r == STORE_ERR_EOF)
 				break;
 			else if (r != STORE_ERR_OK)
 			    	logerrx("%s", ebuf);
+
+			if (read_legacy &&
+			    store_v2_flow_convert(&flow_v2, &flow) == -1)
+			    	logerrx("legacy flow conversion failed");
 
 			if (ffile != NULL && filter_flow(&flow,
 			    &filter_config.filter_list) == FF_ACTION_DISCARD)
 				continue;
 			if (verbose >= 0) {
 				store_format_flow(&flow, buf, sizeof(buf), 
-				    utc, disp_mask);
+				    utc, disp_mask, 0);
 				printf("%s\n", buf);
 				fflush(stdout);
 			}

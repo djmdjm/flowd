@@ -53,9 +53,6 @@
 
 - Define net store.h types for:
   - min/max_pkt_lngth
-  - source_id (important!)
-
-- src/dst AS should be increased in size to 4 bytes
 
 - Discard protocol-specific state when we receive a packet in a different
   protocol
@@ -64,6 +61,8 @@
   we only validate to the flowset level)
   - Could at least iterate over packet and check for truncation?
 
-- Renovate Perl/Python API.
- - This was my first attempt at writing C/Perl/Python glue, so the interface is
+- Renovate Perl API.
+ - This was my first attempt at writing C/Perl glue, so the interface is
    pretty clumsy :(
+
+- Add support for legacy store logs to perl/python APIs

@@ -46,8 +46,7 @@ int flow_length(...)
 		buf = (char *)SvPV(ST(0), len);
 		if (len < sizeof(struct store_flow))
 			croak("Supplied header is too short");
-		if ((r = store_calc_flow_len((struct store_flow *)buf)) == -1)
-			croak("Unsupported fields in flow header");
+		r = ((struct store_flow *)buf)->len_words * 4;
 		RETVAL = r;
 	OUTPUT:
 		RETVAL
@@ -80,14 +79,18 @@ void deserialise(...)
 
 		field = newSVuv(fields);
 		F_STORE("fields");
+		field = newSVuv(flow.hdr.version);
+		F_STORE("flow_ver");
 
 		if (fields & STORE_FIELD_TAG) {
 			field = newSVuv(ntohl(flow.tag.tag));
 			F_STORE("tag");
 		}
 		if (fields & STORE_FIELD_RECV_TIME) {
-			field = newSVuv(ntohl(flow.recv_time.recv_secs));
-			F_STORE("recv_secs");
+			field = newSVuv(ntohl(flow.recv_time.recv_sec));
+			F_STORE("recv_sec");
+			field = newSVuv(ntohl(flow.recv_time.recv_usec));
+			F_STORE("recv_usec");
 		}
 		if (fields & STORE_FIELD_PROTO_FLAGS_TOS) {
 			field = newSViv(flow.pft.tcp_flags);
@@ -149,9 +152,9 @@ void deserialise(...)
 			F_STORE("flow_octets");
 		}
 		if (fields & STORE_FIELD_IF_INDICES) {
-			field = newSViv(ntohs(flow.ifndx.if_index_in));
+			field = newSVuv(ntohl(flow.ifndx.if_index_in));
 			F_STORE("if_index_in");
-			field = newSViv(ntohs(flow.ifndx.if_index_out));
+			field = newSVuv(ntohl(flow.ifndx.if_index_out));
 			F_STORE("if_index_out");
 		}
 		if (fields & STORE_FIELD_AGENT_INFO) {
@@ -172,9 +175,9 @@ void deserialise(...)
 			F_STORE("flow_finish");
 		}
 		if (fields & STORE_FIELD_AS_INFO) {
-			field = newSViv(ntohs(flow.asinf.src_as));
+			field = newSVuv(ntohl(flow.asinf.src_as));
 			F_STORE("src_as");
-			field = newSViv(ntohs(flow.asinf.dst_as));
+			field = newSVuv(ntohl(flow.asinf.dst_as));
 			F_STORE("dst_as");
 			field = newSViv(flow.asinf.src_mask);
 			F_STORE("src_mask");
@@ -182,12 +185,14 @@ void deserialise(...)
 			F_STORE("dst_mask");
 		}
 		if (fields & STORE_FIELD_FLOW_ENGINE_INFO) {
-			field = newSViv(flow.finf.engine_type);
+			field = newSViv(ntohs(flow.finf.engine_type));
 			F_STORE("engine_type");
-			field = newSViv(flow.finf.engine_id);
+			field = newSViv(ntohs(flow.finf.engine_id));
 			F_STORE("engine_id");
 			field = newSVuv(htonl(flow.finf.flow_sequence));
-			F_STORE("src_mask");
+			F_STORE("flow_sequence");
+			field = newSVuv(htonl(flow.finf.source_id));
+			F_STORE("source_id");
 		}
 		if (fields & STORE_FIELD_CRC32) {
 			field = newSVuv(ntohl(flow.crc32.crc32));

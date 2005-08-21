@@ -1,3 +1,19 @@
+20050821
+ - (djm) Major rewrite of storage code:
+   - Introduce a new storage format (version 3), which should be much faster
+     to read from disk and easier and more graceful to extend
+   - Add FILE* oriented API
+   - Add some new fields: receive time microseconds, netflow v.9 source_id
+   - Extend the widths of several fields: if_ndx_(in|out), (src|dst)_as, 
+     engine_(type|id)
+   - Add functions for reading and writing legacy logs
+ - (djm) Major rewrite of Python API
+   - Implements all the functions in all hybrid API using 100% C code
+   - Use Python structmember API and store.c for major speed improvement
+   - Adds an iterator object to read all flows from a flow log
+ - (djm) Adjust Perl API to cope with new store format
+ - (djm) Add ability for flowd-reader to read and convert legacy log files
+
 20050707
  - (djm) Fix pidfile path in manpage
 
