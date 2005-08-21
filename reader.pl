@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Copyright (c) 2004 Damien Miller <djm@mindrot.org>
+# Copyright (c) 2004,2005 Damien Miller <djm@mindrot.org>
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above

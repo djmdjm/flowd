@@ -13,6 +13,7 @@
    - Adds an iterator object to read all flows from a flow log
  - (djm) Adjust Perl API to cope with new store format
  - (djm) Add ability for flowd-reader to read and convert legacy log files
+ - (djm) Update copyright years
 
 20050707
  - (djm) Fix pidfile path in manpage
