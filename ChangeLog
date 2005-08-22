@@ -1,3 +1,7 @@
+20050822
+ - (djm) Figure out Python structmember.h types for struct store_flow_complete
+   at autoconf time and stuff them into their own header
+
 20050821
  - (djm) Major rewrite of storage code:
    - Introduce a new storage format (version 3), which should be much faster

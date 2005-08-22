@@ -21,11 +21,6 @@ from distutils.core import setup, Extension
 
 DEFS = [
 	( 'PROGVER',  '"0.9"' ),
-
-# These might need to be adjusted if your platform's sizeof(unsigned long) != 4
-	( 'FL_T_U32', 'T_ULONG' ),
-	( 'FL_T_U16', 'T_USHORT' ),
-	( 'FL_T_U8',  'T_UBYTE' )
 ]
 
 if __name__ == '__main__':

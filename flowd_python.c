@@ -17,6 +17,7 @@
 #include "Python.h"
 #include "structmember.h"
 #include "store.h"
+#include "flowd-pytypes.h"
 
 /* $Id$ */
 

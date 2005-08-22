@@ -75,7 +75,7 @@ realclean: clean
 	rm -rf build
 
 distclean: realclean
-	rm -f config.h* configure
+	rm -f config.h* flowd-pytypes.h configure
 
 strip:
 	strip $(TARGETS)
@@ -107,5 +107,6 @@ install-includes: $(LIBFLOWD_HEADERS)
 	$(INSTALL) -m 0644 addr.h $(DESTDIR)$(HEADER_DIR)
 	$(INSTALL) -m 0644 store.h $(DESTDIR)$(HEADER_DIR)
 	$(INSTALL) -m 0644 crc32.h $(DESTDIR)$(HEADER_DIR)
+	$(INSTALL) -m 0644 flowd-pytypes.h $(DESTDIR)$(HEADER_DIR)
 
 install: install-bin install-man install-conf install-lib install-includes

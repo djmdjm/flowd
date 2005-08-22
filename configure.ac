@@ -105,10 +105,15 @@ AC_CHECK_TYPES([u_int64_t, int64_t, uint64_t, u_int32_t, int32_t, uint32_t])
 AC_CHECK_TYPES([u_int16_t, int16_t, uint16_t, u_int8_t, int8_t, uint8_t])
 AC_CHECK_TYPES([u_int])
 AC_CHECK_SIZEOF(char, 1)
+AC_CHECK_SIZEOF(unsigned char, 1)
 AC_CHECK_SIZEOF(short int, 2)
+AC_CHECK_SIZEOF(unsigned short int, 2)
 AC_CHECK_SIZEOF(int, 4)
+AC_CHECK_SIZEOF(unsigned int, 4)
 AC_CHECK_SIZEOF(long int, 4)
+AC_CHECK_SIZEOF(unsigned long int, 4)
 AC_CHECK_SIZEOF(long long int, 8)
+AC_CHECK_SIZEOF(unsigned long long int, 8)
 
 AC_MSG_CHECKING([for /proc/pid/fd directory])
 if test -d "/proc/$$/fd" ; then
@@ -234,11 +239,34 @@ else
 	AC_MSG_ERROR([No 64-bit signed int type found])
 fi
 
+# Python structmember.h types
+if test "x$ac_cv_sizeof_unsigned_char" = "x1" ; then
+	FL_T_U8='T_UCHAR'
+else
+	AC_MSG_ERROR([No 8-bit unsigned int type found])
+fi
+if test "x$ac_cv_sizeof_unsigned_short_int" = "x2" ; then
+	FL_T_U16='T_USHORT'
+elif test "x$ac_cv_sizeof_unsigned_int" = "x2" ; then
+	FL_T_U16='T_UINT'
+else
+	AC_MSG_ERROR([No 16-bit unsigned int type found])
+fi
+if test "x$ac_cv_sizeof_unsigned_int" = "x4" ; then
+	FL_T_U32='T_UINT'
+elif test "x$ac_cv_sizeof_unsigned_long_int" = "x4" ; then
+	FL_T_U32='T_ULONG'
+else
+	AC_MSG_ERROR([No 32-bit int type found])
+fi
+AC_SUBST(FL_T_U8)
+AC_SUBST(FL_T_U16)
+AC_SUBST(FL_T_U32)
+
 piddir="${localstatedir}/run"
 AC_DEFINE_DIR(PIDPATH, piddir, [Directory to store pidfile in])
 AC_DEFINE_DIR(CONFPATH, sysconfdir, [Full path to configuration file])
 
 AC_EXEEXT
-AC_CONFIG_FILES([Makefile flowd.8 flowd-reader.8 flowd.conf.5])
+AC_CONFIG_FILES([Makefile flowd.8 flowd-reader.8 flowd.conf.5 flowd-pytypes.h])
 AC_OUTPUT
-
