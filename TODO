@@ -68,3 +68,5 @@
 - Add support for legacy store logs to perl/python APIs
 
 - XXX python API: add AF and raw address data for all addresses
+- XXX set FLOWD_T_blah defines in store.h from autoconf
+
