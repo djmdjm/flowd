@@ -67,5 +67,3 @@
 
 - Add support for legacy store logs to perl/python APIs
 
-- XXX python API: add AF and raw address data for all addresses
-

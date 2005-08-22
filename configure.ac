@@ -115,6 +115,12 @@ AC_CHECK_SIZEOF(unsigned long int, 4)
 AC_CHECK_SIZEOF(long long int, 8)
 AC_CHECK_SIZEOF(unsigned long long int, 8)
 
+AC_CHECK_SIZEOF(sa_family_t, 1, [
+#include <stdio.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+])
+
 AC_MSG_CHECKING([for /proc/pid/fd directory])
 if test -d "/proc/$$/fd" ; then
 	AC_DEFINE([HAVE_PROC_PID], [], [has /proc/PID/fd directory])
@@ -241,7 +247,7 @@ fi
 
 # Python structmember.h types
 if test "x$ac_cv_sizeof_unsigned_char" = "x1" ; then
-	FL_T_U8='T_UCHAR'
+	FL_T_U8='T_UBYTE'
 else
 	AC_MSG_ERROR([No 8-bit unsigned int type found])
 fi
@@ -259,9 +265,19 @@ elif test "x$ac_cv_sizeof_unsigned_long_int" = "x4" ; then
 else
 	AC_MSG_ERROR([No 32-bit int type found])
 fi
+if test "x$ac_cv_sizeof_unsigned_char" = "x$ac_cv_sizeof_sa_family_t" ; then
+	FL_T_AF='T_UBYTE'
+elif test "x$ac_cv_sizeof_unsigned_short_int" = "x$ac_cv_sizeof_sa_family_t" ; then
+	FL_T_AF='T_USHORT'
+elif test "x$ac_cv_sizeof_unsigned_int" = "x$ac_cv_sizeof_sa_family_t" ; then
+	FL_T_AF='T_UINT'
+else
+	AC_MSG_ERROR([No 16-bit unsigned int type found])
+fi
 AC_SUBST(FL_T_U8)
 AC_SUBST(FL_T_U16)
 AC_SUBST(FL_T_U32)
+AC_SUBST(FL_T_AF)
 
 piddir="${localstatedir}/run"
 AC_DEFINE_DIR(PIDPATH, piddir, [Directory to store pidfile in])
