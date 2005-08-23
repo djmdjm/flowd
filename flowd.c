@@ -460,180 +460,100 @@ static int
 nf9_rec_to_flow(struct peer_nf9_record *rec, struct store_flow_complete *flow,
     u_int8_t *data)
 {
-/* Copy an int (possibly shorter than the target) keeping their LSBs aligned */
-#define BE_COPY(a) memcpy((u_char*)&a + (sizeof(a) - rec->len), data, rec->len);
 	/* XXX: use a table-based interpreter */
 	switch (rec->type) {
-	case NF9_IN_BYTES:
-		flow->hdr.fields |= STORE_FIELD_OCTETS;
-		BE_COPY(flow->octets.flow_octets);
-		break;
-	case NF9_IN_PACKETS:
-		flow->hdr.fields |= STORE_FIELD_PACKETS;
-		BE_COPY(flow->packets.flow_packets);
-		break;
-	case NF9_IN_PROTOCOL:
-		flow->hdr.fields |= STORE_FIELD_PROTO_FLAGS_TOS;
-		BE_COPY(flow->pft.protocol);
-		break;
-	case NF9_SRC_TOS:
-		flow->hdr.fields |= STORE_FIELD_PROTO_FLAGS_TOS;
-		BE_COPY(flow->pft.tos);
-		break;
-	case NF9_TCP_FLAGS:
-		flow->hdr.fields |= STORE_FIELD_PROTO_FLAGS_TOS;
-		BE_COPY(flow->pft.tcp_flags);
-		break;
-	case NF9_L4_SRC_PORT:
-		flow->hdr.fields |= STORE_FIELD_SRCDST_PORT;
-		BE_COPY(flow->ports.src_port);
-		break;
-	case NF9_IPV4_SRC_ADDR:
-		flow->hdr.fields |= STORE_FIELD_SRC_ADDR4;
-		memcpy(&flow->src_addr.v4, data, rec->len);
-		flow->src_addr.af = AF_INET;
-		break;
-	case NF9_SRC_MASK:
-		flow->hdr.fields |= STORE_FIELD_AS_INFO;
-		BE_COPY(flow->asinf.src_mask);
-		break;
-	case NF9_INPUT_SNMP:
-		flow->hdr.fields |= STORE_FIELD_IF_INDICES;
-		BE_COPY(flow->ifndx.if_index_in);
-		break;
-	case NF9_L4_DST_PORT:
-		flow->hdr.fields |= STORE_FIELD_SRCDST_PORT;
-		BE_COPY(flow->ports.dst_port);
-		break;
-	case NF9_IPV4_DST_ADDR:
-		flow->hdr.fields |= STORE_FIELD_DST_ADDR4;
-		memcpy(&flow->dst_addr.v4, data, rec->len);
-		flow->dst_addr.af = AF_INET;
-		break;
-	case NF9_DST_MASK:
-		flow->hdr.fields |= STORE_FIELD_AS_INFO;
-		BE_COPY(flow->asinf.dst_mask);
-		break;
-	case NF9_OUTPUT_SNMP:
-		flow->hdr.fields |= STORE_FIELD_IF_INDICES;
-		BE_COPY(flow->ifndx.if_index_out);
-		break;
-	case NF9_IPV4_NEXT_HOP:
-		flow->hdr.fields |= STORE_FIELD_GATEWAY_ADDR4;
-		memcpy(&flow->gateway_addr.v4, data, rec->len);
-		flow->gateway_addr.af = AF_INET;
-		break;
-	case NF9_SRC_AS:
-		flow->hdr.fields |= STORE_FIELD_AS_INFO;
-		BE_COPY(flow->asinf.src_as);
-		break;
-	case NF9_DST_AS:
-		flow->hdr.fields |= STORE_FIELD_AS_INFO;
-		BE_COPY(flow->asinf.dst_as);
-		break;
-	case NF9_LAST_SWITCHED:
-		flow->hdr.fields |= STORE_FIELD_FLOW_TIMES;
-		BE_COPY(flow->ftimes.flow_start);
-		break;
-	case NF9_FIRST_SWITCHED:
-		flow->hdr.fields |= STORE_FIELD_FLOW_TIMES;
-		BE_COPY(flow->ftimes.flow_finish);
-		break;
-	case NF9_IPV6_SRC_ADDR:
-		flow->hdr.fields |= STORE_FIELD_SRC_ADDR6;
-		memcpy(&flow->src_addr.v6, data, rec->len);
-		flow->src_addr.af = AF_INET6;
-		break;
-	case NF9_IPV6_DST_ADDR:
-		flow->hdr.fields |= STORE_FIELD_DST_ADDR6;
-		memcpy(&flow->dst_addr.v6, data, rec->len);
-		flow->dst_addr.af = AF_INET6;
-		break;
-	case NF9_IPV6_SRC_MASK:
-		flow->hdr.fields |= STORE_FIELD_AS_INFO;
-		BE_COPY(flow->asinf.src_mask);
-		break;
-	case NF9_IPV6_DST_MASK:
-		flow->hdr.fields |= STORE_FIELD_AS_INFO;
-		BE_COPY(flow->asinf.dst_mask);
-		break;
-	case NF9_ENGINE_TYPE:
-		flow->hdr.fields |= STORE_FIELD_FLOW_ENGINE_INFO;
-		BE_COPY(flow->finf.engine_type);
-		break;
-	case NF9_ENGINE_ID:
-		flow->hdr.fields |= STORE_FIELD_FLOW_ENGINE_INFO;
-		BE_COPY(flow->finf.engine_id);
-		break;
-	case NF9_IPV6_NEXT_HOP:
-		flow->hdr.fields |= STORE_FIELD_GATEWAY_ADDR6;
-		memcpy(&flow->gateway_addr.v6, data, rec->len);
-		flow->gateway_addr.af = AF_INET6;
-		break;
-	}
+
+/* Copy an int (possibly shorter than the target) keeping their LSBs aligned */
+#define BE_COPY(a) memcpy((u_char*)&a + (sizeof(a) - rec->len), data, rec->len);
+#define V9_FIELD(v9_field, store_field, flow_field) \
+	case v9_field: \
+		flow->hdr.fields |= STORE_FIELD_##store_field; \
+		BE_COPY(flow->flow_field); \
+		break
+#define V9_FIELD_ADDR(v9_field, store_field, flow_field, sub, family) \
+	case v9_field: \
+		flow->hdr.fields |= STORE_FIELD_##store_field; \
+		memcpy(&flow->flow_field.v##sub, data, rec->len); \
+		flow->flow_field.af = AF_##family; \
+		break
+
+	V9_FIELD(NF9_IN_BYTES, OCTETS, octets.flow_octets);
+	V9_FIELD(NF9_IN_PACKETS, PACKETS, packets.flow_packets);
+	V9_FIELD(NF9_IN_PROTOCOL, PROTO_FLAGS_TOS, pft.protocol);
+	V9_FIELD(NF9_SRC_TOS, PROTO_FLAGS_TOS, pft.tos);
+	V9_FIELD(NF9_TCP_FLAGS, PROTO_FLAGS_TOS, pft.tcp_flags);
+	V9_FIELD(NF9_L4_SRC_PORT, SRCDST_PORT, ports.src_port);
+	V9_FIELD(NF9_SRC_MASK, AS_INFO, asinf.src_mask);
+	V9_FIELD(NF9_INPUT_SNMP, IF_INDICES, ifndx.if_index_in);
+	V9_FIELD(NF9_L4_DST_PORT, SRCDST_PORT, ports.dst_port);
+	V9_FIELD(NF9_DST_MASK, AS_INFO, asinf.dst_mask);
+	V9_FIELD(NF9_OUTPUT_SNMP, IF_INDICES, ifndx.if_index_out);
+	V9_FIELD(NF9_SRC_AS, AS_INFO, asinf.src_as);
+	V9_FIELD(NF9_DST_AS, AS_INFO, asinf.dst_as);
+	V9_FIELD(NF9_LAST_SWITCHED, FLOW_TIMES, ftimes.flow_start);
+	V9_FIELD(NF9_FIRST_SWITCHED, FLOW_TIMES, ftimes.flow_finish);
+	V9_FIELD(NF9_IPV6_SRC_MASK, AS_INFO, asinf.src_mask);
+	V9_FIELD(NF9_IPV6_DST_MASK, AS_INFO, asinf.dst_mask);
+	V9_FIELD(NF9_ENGINE_TYPE, FLOW_ENGINE_INFO, finf.engine_type);
+	V9_FIELD(NF9_ENGINE_ID, FLOW_ENGINE_INFO, finf.engine_id);
+
+	V9_FIELD_ADDR(NF9_IPV4_SRC_ADDR, SRC_ADDR4, src_addr, 4, INET);
+	V9_FIELD_ADDR(NF9_IPV4_DST_ADDR, DST_ADDR4, dst_addr, 4, INET);
+	V9_FIELD_ADDR(NF9_IPV4_NEXT_HOP, GATEWAY_ADDR4, gateway_addr, 4, INET);
+
+	V9_FIELD_ADDR(NF9_IPV6_SRC_ADDR, SRC_ADDR6, src_addr, 6, INET6);
+	V9_FIELD_ADDR(NF9_IPV6_DST_ADDR, DST_ADDR6, dst_addr, 6, INET6);
+	V9_FIELD_ADDR(NF9_IPV6_NEXT_HOP, GATEWAY_ADDR6, gateway_addr, 6, INET6);
+
+#undef V9_FIELD
+#undef V9_FIELD_ADDR
 #undef BE_COPY
+	}
 	return (0);
 }
 
 static int
 nf9_check_rec_len(u_int type, u_int len)
 {
+	struct store_flow_complete t;
+
 	/* Sanity check */
 	if (len == 0 || len > 0x4000)
 		return (0);
 
 	/* XXX: use a table-based interpreter */
 	switch (type) {
-	case NF9_IN_BYTES:
-		return (len <= 8);
-	case NF9_IN_PACKETS:
-		return (len <= 8);
-	case NF9_IN_PROTOCOL:
-		return (len == 1);
-	case NF9_SRC_TOS:
-		return (len == 1);
-	case NF9_TCP_FLAGS:
-		return (len == 1);
-	case NF9_L4_SRC_PORT:
-		return (len == 2);
-	case NF9_IPV4_SRC_ADDR:
-		return (len == 4);
-	case NF9_SRC_MASK:
-		return (len == 1);
-	case NF9_INPUT_SNMP:
-		return (len <= 2);
-	case NF9_L4_DST_PORT:
-		return (len == 2);
-	case NF9_IPV4_DST_ADDR:
-		return (len == 4);
-	case NF9_DST_MASK:
-		return (len == 1);
-	case NF9_OUTPUT_SNMP:
-		return (len <= 2);
-	case NF9_IPV4_NEXT_HOP:
-		return (len == 4);
-	case NF9_SRC_AS:
-		return (len <= 2);
-	case NF9_DST_AS:
-		return (len <= 2);
-	case NF9_LAST_SWITCHED:
-		return (len <= 4);
-	case NF9_FIRST_SWITCHED:
-		return (len <= 4);
-	case NF9_IPV6_SRC_ADDR:
-		return (len == 16);
-	case NF9_IPV6_DST_ADDR:
-		return (len == 16);
-	case NF9_IPV6_SRC_MASK:
-		return (len == 1);
-	case NF9_IPV6_DST_MASK:
-		return (len == 1);
-	case NF9_ENGINE_TYPE:
-		return (len == 1);
-	case NF9_ENGINE_ID:
-		return (len == 1);
-	case NF9_IPV6_NEXT_HOP:
-		return (len == 16);
+#define V9_FIELD_LEN(v9_field, flow_field) \
+	case v9_field: \
+		return (len <= sizeof(t.flow_field));
+
+	V9_FIELD_LEN(NF9_IN_BYTES, octets.flow_octets);
+	V9_FIELD_LEN(NF9_IN_PACKETS, packets.flow_packets);
+	V9_FIELD_LEN(NF9_IN_PROTOCOL, pft.protocol);
+	V9_FIELD_LEN(NF9_SRC_TOS, pft.tos);
+	V9_FIELD_LEN(NF9_TCP_FLAGS, pft.tcp_flags);
+	V9_FIELD_LEN(NF9_L4_SRC_PORT, ports.src_port);
+	V9_FIELD_LEN(NF9_IPV4_SRC_ADDR, src_addr.v4);
+	V9_FIELD_LEN(NF9_SRC_MASK, asinf.src_mask);
+	V9_FIELD_LEN(NF9_INPUT_SNMP, ifndx.if_index_in);
+	V9_FIELD_LEN(NF9_L4_DST_PORT, ports.dst_port);
+	V9_FIELD_LEN(NF9_IPV4_DST_ADDR, dst_addr.v4);
+	V9_FIELD_LEN(NF9_DST_MASK, asinf.src_mask);
+	V9_FIELD_LEN(NF9_OUTPUT_SNMP, ifndx.if_index_out);
+	V9_FIELD_LEN(NF9_IPV4_NEXT_HOP, gateway_addr.v4);
+	V9_FIELD_LEN(NF9_SRC_AS, asinf.src_as);
+	V9_FIELD_LEN(NF9_DST_AS, asinf.dst_as);
+	V9_FIELD_LEN(NF9_LAST_SWITCHED, ftimes.flow_finish);
+	V9_FIELD_LEN(NF9_FIRST_SWITCHED, ftimes.flow_start);
+	V9_FIELD_LEN(NF9_IPV6_SRC_ADDR, src_addr.v6);
+	V9_FIELD_LEN(NF9_IPV6_DST_ADDR, dst_addr.v6);
+	V9_FIELD_LEN(NF9_IPV6_SRC_MASK, asinf.src_mask);
+	V9_FIELD_LEN(NF9_IPV6_DST_MASK, asinf.dst_mask);
+	V9_FIELD_LEN(NF9_ENGINE_TYPE, finf.engine_type);
+	V9_FIELD_LEN(NF9_ENGINE_ID, finf.engine_id);
+	V9_FIELD_LEN(NF9_IPV6_NEXT_HOP, gateway_addr.v6);
+
+#undef V9_FIELD_LEN
 	default:
 		return (1);
 	}

@@ -5,6 +5,8 @@
      possible to write to them
    - Initialise missing addresses, octet and packet counters to Py_None
    - Fix lots of bugs
+ - (djm) Macroise much of the NetFlow v.9 parsing code and fix length
+   mismatches in the process
 
 20050822
  - (djm) Figure out Python structmember.h types for struct store_flow_complete
