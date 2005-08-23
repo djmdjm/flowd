@@ -543,7 +543,7 @@ child_get_config(const char *path, struct flowd_config *conf)
 	pid_t ccpid;
 	void (*oldsigchld)(int);
 	FILE *cfg;
-	struct passwd *pw;
+	struct passwd *pw = NULL;
 	struct flowd_config newconf = {
 		NULL, NULL, 0, 0,
 		TAILQ_HEAD_INITIALIZER(newconf.listen_addrs),
@@ -554,7 +554,8 @@ child_get_config(const char *path, struct flowd_config *conf)
 
 	logit(LOG_DEBUG, "%s: entering", __func__);
 
-	if ((pw = getpwnam(PRIVSEP_USER)) == NULL) {
+	if ((conf->opts & FLOWD_OPT_INSECURE) == 0 &&
+	    (pw = getpwnam(PRIVSEP_USER)) == NULL) {
 		logit(LOG_ERR, "Privilege separation user %s doesn't exist",
 		    PRIVSEP_USER);
 		return(-1);
@@ -878,7 +879,7 @@ privsep_init(struct flowd_config *conf, int *child_to_monitor_sock,
     const char *config_path)
 {
 	int s[2], devnull;
-	struct passwd *pw;
+	struct passwd *pw = NULL;
 	struct listen_addr *la;
 
 	logit(LOG_DEBUG, "%s: entering", __func__);
@@ -889,7 +890,8 @@ privsep_init(struct flowd_config *conf, int *child_to_monitor_sock,
 	monitor_to_child_sock = s[0];
 	*child_to_monitor_sock = s[1];
 
-	if ((pw = getpwnam(PRIVSEP_USER)) == NULL) {
+	if ((conf->opts & FLOWD_OPT_INSECURE) == 0 &&
+	    (pw = getpwnam(PRIVSEP_USER)) == NULL) {
 		logerrx("Privilege separation user %s doesn't exist",
 		    PRIVSEP_USER);
 	}

@@ -7,7 +7,9 @@
    - Fix lots of bugs
  - (djm) Macroise much of the NetFlow v.9 parsing code and fix length
    mismatches in the process
-
+ - (djm) Check for, and refuse to append to legacy logfiles
+ - (djm) Don't lookup username when running in INSECURE mode
+ 
 20050822
  - (djm) Figure out Python structmember.h types for struct store_flow_complete
    at autoconf time and stuff them into their own header
