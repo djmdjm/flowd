@@ -258,10 +258,10 @@ elif test "x$ac_cv_sizeof_unsigned_int" = "x2" ; then
 else
 	AC_MSG_ERROR([No 16-bit unsigned int type found])
 fi
-if test "x$ac_cv_sizeof_unsigned_int" = "x4" ; then
-	FL_T_U32='T_UINT'
-elif test "x$ac_cv_sizeof_unsigned_long_int" = "x4" ; then
+if test "x$ac_cv_sizeof_unsigned_long_int" = "x4" ; then
 	FL_T_U32='T_ULONG'
+elif test "x$ac_cv_sizeof_unsigned_int" = "x4" ; then
+	FL_T_U32='T_UINT'
 else
 	AC_MSG_ERROR([No 32-bit int type found])
 fi

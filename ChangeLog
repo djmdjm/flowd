@@ -1,4 +1,12 @@
 20050822
+ - (djm) Improve the Python API some more:
+   - Prefer PyLong as type for various fields
+   - Maintain all addresses as PyObjects rather than char*, so it is 
+     possible to write to them
+   - Initialise missing addresses, octet and packet counters to Py_None
+   - Fix lots of bugs
+
+20050822
  - (djm) Figure out Python structmember.h types for struct store_flow_complete
    at autoconf time and stuff them into their own header
  - (djm) Add (src|dst|agent|gateway)_addr_af to Python API

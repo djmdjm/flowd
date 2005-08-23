@@ -36,10 +36,10 @@ typedef struct {
 	PyObject *user_attr;	/* User-specified attributes */
 	PyObject *octets;	/* bah. python >2.5 lacks T_LONGLONG */
 	PyObject *packets;	/* ditto */
-	char *agent_addr;
-	char *src_addr;
-	char *dst_addr;
-	char *gateway_addr;
+	PyObject *agent_addr;
+	PyObject *src_addr;
+	PyObject *dst_addr;
+	PyObject *gateway_addr;
 	struct store_flow_complete flow;
 } FlowObject;
 
@@ -54,11 +54,22 @@ newFlowObject(void)
 	if (self == NULL)
 		return NULL;
 
+	self->user_attr = PyDict_New();
+
 	self->octets = Py_None;
 	Py_INCREF(Py_None);
 	self->packets = Py_None;
 	Py_INCREF(Py_None);
-	self->user_attr = PyDict_New();
+	self->agent_addr = Py_None;
+	Py_INCREF(Py_None);
+	self->src_addr = Py_None;
+	Py_INCREF(Py_None);
+	self->dst_addr = Py_None;
+	Py_INCREF(Py_None);
+	self->gateway_addr = Py_None;
+	Py_INCREF(Py_None);
+
+	bzero(&self->flow, sizeof(self->flow));
 
 	if (self->user_attr == NULL) {
 		/* Flow_dealloc will clean up for us */
@@ -84,29 +95,47 @@ newFlowObject_from_flow(struct store_flow_complete *flow)
 		return NULL;
 
 	self->user_attr = NULL;
+	self->octets = NULL;
+	self->packets = NULL;
+
 	self->src_addr = self->dst_addr = NULL;
 	self->agent_addr = self->gateway_addr = NULL;
 	memcpy(&self->flow, flow, sizeof(self->flow));
 
 	store_swab_flow(&self->flow, 0);
 
-#define FL_ADDR(addr, which) do { \
+#define FL_ADDR_NTOP(addr, which) do { \
 	if ((self->flow.hdr.fields & STORE_FIELD_##which) != 0) { \
 		if (addr_ntop(&self->flow.addr, addr_buf, \
 		    sizeof(addr_buf)) != -1) \
-		self->addr = strdup(addr_buf); \
+			self->addr = PyString_FromString(addr_buf); \
+	} \
+	if (self->addr == NULL) { \
+		self->addr = Py_None; \
+		Py_INCREF(Py_None); \
 	} } while (0)
 
-	FL_ADDR(src_addr, SRC_ADDR);
-	FL_ADDR(dst_addr, DST_ADDR);
-	FL_ADDR(agent_addr, AGENT_ADDR);
-	FL_ADDR(gateway_addr, GATEWAY_ADDR);
+	FL_ADDR_NTOP(src_addr, SRC_ADDR);
+	FL_ADDR_NTOP(dst_addr, DST_ADDR);
+	FL_ADDR_NTOP(agent_addr, AGENT_ADDR);
+	FL_ADDR_NTOP(gateway_addr, GATEWAY_ADDR);
+#undef FL_ADDR_NTOP
 
-#undef FL_ADDR
-	self->octets = PyLong_FromUnsignedLongLong(
-		    self->flow.octets.flow_octets);
-	self->packets = PyLong_FromUnsignedLongLong(
-		    self->flow.packets.flow_packets);
+	if ((self->flow.hdr.fields & STORE_FIELD_OCTETS) != 0) {
+		self->octets = PyLong_FromUnsignedLongLong(
+			    self->flow.octets.flow_octets);
+	} else {
+		self->octets = Py_None;
+		Py_INCREF(Py_None);
+	}
+	if ((self->flow.hdr.fields & STORE_FIELD_PACKETS) != 0) {
+		self->packets = PyLong_FromUnsignedLongLong(
+			    self->flow.packets.flow_packets);
+	} else {
+		self->packets = Py_None;
+		Py_INCREF(Py_None);
+	}
+
 	self->user_attr = PyDict_New();
 
 	if (self->user_attr == NULL || self->octets == NULL ||
@@ -119,34 +148,69 @@ newFlowObject_from_flow(struct store_flow_complete *flow)
 	return self;
 }
 
+static int 
+object_to_u64(PyObject *o, u_int64_t *u64)
+{
+	if (o == NULL)
+		return (-1);
+        if (PyLong_Check(o)) {
+		*u64 = PyLong_AsUnsignedLongLong(o);
+		return (0);
+	}
+	*u64 = PyInt_AsUnsignedLongLongMask(o);
+	if (PyErr_Occurred())
+		return (-1);
+
+	return (0);
+}
+
 static int
 flowobj_normalise(FlowObject *f)
 {
-	if (f->octets != NULL)
-		f->flow.octets.flow_octets = PyLong_AsUnsignedLongLong(
-		    f->octets);
-	if (f->packets != NULL)
-		f->flow.packets.flow_packets = PyLong_AsUnsignedLongLong(
-		    f->packets);
+	const char *tmp;
 
-#define FL_ADDR(addr, tag) do { \
-	if (f->addr != NULL && *f->addr != '\0') { \
-		if (addr_pton(f->addr, &f->flow.addr) == -1) { \
+	if (f->octets != NULL && f->octets != Py_None) {
+		if (object_to_u64(f->octets,
+		    &f->flow.octets.flow_octets) == -1) {
+			PyErr_SetString(PyExc_TypeError,
+			    "incorrect type for Flow.octets");
+			return (-1);
+		}
+		f->flow.hdr.fields |= STORE_FIELD_OCTETS;
+	} else
+		f->flow.hdr.fields &= ~STORE_FIELD_OCTETS;
+
+	if (f->packets != NULL && f->packets != Py_None) {
+		if (object_to_u64(f->packets,
+		    &f->flow.packets.flow_packets) == -1) {
+			PyErr_SetString(PyExc_TypeError,
+			    "incorrect type for Flow.packets");
+			return (-1);
+		}
+		f->flow.hdr.fields |= STORE_FIELD_PACKETS;
+	} else
+		f->flow.hdr.fields &= ~STORE_FIELD_PACKETS;
+
+#define FL_ADDR_PTON(addr, tag) do { \
+	if (f->addr == NULL || f->addr == Py_None || \
+	    (tmp = PyString_AsString(f->addr)) == NULL || \
+	    *tmp == '\0') { \
+		f->flow.hdr.fields &= ~STORE_FIELD_##tag; \
+	} else { \
+		if (addr_pton(tmp, &f->flow.addr) == -1) { \
 			PyErr_SetString(PyExc_ValueError, \
 			    "Invalid \""#addr"\""); \
 			return (-1); \
 		} \
 		f->flow.hdr.fields |= STORE_FIELD_##tag; \
-	} else { \
-		f->flow.hdr.fields &= ~STORE_FIELD_##tag; \
 	} } while (0)
 
-	FL_ADDR(src_addr, SRC_ADDR);
-	FL_ADDR(dst_addr, DST_ADDR);
-	FL_ADDR(agent_addr, AGENT_ADDR);
-	FL_ADDR(gateway_addr, GATEWAY_ADDR);
+	FL_ADDR_PTON(src_addr, SRC_ADDR);
+	FL_ADDR_PTON(dst_addr, DST_ADDR);
+	FL_ADDR_PTON(agent_addr, AGENT_ADDR);
+	FL_ADDR_PTON(gateway_addr, GATEWAY_ADDR);
 
-#undef FL_ADDR
+#undef FL_ADDR_PTON
 
 	return (0);
 }
@@ -178,14 +242,10 @@ Flow_dealloc(FlowObject *self)
 	Py_XDECREF(self->user_attr);
 	Py_XDECREF(self->octets);
 	Py_XDECREF(self->packets);
-	if (self->src_addr != NULL)
-		free(self->src_addr);
-	if (self->dst_addr != NULL)
-		free(self->dst_addr);
-	if (self->agent_addr != NULL)
-		free(self->agent_addr);
-	if (self->gateway_addr != NULL)
-		free(self->gateway_addr);
+	Py_XDECREF(self->src_addr);
+	Py_XDECREF(self->dst_addr);
+	Py_XDECREF(self->agent_addr);
+	Py_XDECREF(self->gateway_addr);
 	PyObject_Del(self);
 }
 
@@ -252,10 +312,10 @@ static PyMethodDef Flow_methods[] = {
 
 static PyMemberDef Flow_members[] = {
 	{"data",	T_OBJECT, offsetof(FlowObject, user_attr),	0},
-	{"src_addr",	T_STRING, offsetof(FlowObject, src_addr),	0},
-	{"dst_addr",	T_STRING, offsetof(FlowObject, dst_addr),	0},
-	{"agent_addr",	T_STRING, offsetof(FlowObject, agent_addr),	0},
-	{"gateway_addr",T_STRING, offsetof(FlowObject, gateway_addr),	0},
+	{"src_addr",	T_OBJECT, offsetof(FlowObject, src_addr),	0},
+	{"dst_addr",	T_OBJECT, offsetof(FlowObject, dst_addr),	0},
+	{"agent_addr",	T_OBJECT, offsetof(FlowObject, agent_addr),	0},
+	{"gateway_addr",T_OBJECT, offsetof(FlowObject, gateway_addr),	0},
 	{"octets",	T_OBJECT, offsetof(FlowObject, octets),		0},
 	{"packets",	T_OBJECT, offsetof(FlowObject, packets),	0},
 	{"src_addr_af",	FL_T_AF,  offsetof(FlowObject, flow.src_addr.af),	0},
@@ -602,7 +662,7 @@ the flow will be created from the specified binary flow record, otherwise \n\
 the Flow object will be created empty.");
 
 static PyObject *
-flow_Flow(PyObject *args, PyObject *kw_args)
+flow_Flow(PyObject *self, PyObject *args, PyObject *kw_args)
 {
 	FlowObject *rv;
 	static char *keywords[] = { "blob", NULL };
@@ -699,12 +759,13 @@ initflowd(void)
 	STORE_CONST(DISPLAY_ALL);
 	STORE_CONST(DISPLAY_BRIEF);
 #undef STORE_CONST
-#define STORE_CONST(c) \
+#define STORE_CONST2(c) \
 	PyModule_AddObject(m, "STORE_"#c, PyLong_FromUnsignedLong(STORE_##c))
-	STORE_CONST(VER_MAJOR);
-	STORE_CONST(VER_MINOR);
-	STORE_CONST(VERSION);
-#undef STORE_CONST
+	STORE_CONST2(VER_MAJOR);
+	STORE_CONST2(VER_MINOR);
+	STORE_CONST2(VERSION);
+#undef STORE_CONST2
 
 	PyModule_AddStringConstant(m, "__version__", PROGVER);
 }
+
