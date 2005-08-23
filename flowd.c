@@ -35,6 +35,7 @@
 #include "privsep.h"
 #include "netflow.h"
 #include "store.h"
+#include "store-v2.h"
 #include "atomicio.h"
 #include "peer.h"
 
@@ -119,11 +120,44 @@ static int
 start_log(int monitor_fd)
 {
 	int fd;
+	off_t r;
+	char ebuf[512];
 
 	if ((fd = client_open_log(monitor_fd)) == -1)
 		logerrx("Logfile open failed, exiting");
 
-	return (fd);
+	/* Don't try to write a v.3 log on the end of a v.2 one */
+
+	r = lseek(fd, 0, SEEK_END);
+
+	/*
+	 * If there isn't a full legacy header in the file or an error occurs
+	 * (r == -1, e.g. on a FIFO) then don't bother checking for an old 
+	 * log header.
+	 */
+	if (r < sizeof(struct store_v2_header))
+		return (fd);
+
+	if ((r = lseek(fd, 0, SEEK_SET)) == -1)
+		logerr("%s: lseek", __func__);
+
+	switch (store_v2_check_header(fd, ebuf, sizeof(ebuf))) {
+	case STORE_ERR_OK:
+		/* Uh oh - an old flow log is in the way, don't try to write */
+		logerrx("Error: Cannot append to legacy (version 2) flow log, "
+		    "please move it out of the way and restart flowd");
+	case STORE_ERR_BAD_MAGIC:
+	case STORE_ERR_UNSUP_VERSION:
+		/* Good - the existing flow log is a probably a new one */
+		if ((r = lseek(fd, 0, SEEK_END)) == -1)
+			logerr("%s: lseek", __func__);
+		return (fd);
+	default:
+		logerrx("%s: %s", __func__, ebuf);
+	}
+
+	/* NOTREACHED */
+	return (-1);
 }
 
 static void
