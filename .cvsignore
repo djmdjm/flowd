@@ -15,3 +15,4 @@ flowd-reader.8
 flowd.8
 flowd.conf.5
 *.old
+flowd-pytypes.h
