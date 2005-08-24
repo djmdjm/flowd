@@ -68,3 +68,7 @@
 
 - Allow startup of flowd with detached logsock (maybe return a /dev/null fd
   from the monitor - it will error on send)
+
+XXX python flow.has_field(field) -> Boolean 
+XXX port stats.py to new API and improve (pickle for a start...)
+
