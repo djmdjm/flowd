@@ -145,7 +145,28 @@ For example,
 logfile "/var/log/flowd.bin"
 .Ed
 .Pp
-This option is mandatory, there is no default value.
+There is no default value for this option and it it mandatory 
+to specify at least one of the
+.Cm logfile
+and
+.Cm logsock
+options.
+.It Ar logsock
+Specifies a path to an AF_UNIX datagram socket that will be relayed flows
+in realtime as they are received by flowd.
+Please note that this option is experimental.
+.Pp
+For example,
+.Bd -literal -offset indent
+logsock "/var/log/flowd.sock"
+.Ed
+.Pp
+There is no default value for this option and it it mandatory 
+to specify at least one of the
+.Cm logfile
+and
+.Cm logsock
+options.
 .It Ar pidfile
 Specify a file in which
 .Xr flowd 8

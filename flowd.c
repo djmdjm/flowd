@@ -47,8 +47,18 @@ RCSID("$Id$");
 /* Reams of netflow v.9 verbosity */
 /* #define DEBUG_NF9 */
 
+/* Number of errors on Unix Domain log socket before we reopen */
+#define LOGSOCK_REOPEN_ERROR_COUNT	128
+
+/* Ratelimit for Unix Domain log socket reopens */
+#define LOGSOCK_REOPEN_DELAY		60 /* seconds */
+
 /* Prototype this (can't make it static because it only #ifdef DEBUG_UNKNOWN) */
 void dump_packet(const char *tag, const u_int8_t *p, int len);
+
+/* Unix domain socket error detection and reopen counters */
+static int logsock_first_error = 0;
+static int logsock_num_errors = 0;
 
 /* Flags set by signal handlers */
 static sig_atomic_t exit_flag = 0;
@@ -160,11 +170,22 @@ start_log(int monitor_fd)
 	return (-1);
 }
 
+static int
+start_socket(int monitor_fd)
+{
+	int fd;
+
+	if ((fd = client_open_socket(monitor_fd)) == -1)
+		logerrx("Logsock open failed, exiting");
+	return (fd);
+}
+
 static void
 process_flow(struct store_flow_complete *flow, struct flowd_config *conf,
-    int log_fd)
+    int log_fd, int log_socket)
 {
-	char ebuf[512];
+	char ebuf[512], fbuf[1024];
+	int flen;
 
 	/* Another sanity check */
 	if (flow->src_addr.af != flow->dst_addr.af) {
@@ -179,19 +200,43 @@ process_flow(struct store_flow_complete *flow, struct flowd_config *conf,
 	flow->recv_time.recv_usec = htonl(flow->recv_time.recv_usec);
 
 	if (conf->opts & FLOWD_OPT_VERBOSE) {
-		char fbuf[1024];
+		char fmtbuf[1024];
 
-		store_format_flow(flow, fbuf, sizeof(fbuf), 0,
+		store_format_flow(flow, fmtbuf, sizeof(fmtbuf), 0,
 		    STORE_DISPLAY_ALL, 0);
-		logit(LOG_DEBUG, "%s: flow %s", __func__, fbuf);
+		logit(LOG_DEBUG, "%s: flow %s", __func__, fmtbuf);
 	}
 
 	if (filter_flow(flow, &conf->filter_list) == FF_ACTION_DISCARD)
 		return;
 
-	if (store_put_flow(log_fd, flow, conf->store_mask, ebuf,
+	if (store_flow_serialise_masked(flow, conf->store_mask, fbuf,
+	    sizeof(fbuf), &flen, ebuf, sizeof(ebuf)) != STORE_ERR_OK)
+		logerrx("%s: exiting on %s", __func__, ebuf);
+
+	if (log_fd != -1 && store_put_buf(log_fd, fbuf, flen, ebuf,
 	    sizeof(ebuf)) != STORE_ERR_OK)
 		logerrx("%s: exiting on %s", __func__, ebuf);
+
+	/* Track failures to send on log socket so we can reopen it */
+	if (log_socket != -1 && send(log_socket, fbuf, flen, 0) == -1) {
+		if ((logsock_num_errors % 10) == 0) {
+			logit(LOG_WARNING, "log socket send: %s "
+			    "(num errors %d)", strerror(errno),
+			    logsock_num_errors);
+		}
+		if (errno != errno != ENOBUFS) {
+			if (logsock_first_error == 0)
+				logsock_first_error = time(NULL);
+			logsock_num_errors++;
+		}
+	} else {
+		/* Start to disregard errors after success */
+		if (logsock_num_errors > 0)
+			logsock_num_errors--;
+		if (logsock_num_errors == 0)
+			logsock_first_error = 0;
+	}
 
 	/* XXX reopen log file on one failure, exit on multiple */
 }
@@ -199,7 +244,7 @@ process_flow(struct store_flow_complete *flow, struct flowd_config *conf,
 static void
 process_netflow_v1(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
     struct flowd_config *conf, struct peer_state *peer, struct peers *peers,
-    int log_fd)
+    int log_fd, int log_socket)
 {
 	struct NF1_HEADER *nf1_hdr = (struct NF1_HEADER *)pkt;
 	struct NF1_FLOW *nf1_flow;
@@ -284,14 +329,14 @@ process_netflow_v1(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
 		flow.ftimes.flow_start = nf1_flow->flow_start;
 		flow.ftimes.flow_finish = nf1_flow->flow_finish;
 
-		process_flow(&flow, conf, log_fd);
+		process_flow(&flow, conf, log_fd, log_socket);
 	}
 }
 
 static void
 process_netflow_v5(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
     struct flowd_config *conf, struct peer_state *peer, struct peers *peers,
-    int log_fd)
+    int log_fd, int log_socket)
 {
 	struct NF5_HEADER *nf5_hdr = (struct NF5_HEADER *)pkt;
 	struct NF5_FLOW *nf5_flow;
@@ -383,14 +428,14 @@ process_netflow_v5(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
 		flow.finf.engine_id = nf5_hdr->engine_id;
 		flow.finf.flow_sequence = nf5_hdr->flow_sequence;
 
-		process_flow(&flow, conf, log_fd);
+		process_flow(&flow, conf, log_fd, log_socket);
 	}
 }
 
 static void
 process_netflow_v7(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
     struct flowd_config *conf, struct peer_state *peer, struct peers *peers,
-    int log_fd)
+    int log_fd, int log_socket)
 {
 	struct NF7_HEADER *nf7_hdr = (struct NF7_HEADER *)pkt;
 	struct NF7_FLOW *nf7_flow;
@@ -486,7 +531,7 @@ process_netflow_v7(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
 
 		flow.finf.flow_sequence = nf7_hdr->flow_sequence;
 
-		process_flow(&flow, conf, log_fd);
+		process_flow(&flow, conf, log_fd, log_socket);
 	}
 }
 
@@ -726,7 +771,7 @@ process_netflow_v9_template(u_int8_t *pkt, size_t len, struct peer_state *peer,
 static int
 process_netflow_v9_data(u_int8_t *pkt, size_t len, struct peer_state *peer,
     u_int32_t source_id, struct NF9_HEADER *nf9_hdr, struct flowd_config *conf,
-    int log_fd, u_int *num_flows)
+    int log_fd, int log_socket, u_int *num_flows)
 {
 	struct store_flow_complete *flows;
 	struct peer_nf9_template *template;
@@ -790,7 +835,7 @@ process_netflow_v9_data(u_int8_t *pkt, size_t len, struct peer_state *peer,
 	*num_flows = i;
 
 	for (i = 0; i < *num_flows; i++)
-		process_flow(&flows[i], conf, log_fd);
+		process_flow(&flows[i], conf, log_fd, log_socket);
 
 	free(flows);
 
@@ -800,7 +845,7 @@ process_netflow_v9_data(u_int8_t *pkt, size_t len, struct peer_state *peer,
 static void
 process_netflow_v9(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
     struct flowd_config *conf, struct peer_state *peer, struct peers *peers,
-    int log_fd)
+    int log_fd, int log_socket)
 {
 	struct NF9_HEADER *nf9_hdr = (struct NF9_HEADER *)pkt;
 	struct NF9_FLOWSET_HEADER_COMMON *flowset;
@@ -873,7 +918,7 @@ process_netflow_v9(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
 				break;
 			}
 			if (process_netflow_v9_data(pkt + offset, flowset_len,
-			    peer, source_id, nf9_hdr, conf, log_fd,
+			    peer, source_id, nf9_hdr, conf, log_fd, log_socket,
 			    &flowset_flows) != 0)
 				return;
 			total_flows += flowset_flows;
@@ -892,7 +937,7 @@ process_netflow_v9(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
 
 static void
 process_input(struct flowd_config *conf, struct peers *peers,
-    int net_fd, int log_fd)
+    int net_fd, int log_fd, int log_socket)
 {
 	struct sockaddr_storage from;
 	struct peer_state *peer;
@@ -939,19 +984,19 @@ process_input(struct flowd_config *conf, struct peers *peers,
 	switch (ntohs(hdr->version)) {
 	case 1:
 		process_netflow_v1(buf, len, &flow_source, conf, peer,
-		    peers, log_fd);
+		    peers, log_fd, log_socket);
 		break;
 	case 5:
 		process_netflow_v5(buf, len, &flow_source, conf, peer,
-		    peers, log_fd);
+		    peers, log_fd, log_socket);
 		break;
 	case 7:
 		process_netflow_v7(buf, len, &flow_source, conf, peer,
-		    peers, log_fd);
+		    peers, log_fd, log_socket);
 		break;
 	case 9:
 		process_netflow_v9(buf, len, &flow_source, conf, peer,
-		    peers, log_fd);
+		    peers, log_fd, log_socket);
 		break;
 	default:
 		logit(LOG_INFO, "Unsupported netflow version %u from %s",
@@ -1004,19 +1049,31 @@ init_pfd(struct flowd_config *conf, struct pollfd **pfdp, int mfd, int *num_fds)
 static void
 flowd_mainloop(struct flowd_config *conf, struct peers *peers, int monitor_fd)
 {
-	int i, log_fd, num_fds = 0;
+	int i, log_fd, log_socket, num_fds = 0;
 	struct listen_addr *la;
 	struct pollfd *pfd = NULL;
 
 	init_pfd(conf, &pfd, monitor_fd, &num_fds);
 
 	/* Main loop */
-	log_fd = -1;
+	log_fd = log_socket = -1;
 	for(;exit_flag == 0;) {
-		if (reopen_flag && log_fd != -1) {
+		if (log_socket != -1 &&
+		    logsock_num_errors > LOGSOCK_REOPEN_ERROR_COUNT &&
+		    time(NULL) > logsock_first_error + LOGSOCK_REOPEN_DELAY) {
+			logit(LOG_INFO, "reopening log socket because of "
+			    "frequent errors");
+			close(log_socket);
+			log_socket = -1;
+			logsock_first_error = logsock_num_errors = 0;
+		}
+		if (reopen_flag && (log_fd != -1 || log_socket != -1)) {
 			logit(LOG_INFO, "log reopen requested");
-			close(log_fd);
-			log_fd = -1;
+			if (log_fd != -1)
+				close(log_fd);
+			if (log_socket != -1)
+				close(log_socket);
+			log_fd = log_socket = -1;
 			reopen_flag = 0;
 		}
 		if (reconf_flag) {
@@ -1027,8 +1084,10 @@ flowd_mainloop(struct flowd_config *conf, struct peers *peers, int monitor_fd)
 			scrub_peers(conf, peers);
 			reconf_flag = 0;
 		}
-		if (log_fd == -1)
+		if (log_fd == -1 && conf->log_file != NULL)
 			log_fd = start_log(monitor_fd);
+		if (log_socket == -1 && conf->log_socket != NULL)
+			log_socket = start_socket(monitor_fd);
 
 		if (info_flag) {
 			struct filter_rule *fr;
@@ -1055,7 +1114,8 @@ flowd_mainloop(struct flowd_config *conf, struct peers *peers, int monitor_fd)
 		i = 1;
 		TAILQ_FOREACH(la, &conf->listen_addrs, entry) {
 			if ((pfd[i].revents & POLLIN) != 0)
-				process_input(conf, peers, pfd[i].fd, log_fd);
+				process_input(conf, peers, pfd[i].fd,
+				    log_fd, log_socket);
 			i++;
 		}
 	}

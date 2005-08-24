@@ -71,6 +71,7 @@ TAILQ_HEAD(join_groups, join_group);
 #define FLOWD_OPT_INSECURE		(1<<2)
 struct flowd_config {
 	char			*log_file;
+	char			*log_socket;
 	char			*pid_file;
 	u_int32_t		store_mask;
 	u_int32_t		opts;

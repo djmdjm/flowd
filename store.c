@@ -448,13 +448,10 @@ store_flow_serialise(struct store_flow_complete *f, u_int8_t *buf, int buflen,
 }
 
 int
-store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
-    char *ebuf, int elen)
+store_put_buf(int fd, char *buf, int len, char *ebuf, int elen)
 {
-	u_int32_t fields, origfields;
 	off_t startpos;
-	u_int8_t buf[1024];
-	int len, r, saved_errno, ispipe = 0;
+	int r, saved_errno, ispipe = 0;
 
 	/* Remember where we started, so we can back errors out */
 	if ((startpos = lseek(fd, 0, SEEK_CUR)) == -1) {
@@ -464,19 +461,8 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 			SFAIL(STORE_ERR_IO_SEEK, "lseek", 1);
 	}
 
-	origfields = ntohl(flow->hdr.fields);
-	fields = origfields & fieldmask;
-	flow->hdr.fields = htonl(fields);
-
-	r = store_flow_serialise(flow, buf, sizeof(buf), &len, ebuf, elen);
-	if (r != STORE_ERR_OK) {
-		flow->hdr.fields = htonl(origfields);
-		return (r);
-	}
-
 	r = atomicio(vwrite, fd, buf, len);
 	saved_errno = errno;
-	flow->hdr.fields = htonl(origfields);
 
 	if (r == len)
 		return (STORE_ERR_OK);
@@ -496,6 +482,38 @@ store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
 		SFAIL(STORE_ERR_IO, "write flow", 0);
 	else
 		SFAILX(STORE_ERR_EOF, "EOF on write flow", 0);
+	/* NOTREACHED */
+}
+
+int
+store_flow_serialise_masked(struct store_flow_complete *f, u_int32_t mask,
+    u_int8_t *buf, int buflen, int *flowlen, char *ebuf, int elen)
+{
+	u_int32_t fields, origfields;
+	int r;
+
+	origfields = ntohl(f->hdr.fields);
+	fields = origfields & mask;
+	f->hdr.fields = htonl(fields);
+
+	r = store_flow_serialise(f, buf, buflen, flowlen, ebuf, elen);
+	f->hdr.fields = htonl(origfields);
+
+	return (r);
+}
+
+int
+store_put_flow(int fd, struct store_flow_complete *flow, u_int32_t fieldmask,
+    char *ebuf, int elen)
+{
+	u_int8_t buf[1024];
+	int len, r;
+
+	if ((r = (store_flow_serialise_masked(flow, fieldmask, buf, sizeof(buf),
+	    &len, ebuf, elen))) != STORE_ERR_OK)
+		return (r);
+
+	return store_put_buf(fd, buf, len, ebuf, elen);
 }
 
 int

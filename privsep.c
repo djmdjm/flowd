@@ -42,23 +42,22 @@ static pid_t child_pid = -1;
 static int monitor_to_child_sock = -1;
 
 #define C2M_MSG_OPEN_LOG	1	/* send: nothing   ret: fdpass */
-#define C2M_MSG_RECONFIGURE	2	/* send: nothing   ret: conf+fdpass */
+#define C2M_MSG_OPEN_SOCKET	2	/* send: nothing   ret: fdpass */
+#define C2M_MSG_RECONFIGURE	3	/* send: nothing   ret: conf+fdpass */
 
 /* Utility functions */
 static char *
-privsep_read_string(int fd)
+privsep_read_string(int fd, int nullok)
 {
 	size_t len;
 	char buf[8192], *ret;
 
-	if (atomicio(read, fd, &len, sizeof(len)) != sizeof(len)) {
-		logitm(LOG_ERR, "%s: read len", __func__);
+	if (atomicio(read, fd, &len, sizeof(len)) != sizeof(len))
+		logerrx("%s: read len", __func__);
+	if (nullok && len == 0)
 		return (NULL);
-	}
-	if (len == 0 || len >= sizeof(buf)) {
-		logit(LOG_ERR, "%s: silly len: %u", __func__, len);
-		return (NULL);
-	}
+	if (len <= 0 || len >= sizeof(buf))
+		logerrx("%s: silly len: %u", __func__, len);
 	if (atomicio(read, fd, buf, len) != len) {
 		logitm(LOG_ERR, "%s: read str", __func__);
 		return (NULL);
@@ -71,11 +70,15 @@ privsep_read_string(int fd)
 }
 
 static int
-privsep_write_string(int fd, char *s)
+privsep_write_string(int fd, char *s, int nullok)
 {
 	size_t len;
 
-	if ((len = strlen(s)) == 0) {
+	if (s == NULL) {
+		if (!nullok)
+			logerrx("%s: s == NULL", s);
+		len = 0;
+	} else if ((len = strlen(s)) <= 0) {
 		logit(LOG_ERR, "%s: silly len: %u", __func__, len);
 		return (-1);
 	}
@@ -83,7 +86,7 @@ privsep_write_string(int fd, char *s)
 		logitm(LOG_ERR, "%s: write len", __func__);
 		return (-1);
 	}
-	if (atomicio(vwrite, fd, s, len) != len) {
+	if (len > 0 && atomicio(vwrite, fd, s, len) != len) {
 		logitm(LOG_ERR, "%s: write(str)", __func__);
 		return (-1);
 	}
@@ -196,7 +199,10 @@ replace_conf(struct flowd_config *conf, struct flowd_config *newconf)
 	struct allowed_device *ad;
 	struct join_group *jg;
 
-	free(conf->log_file);
+	if (conf->log_file != NULL)
+		free(conf->log_file);
+	if (conf->log_socket != NULL)
+		free(conf->log_socket);
 	free(conf->pid_file);
 	while ((la = TAILQ_FIRST(&conf->listen_addrs)) != NULL) {
 		if (la->fd != -1)
@@ -264,11 +270,10 @@ recv_config(int fd, struct flowd_config *conf)
 
 	logit(LOG_DEBUG, "%s: ready to receive config", __func__);
 
-	if ((newconf.log_file = privsep_read_string(fd)) == NULL) {
-		logit(LOG_ERR, "%s: Couldn't read conf.log_file", __func__);
-		return (-1);
-	}
-	if ((newconf.pid_file = privsep_read_string(fd)) == NULL) {
+	newconf.log_file = privsep_read_string(fd, 1);
+	newconf.log_socket = privsep_read_string(fd, 1);
+
+	if ((newconf.pid_file = privsep_read_string(fd, 0)) == NULL) {
 		logit(LOG_ERR, "%s: Couldn't read conf.pid_file", __func__);
 		return (-1);
 	}
@@ -391,11 +396,15 @@ send_config(int fd, struct flowd_config *conf)
 
 	logit(LOG_DEBUG, "%s: entering fd = %d", __func__, fd);
 
-	if (privsep_write_string(fd, conf->log_file) == -1) {
+	if (privsep_write_string(fd, conf->log_file, 1) == -1) {
 		logit(LOG_ERR, "%s: Couldn't write conf.log_file", __func__);
 		return (-1);
 	}
-	if (privsep_write_string(fd, conf->pid_file) == -1) {
+	if (privsep_write_string(fd, conf->log_socket, 1) == -1) {
+		logit(LOG_ERR, "%s: Couldn't write conf.log_socket", __func__);
+		return (-1);
+	}
+	if (privsep_write_string(fd, conf->pid_file, 0) == -1) {
 		logit(LOG_ERR, "%s: Couldn't write conf.pid_file", __func__);
 		return (-1);
 	}
@@ -545,7 +554,7 @@ child_get_config(const char *path, struct flowd_config *conf)
 	FILE *cfg;
 	struct passwd *pw = NULL;
 	struct flowd_config newconf = {
-		NULL, NULL, 0, 0,
+		NULL, NULL, NULL, 0, 0,
 		TAILQ_HEAD_INITIALIZER(newconf.listen_addrs),
 		TAILQ_HEAD_INITIALIZER(newconf.filter_list),
 		TAILQ_HEAD_INITIALIZER(newconf.allowed_devices),
@@ -669,7 +678,24 @@ client_open_log(int monitor_fd)
 		return (-1);
 
 	return (fd);
+}
 
+int
+client_open_socket(int monitor_fd)
+{
+	int fd = -1;
+	u_int msg = C2M_MSG_OPEN_SOCKET;
+
+	logit(LOG_DEBUG, "%s: entering", __func__);
+
+	if (atomicio(vwrite, monitor_fd, &msg, sizeof(msg)) != sizeof(msg)) {
+		logitm(LOG_ERR, "%s: write", __func__);
+		return (-1);
+	}
+	if ((fd = receive_fd(monitor_fd)) == -1)
+		return (-1);
+
+	return (fd);
 }
 
 int
@@ -716,6 +742,9 @@ answer_open_log(struct flowd_config *conf, int client_fd)
 
 	logit(LOG_DEBUG, "%s: entering", __func__);
 
+	if (conf->log_file == NULL)
+		logerrx("%s: attempt to open NULL log", __func__);
+
 	fd = open(conf->log_file, O_RDWR|O_APPEND|O_CREAT, 0600);
 	if (fd == -1) {
 		logitm(LOG_ERR, "%s: open", __func__);
@@ -723,6 +752,51 @@ answer_open_log(struct flowd_config *conf, int client_fd)
 	}
 	if (send_fd(client_fd, fd) == -1)
 		return (-1);
+	close(fd);
+	return (0);
+}
+#include <sys/socket.h>
+#include <sys/un.h>
+#ifndef offsetof
+# define offsetof(type, member) ((size_t) &((type *)0)->member)
+#endif
+
+static int
+answer_open_socket(struct flowd_config *conf, int client_fd)
+{
+	int fd;
+	struct sockaddr_un to;
+	socklen_t tolen;
+
+	logit(LOG_DEBUG, "%s: entering", __func__);
+
+	if (conf->log_socket == NULL)
+		logerrx("%s: attempt to open NULL log", __func__);
+
+	if ((fd = socket(AF_UNIX, SOCK_DGRAM, 0)) == -1) {
+		logitm(LOG_ERR, "%s: socket", __func__);
+		return (-1);
+	}
+
+	bzero(&to, sizeof(to));
+	if (strlcpy(to.sun_path, conf->log_socket,
+	    sizeof(to.sun_path)) >= sizeof(to.sun_path))
+		logerrx("Log socket path too long");
+	to.sun_family = AF_UNIX;
+	tolen = offsetof(struct sockaddr_un, sun_path) +
+	    strlen(conf->log_socket) + 1;
+#ifdef SOCK_HAS_LEN 
+	to.sun_len = tolen;
+#endif
+
+	if (connect(fd, (struct sockaddr *)&to, tolen) == -1) {
+		logitm(LOG_ERR, "connect to logsock");
+		return (-1);
+	}
+
+	if (send_fd(client_fd, fd) == -1)
+		return (-1);
+
 	close(fd);
 	return (0);
 }
@@ -838,6 +912,12 @@ privsep_master(struct flowd_config *conf, const char *config_path)
 		switch (what) {
 		case C2M_MSG_OPEN_LOG:
 			if (answer_open_log(conf, monitor_to_child_sock)) {
+				unlink(conf->pid_file);
+				exit(1);
+			}
+			break;
+		case C2M_MSG_OPEN_SOCKET:
+			if (answer_open_socket(conf, monitor_to_child_sock)) {
 				unlink(conf->pid_file);
 				exit(1);
 			}

@@ -263,6 +263,7 @@ struct store_flow_complete {
 #define STORE_ERR_CORRUPT			0x10
 
 /* file descriptor oriented interface (tries to back out on failure */
+int store_put_buf(int fd, char *buf, int len, char *ebuf, int elen);
 int store_get_flow(int fd, struct store_flow_complete *f, char *ebuf, int elen);
 int store_put_flow(int fd, struct store_flow_complete *flow,
     u_int32_t fieldmask, char *ebuf, int elen);
@@ -278,6 +279,8 @@ int store_flow_deserialise(u_int8_t *buf, int len,
     struct store_flow_complete *f, char *ebuf, int elen);
 int store_flow_serialise(struct store_flow_complete *f, u_int8_t *buf, int buflen,
     int *flowlen, char *ebuf, int elen);
+int store_flow_serialise_masked(struct store_flow_complete *f, u_int32_t mask,
+    u_int8_t *buf, int buflen, int *flowlen, char *ebuf, int elen);
 int store_calc_flow_len(struct store_flow *hdr);
 
 /* Formatting and conversion */

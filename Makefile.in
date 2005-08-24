@@ -42,13 +42,13 @@ all: $(TARGETS)
 
 LIBFLOWD_OBJS=		atomicio.o addr.o store.o store-v2.o crc32.o \
 			strlcpy.o strlcat.o
-LIBFLOWD_HEADERS=	addr.h crc32.h store.h
+LIBFLOWD_HEADERS=	addr.h crc32.h store.h store-v2.h flowd-pytypes.h
 FLOWD_OBJS=		flowd.o privsep_fdpass.o privsep.o filter.o \
 			parse.o log.o daemon.o peer.o \
 			closefrom.o setproctitle.o
 FLOWD_READER_OBJS=	flowd-reader.o parse.o log.o filter.o
 
-libflowd.a: $(LIBFLOWD_OBJS)
+libflowd.a: config.h $(LIBFLOWD_HEADERS) $(LIBFLOWD_OBJS)
 	$(AR) rv $@ $(LIBFLOWD_OBJS)
 	$(RANLIB) $@
 
@@ -57,10 +57,10 @@ parse.c: $(top_srcdir)/parse.y
 	mv y.tab.c parse.c
 	rm -f y.tab.h
 
-flowd: $(FLOWD_OBJS) libflowd.a
+flowd: config.h $(LIBFLOWD_HEADERS) $(FLOWD_OBJS) libflowd.a
 	$(CC) $(LDFLAGS) -L. -o $@ $(FLOWD_OBJS) -lflowd $(LIBS)
 
-flowd-reader: $(FLOWD_READER_OBJS) libflowd.a
+flowd-reader: config.h $(LIBFLOWD_HEADERS) $(FLOWD_READER_OBJS) libflowd.a
 	$(CC) $(LDFLAGS) -L. -o $@ $(FLOWD_READER_OBJS) libflowd.a $(LIBS)
 
 clean:
@@ -106,6 +106,7 @@ install-includes: $(LIBFLOWD_HEADERS)
 	$(srcdir)/mkinstalldirs $(DESTDIR)$(HEADER_DIR)
 	$(INSTALL) -m 0644 addr.h $(DESTDIR)$(HEADER_DIR)
 	$(INSTALL) -m 0644 store.h $(DESTDIR)$(HEADER_DIR)
+	$(INSTALL) -m 0644 store-v2.h $(DESTDIR)$(HEADER_DIR)
 	$(INSTALL) -m 0644 crc32.h $(DESTDIR)$(HEADER_DIR)
 	$(INSTALL) -m 0644 flowd-pytypes.h $(DESTDIR)$(HEADER_DIR)
 

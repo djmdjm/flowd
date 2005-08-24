@@ -101,7 +101,7 @@ static const char *longdays[7] = {
 
 %}
 
-%token	LISTEN ON JOIN GROUP LOGFILE STORE PIDFILE FLOW SOURCE
+%token	LISTEN ON JOIN GROUP LOGFILE LOGSOCK STORE PIDFILE FLOW SOURCE
 %token	ALL TAG ACCEPT DISCARD QUICK AGENT SRC DST PORT PROTO TOS ANY
 %token	TCP_FLAGS EQUALS MASK INET INET6 DAYS AFTER BEFORE
 %token	ERROR
@@ -392,6 +392,9 @@ conf_main	: LISTEN ON address_port	{
 		}
 		| LOGFILE string		{
 			conf->log_file = $2;
+		}
+		| LOGSOCK string		{
+			conf->log_socket = $2;
 		}
 		| PIDFILE string		{
 			conf->pid_file = $2;
@@ -814,6 +817,7 @@ lookup(char *s)
 		{ "join",		JOIN},
 		{ "listen",		LISTEN},
 		{ "logfile",		LOGFILE},
+		{ "logsock",		LOGSOCK},
 		{ "mask",		MASK},
 		{ "on",			ON},
 		{ "pidfile",		PIDFILE},
@@ -1050,8 +1054,9 @@ parse_config(const char *path, FILE *f, struct flowd_config *mconf,
 
 	yyparse();
 
-	if (!filter_only && conf->log_file == NULL) {
-		logit(LOG_ERR, "No log file specified");
+	if (!filter_only && conf->log_file == NULL &&
+	    conf->log_socket == NULL) {
+		logit(LOG_ERR, "No log file or socket specified");
 		return (-1);
 	}
 	if (!filter_only && conf->pid_file == NULL && 
@@ -1178,8 +1183,16 @@ dump_config(struct flowd_config *c, const char *prefix, int filter_only)
 	struct listen_addr *la;
 	struct join_group *jg;
 #define DCPR(a) ((a) == NULL ? "" : a), ((a) == NULL ? "" : ": ")
-	if (!filter_only)
-		logit(LOG_DEBUG, "%s%slogfile \"%s\"", DCPR(prefix), c->log_file);
+	if (!filter_only) {
+		if (c->log_file != NULL) {
+			logit(LOG_DEBUG, "%s%slogfile \"%s\"",
+			    DCPR(prefix), c->log_file);
+		}
+		if (c->log_socket != NULL) {
+			logit(LOG_DEBUG, "%s%slogsock \"%s\"",
+			    DCPR(prefix), c->log_socket);
+		}
+	}
 	logit(LOG_DEBUG, "%s%s# store mask %08x", DCPR(prefix), c->store_mask);
 	if (!filter_only) {
 		logit(LOG_DEBUG, "%s%s# opts %08x", DCPR(prefix), c->opts);

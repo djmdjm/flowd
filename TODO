@@ -26,7 +26,6 @@
  - E.g. multiple log files, based on tag?
  - support relaying of pre/post-filter packets to another agent
    - UDP
-   - Unix domain socket (more important)
  - Vanilla text logging
 
 - Improve Perl and Python documentation				*
@@ -67,3 +66,5 @@
 
 - Add support for legacy store logs to perl/python APIs
 
+- Allow startup of flowd with detached logsock (maybe return a /dev/null fd
+  from the monitor - it will error on send)

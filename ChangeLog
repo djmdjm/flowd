@@ -1,4 +1,10 @@
 20050822
+ - (djm) Add support for relaying serialised flows to a local Unix domain
+   datagram socket in realtime. This option ("logsock" in flowd.conf) is
+   considered experimental. A sample Python client exists in 
+   tools/sockclient.py that receives and prints the flows.
+
+20050822
  - (djm) Improve the Python API some more:
    - Prefer PyLong as type for various fields
    - Maintain all addresses as PyObjects rather than char*, so it is 
