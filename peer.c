@@ -16,6 +16,8 @@
 
 /* Peer tracking and state holding code, see peer.h for details */
 
+#include "common.h"
+
 #include <sys/types.h>
 #include <sys/time.h>
 

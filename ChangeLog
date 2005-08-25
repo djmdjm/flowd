@@ -1,4 +1,8 @@
-20050822
+20050825
+ - (djm) Make it compile on Solaris 9 (Perl module is still busted because 
+   of compiler misguessing stupidity)
+
+20050824
  - (djm) Add support for relaying serialised flows to a local Unix domain
    datagram socket in realtime. This option ("logsock" in flowd.conf) is
    considered experimental. A sample Python client exists in 

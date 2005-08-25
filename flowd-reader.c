@@ -16,6 +16,8 @@
 
 #define PROGNAME	"flowd-reader"
 
+#include "common.h"
+
 #include <sys/types.h>
 
 #include <unistd.h>
@@ -26,7 +28,6 @@
 #include <stdio.h>
 #include <poll.h>
 
-#include "common.h"
 #include "flowd.h"
 #include "store.h"
 #include "store-v2.h"

@@ -48,7 +48,7 @@ FLOWD_OBJS=		flowd.o privsep_fdpass.o privsep.o filter.o \
 			closefrom.o setproctitle.o
 FLOWD_READER_OBJS=	flowd-reader.o parse.o log.o filter.o
 
-libflowd.a: config.h $(LIBFLOWD_HEADERS) $(LIBFLOWD_OBJS)
+libflowd.a: flowd-config.h $(LIBFLOWD_HEADERS) $(LIBFLOWD_OBJS)
 	$(AR) rv $@ $(LIBFLOWD_OBJS)
 	$(RANLIB) $@
 
@@ -57,17 +57,16 @@ parse.c: $(top_srcdir)/parse.y
 	mv y.tab.c parse.c
 	rm -f y.tab.h
 
-flowd: config.h $(LIBFLOWD_HEADERS) $(FLOWD_OBJS) libflowd.a
+flowd: flowd-config.h $(LIBFLOWD_HEADERS) $(FLOWD_OBJS) libflowd.a
 	$(CC) $(LDFLAGS) -L. -o $@ $(FLOWD_OBJS) -lflowd $(LIBS)
 
-flowd-reader: config.h $(LIBFLOWD_HEADERS) $(FLOWD_READER_OBJS) libflowd.a
+flowd-reader: flowd-config.h $(LIBFLOWD_HEADERS) $(FLOWD_READER_OBJS) libflowd.a
 	$(CC) $(LDFLAGS) -L. -o $@ $(FLOWD_READER_OBJS) libflowd.a $(LIBS)
 
 clean:
 	rm -f $(TARGETS) *.o core *.core y.tab.* parse.c libflowd.a
 
 realclean: clean
-	rm -f Flowd-perl/lib/Flowd.pm
 	-(cd Flowd-perl && test -f Makefile && make distclean)
 	rm -rf autom4te.cache Makefile config.log config.status
 	rm -f flowd.8 flowd-reader.8 flowd.conf.5
@@ -75,7 +74,7 @@ realclean: clean
 	rm -rf build
 
 distclean: realclean
-	rm -f config.h* flowd-pytypes.h configure
+	rm -f flowd-config.h* flowd-pytypes.h configure
 
 strip:
 	strip $(TARGETS)

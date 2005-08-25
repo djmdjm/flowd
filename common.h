@@ -20,7 +20,7 @@
 #define _FLOWD_COMMON_H
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+#include "flowd-config.h"
 #endif
 
 #if defined(HAVE_SYS_CDEFS_H)

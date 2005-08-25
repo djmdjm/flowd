@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include "common.h"
+
 #include <sys/types.h>
 
 #include <unistd.h>
@@ -25,7 +27,6 @@
 #include <time.h>
 #include <poll.h>
 
-#include "common.h"
 #include "store-v2.h"
 #include "atomicio.h"
 #include "crc32.h"

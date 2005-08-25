@@ -20,7 +20,8 @@ import sys
 from distutils.core import setup, Extension
 
 DEFS = [
-	( 'PROGVER',  '"0.9"' ),
+	( 'HAVE_CONFIG_H',	'1' ),
+	( 'PROGVER',		'"0.9"' ),
 ]
 
 if __name__ == '__main__':

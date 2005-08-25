@@ -24,8 +24,8 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <sys/types.h>
 #include "common.h"
+#include <sys/types.h>
 #include "crc32.h"
 
 RCSID("$Id$");

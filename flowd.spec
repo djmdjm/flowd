@@ -67,7 +67,7 @@ This is a C API to the binary flowd network flow log format.
 %setup
 
 %build
-[ -f configure -a -f config.h.in ] || autoreconf
+[ -f configure -a -f flowd-config.h.in ] || autoreconf
 %configure --enable-gcc-warnings
 
 make

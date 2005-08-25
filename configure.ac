@@ -20,13 +20,18 @@ AC_CONFIG_SRCDIR([flowd.c])
 PROGVER=0.9
 AC_SUBST(PROGVER)
 
-AC_CONFIG_HEADER(config.h)
+AC_CONFIG_HEADER(flowd-config.h)
 AC_CANONICAL_HOST
 AC_PROG_CC
+
 AC_PROG_INSTALL
 AC_PROG_RANLIB
 AC_SYS_LARGEFILE
 AC_C_BIGENDIAN
+
+if test "x$GCC" = "xyes" ; then
+	CFLAGS="${CFLAGS} -fPIC"
+fi
 
 # GNU bison doesn't work for us, so try to find a Berkeley yacc
 AC_PATH_PROG(YACC, yacc)
@@ -65,7 +70,7 @@ WFLAGS="-Wall -Waggregate-return -Wcast-align -Wcast-qual"
 WFLAGS="$WFLAGS -Wmissing-declarations -Wmissing-prototypes"
 WFLAGS="$WFLAGS -Wno-conversion -Wpointer-arith -Wshadow"
 WFLAGS="$WFLAGS -Wuninitialized -Wcast-align -Wcast-qual"
-WFLAGS="$WFLAGS -WformatC=2 -Wformat-nonliteral -Wwrite-strings" 
+WFLAGS="$WFLAGS -Wformat=2 -Wformat-nonliteral -Wwrite-strings" 
 
 # Process flag arguments early, so they are available for tests later
 AC_ARG_ENABLE(gcc-warnings,

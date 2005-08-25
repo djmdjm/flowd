@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include "common.h"
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -24,7 +26,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include "common.h"
 #include "addr.h"
 
 RCSID("$Id$");

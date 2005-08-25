@@ -1,6 +1,6 @@
 *.o
-config.h
-config.h.in
+flowd-config.h
+flowd-config.h.in
 configure
 config.status
 config.log
