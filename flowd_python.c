@@ -304,9 +304,41 @@ flow_serialise(FlowObject *self)
 	return PyString_FromStringAndSize(buf, len);
 }
 
+PyDoc_STRVAR(flow_has_field_doc,
+"Flow.has_field(field) -> Boolean\n\
+\n\
+Test whether a flow field is set. Multiple fields may be specified by \n\
+logical-ORing them together. If multiple fields are specified, the return \n\
+value is only true if all the fields are present in the flow.\n\
+");
+
+static PyObject *
+flow_has_field(FlowObject *self, PyObject *args, PyObject *kw_args)
+{
+	static char *keywords[] = { "field", NULL };
+	u_int32_t field = 0;
+	PyObject *ret;
+
+	if (!PyArg_ParseTupleAndKeywords(args, kw_args, "k:has_field",
+	    keywords, &field))
+		return NULL;
+	if (field == 0) {
+		PyErr_SetString(PyExc_ValueError, "No field specified");
+		return (NULL);
+	}
+	if (flowobj_normalise(self) == -1)
+		return (NULL);
+
+	ret = (self->flow.hdr.fields & field) == field ? Py_True : Py_False;
+	Py_INCREF(ret);
+
+	return (ret);
+}
+
 static PyMethodDef Flow_methods[] = {
 	{"format",	(PyCFunction)flow_format,	METH_VARARGS|METH_KEYWORDS,	flow_format_doc		},
 	{"serialise",	(PyCFunction)flow_serialise,	0,				flow_serialise_doc	},
+	{"has_field",	(PyCFunction)flow_has_field,	METH_VARARGS|METH_KEYWORDS,	flow_has_field_doc	},
 	{NULL,		NULL}		/* sentinel */
 };
 
