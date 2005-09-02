@@ -1,4 +1,7 @@
 20050826
+ - (djm) Add interval_time() and iso_time() functions to Python module
+
+20050826
  - (djm) Add Flow.has_field() to Python API
 
 20050825

@@ -739,9 +739,54 @@ flow_FlowLog(PyObject *self, PyObject *args, PyObject *kw_args)
 	return (PyObject *)rv;
 }
 
+PyDoc_STRVAR(flow_iso_time_doc,
+"iso_time(time, utc_flag = 0) -> String\n\
+\n\
+Formats a time in seconds-since-epoch format into a ISO8601 string.\n\
+The time will be rendered in the current timezone unless utc_flag is set.\n\
+");
+
+static PyObject *
+flow_iso_time(PyObject *self, PyObject *args, PyObject *kw_args)
+{
+	FlowLogObject *rv;
+	static char *keywords[] = { "time", "utc_flag", NULL };
+	int utc_flag = 0;
+	long time;
+
+	if (!PyArg_ParseTupleAndKeywords(args, kw_args, "l|i:iso_time",
+	    keywords, &time, &utc_flag))
+		return NULL;
+
+	return (PyObject *)PyString_FromString(iso_time(time, utc_flag));
+}
+
+PyDoc_STRVAR(flow_interval_time_doc,
+"iso_time(time) -> String\n\
+\n\
+Formats a duration in seconds into a string.\n\
+");
+
+static PyObject *
+flow_interval_time(PyObject *self, PyObject *args, PyObject *kw_args)
+{
+	FlowLogObject *rv;
+	static char *keywords[] = { "time", NULL };
+	int utc_flag = 0;
+	long time;
+
+	if (!PyArg_ParseTupleAndKeywords(args, kw_args, "l:iso_time",
+	    keywords, &time))
+		return NULL;
+
+	return (PyObject *)PyString_FromString(interval_time(time));
+}
+
 static PyMethodDef flowd_methods[] = {
 	{"Flow",	(PyCFunction)flow_Flow,    METH_VARARGS|METH_KEYWORDS,	flow_Flow_doc	},
 	{"FlowLog",	(PyCFunction)flow_FlowLog, METH_VARARGS|METH_KEYWORDS,	flow_FlowLog_doc },
+	{"iso_time",	(PyCFunction)flow_iso_time, METH_VARARGS|METH_KEYWORDS,	flow_iso_time_doc },
+	{"interval_time",(PyCFunction)flow_interval_time, METH_VARARGS|METH_KEYWORDS,	flow_interval_time_doc },
 	{NULL,		NULL}		/* sentinel */
 };
 
