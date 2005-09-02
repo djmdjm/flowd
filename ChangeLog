@@ -1,6 +1,7 @@
 20050826
  - (djm) Add interval_time() and iso_time() functions to Python module
  - (djm) Port and tidy stats script
+ - (djm) Add a "head" mode to flowd-reader
 
 20050826
  - (djm) Add Flow.has_field() to Python API

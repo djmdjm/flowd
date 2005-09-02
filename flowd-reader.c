@@ -81,7 +81,7 @@ main(int argc, char **argv)
 	char buf[2048], ebuf[512];
 	const char *ffile, *ofile;
 	FILE *ffilef;
-	int ofd, read_legacy;
+	int ofd, read_legacy, head, nflows;
 	u_int32_t disp_mask;
 	struct flowd_config filter_config;
 	struct store_v2_header hdr_v2;
@@ -90,14 +90,22 @@ main(int argc, char **argv)
 	ofile = ffile = NULL;
 	ofd = -1;
 	ffilef = NULL;
+	head = 0;
 
 	bzero(&filter_config, sizeof(filter_config));
 
-	while ((ch = getopt(argc, argv, "LUdf:ho:qv")) != -1) {
+	while ((ch = getopt(argc, argv, "H:LUdf:ho:qv")) != -1) {
 		switch (ch) {
 		case 'h':
 			usage();
 			return (0);
+		case 'H':
+			if ((head = atoi(optarg)) <= 0) {
+				fprintf(stderr, "Invalid -H value.\n");
+				usage();
+				exit(1);
+			}
+			break;
 		case 'L':
 			read_legacy = 1;
 			break;
@@ -178,7 +186,7 @@ main(int argc, char **argv)
 			fflush(stdout);
 		}
 
-		for (;;) {
+		for (nflows = 0; head == 0 || nflows < head; nflows++) {
 			bzero(&flow, sizeof(flow));
 
 			if (read_legacy)
