@@ -1,3 +1,6 @@
+20050913
+ - (djm) Mention creation of _flowd user in INSTALL, spotted by alshu@tut.by
+
 20050826
  - (djm) Add interval_time() and iso_time() functions to Python module
  - (djm) Port and tidy stats script

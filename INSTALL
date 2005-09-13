@@ -13,6 +13,14 @@ To build flowd, follow the familiar incantation:
 make
 make install
 
+You will need to create a user _flowd with a home directory of /var/empty
+for privilege separation. The following commands should work for most 
+platforms (but may not be optimal on everywhere):
+
+mkdir /var/empty
+groupadd _flowd
+useradd -g _flowd -c "flowd privsep" -d /var/empty _flowd
+
 The Perl interface no longer requires extra modules. Build it after you have
 built flowd, using these commands:
 
