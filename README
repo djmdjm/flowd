@@ -1,5 +1,7 @@
 This is flowd, a NetFlow collector daemon intended to be small, fast and
-secure.
+secure. It works well with hardware flow probes (e.g. routers) softflowd[1],
+pfflowd[2], and other software agents that export NetFlow v.1, v.5, v.7 or 
+v.9 datagrams.
 
 It features some basic filtering to limit or tag the flows that are
 recorded and is privilege separated, to limit security exposure from
@@ -55,4 +57,3 @@ BSD-like licenses, but read the LICENSE file for details.
 Damien Miller <djm@mindrot.org>
 
 $Id$
-

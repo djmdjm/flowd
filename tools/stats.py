@@ -397,7 +397,7 @@ def iso_units(x):
 	return "%u%s" % (x, last)
 
 def usage():
-	print >> sys.stderr, "stats.pl (flowd.py version %s)" % \
+	print >> sys.stderr, "stats.py (flowd.py version %s)" % \
 	    flowd.__version__
 	print >> sys.stderr, "Usage: stats.pl [options] [flowd-store]";
 	print >> sys.stderr, "Options:";

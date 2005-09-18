@@ -1,3 +1,7 @@
+20050918
+ - (djm) Fix typo in tools/stats.py, spotted by alshu@tut.by
+ - (djm) Mention softflowd and pfflowd in README, suggested by alshu@tut.by
+
 20050913
  - (djm) Mention creation of _flowd user in INSTALL, spotted by alshu@tut.by
 
