@@ -18,6 +18,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 
 #include <unistd.h>
 #include <stdlib.h>
@@ -36,6 +38,10 @@
 #include "atomicio.h"
 
 RCSID("$Id$");
+
+#ifndef offsetof
+# define offsetof(type, member) ((size_t) &((type *)0)->member)
+#endif
 
 static sig_atomic_t child_exited = 0;
 static pid_t child_pid = -1;
@@ -755,11 +761,6 @@ answer_open_log(struct flowd_config *conf, int client_fd)
 	close(fd);
 	return (0);
 }
-#include <sys/socket.h>
-#include <sys/un.h>
-#ifndef offsetof
-# define offsetof(type, member) ((size_t) &((type *)0)->member)
-#endif
 
 static int
 answer_open_socket(struct flowd_config *conf, int client_fd)
