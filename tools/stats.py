@@ -17,10 +17,10 @@
 # $Id$
 
 # Example Python statistics application
-# This isn't polished at all, it just writes a top-N report to stdout and
-# a bunch of postscript charts to the current directory
+# This isn't polished at all, it just writes a top-N report to stdout
 
 # XXX TODO
+# - redo charts support
 # - Limit memory consumption in per-address statistics
 # - Reports in UTC time or other timezones
 # - Autoscale axes in charts better (particularly time)
@@ -42,9 +42,14 @@ import math
 import getopt
 import time
 import datetime
-import curses
 import pickle
 
+try:
+	import curses
+	no_curses = False
+except ImportError:
+	no_curses = True	
+	
 class exponential_histogram:
 	'''Class implementing a histogram with exponential bins'''
 	def __init__(self, base = 2):
@@ -83,7 +88,7 @@ class exponential_histogram:
 			last = value
 		return ret
 
-	def __str__(self):
+	def report(self):
 		ret = ""
 		for val, count in self.tolist():
 			ret += "%u:%u\n" % (val, count)
@@ -179,66 +184,60 @@ class simple_history(_base_history):
 			self.samples[mwhen] = 0
 		self.samples[mwhen] += amount * 1000.0 / self.resolution
 
+class flow_stat_count:
+	def __init__(self):
+		self.flows = 0
+		self.octets = 0
+		self.packets = 0
+
+	def update(self, flow):
+		self.flows += 1
+		if flow.has_field(flowd.FIELD_OCTETS):
+			self.octets += flow.octets
+		if flow.has_field(flowd.FIELD_PACKETS):
+			self.packets += flow.packets		
+
 class flow_statistic:
 	'''maintain flows, packets and octet counts statistics on a particular 
 	aspect of a flow (e.g. per-protocol, per-port)'''
 	def __init__(self):
 		'''Constructor for class flow_statistic'''
 		self.num_unique = 0
-		self.flows = {}
-		self.octets = {}
-		self.packets = {}
+		self.counts = {}
 
 	def update(self, what, flow):
 		'''Update a flow_statistic with a flow's data.'''
-		if not self.flows.has_key(what):
+		try:
+			count = self.counts[what]
+		except:
 			self.num_unique += 1
-			self.flows[what] = 0
-		self.flows[what] += 1
+			count = flow_stat_count()
+			self.counts[what] = count
 
-		if flow.has_field(flowd.FIELD_OCTETS):
-			if not self.octets.has_key(what):
-				self.octets[what] = 0
-			self.octets[what] += flow.octets
+		count.update(flow)
 
-		if flow.has_field(flowd.FIELD_PACKETS):
-			if not self.packets.has_key(what):
-				self.packets[what] = 0
-			self.packets[what] += flow.packets
-
-	def _dicttolist(self, dict1, sortby = "value"):
-		d = dict1.items()
-		if sortby == "key":
+	def toplist(self, which = "octets", by_key = False, top_n = 10):
+		d = [[x[0], x[1].__dict__[which]] for x in self.counts.items()]
+		if by_key:
 			d.sort(lambda x, y: cmp(x[0], y[0]))
-		elif sortby == "value":
+		else:
 			d.sort(lambda x, y: -cmp(x[1], y[1]))
-		return d
+		if top_n is None:
+			return d
+		return d[0:top_n]
 
-	def top_octets(self, top_n = 10):
-		l = self._dicttolist(self.octets)
-		return l[0:top_n]
-
-	def top_packets(self, top_n = 10):
-		l = self._dicttolist(self.packets)
-		return l[0:top_n]
-
-	def top_flows(self, top_n = 10):
-		l = self._dicttolist(self.flows)
-		return l[0:top_n]
-
-	def __str__(self):
+	def report(self):
 		ret = ""
-		ret += "Total: %d\n" % len(self.flows.keys())
+		ret += "Total: %d\n" % len(self.counts.keys())
 		ret += "Octets\n"
-		ret += string.join(["  %s: %s" % (x[0], x[1]) for x in self.top_octets()], "\n")
-		ret += "\n"
+		for k, v in self.toplist("octets"):
+			ret += "  %s: %s\n" % (k, v)
 		ret += "Packets\n"
-		ret += string.join(["  %s: %s" % (x[0], x[1]) for x in self.top_packets()], "\n")
-		ret += "\n"
+		for k, v in self.toplist("packets"):
+			ret += "  %s: %s\n" % (k, v)
 		ret += "Flows\n"
-		ret += string.join(["  %s: %s" % (x[0], x[1]) for x in self.top_flows()], "\n")
-		ret += "\n"
-		ret += "\n"
+		for k, v in self.toplist("flows"):
+			ret += "  %s: %s\n" % (k, v)
 		return ret
 
 class flow_statistics:
@@ -256,19 +255,29 @@ class flow_statistics:
 		self.flows = 0;
 		self.octets = None;
 		self.packets = None;
-		self.octets_hist = exponential_histogram(base = 10)
-		self.packets_hist = exponential_histogram(base = 10)
-		self.duration_hist = exponential_histogram(base = 10)
-		self.packets_history = interpolated_history()
-		self.octets_history = interpolated_history()
-		self.flows_history = simple_history()
+
+		self.octets_hist = None
+		self.packets_hist = None
+		self.duration_hist = None
+		self.packets_history = None
+		self.octets_history = None
+		self.flows_history = None
+
+# These need more work, or aren't much use for many people
+#		self.octets_hist = exponential_histogram(base = 10)
+#		self.packets_hist = exponential_histogram(base = 10)
+#		self.duration_hist = exponential_histogram(base = 10)
+#		self.packets_history = interpolated_history()
+#		self.octets_history = interpolated_history()
+#		self.flows_history = simple_history()
 
 	def update(self, flow):
 		self.flows += 1
 		
 		if flow.has_field(flowd.FIELD_RECV_TIME):
-			self.flows_history.update(1, \
-			    flow.recv_sec * 1000)
+			if self.flows_history is not None:
+				self.flows_history.update(1, \
+				    flow.recv_sec * 1000)
 			if self.first is None or \
 			   flow.recv_sec < self.first:
 				self.first = flow.recv_sec
@@ -289,26 +298,31 @@ class flow_statistics:
 			if self.octets is None:
 				self.octets = 0
 			self.octets += flow.octets
-			self.octets_hist.update(flow.octets)
+			if self.octets_hist is not None:
+				self.octets_hist.update(flow.octets)
 
 		if flow.has_field(flowd.FIELD_PACKETS):
 			if self.packets is None:
 				self.packets = 0
 			self.packets += flow.packets
-			self.packets_hist.update(flow.packets)
+			if self.packets_hist is not None:
+				self.packets_hist.update(flow.packets)
 
 		if flow.has_field(flowd.FIELD_FLOW_TIMES) and \
 		   flow.has_field(flowd.FIELD_FLOW_TIMES):
 		   	duration = flow.flow_finish - \
 			    flow.flow_start
 			duration = int(duration / 1000) # milliseconds
-			self.duration_hist.update(duration)
-			if flow.has_field(flowd.FIELD_OCTETS):
+			if self.duration_hist is not None:
+				self.duration_hist.update(duration)
+			if flow.has_field(flowd.FIELD_OCTETS) and \
+			   self.octets_history is not None:
 				self.octets_history.update(\
 				    flow.octets, \
 				    flow.flow_start, \
 				    flow.flow_finish)
-			if flow.has_field(flowd.FIELD_PACKETS):
+			if flow.has_field(flowd.FIELD_PACKETS) and \
+			   self.packets_history is not None:
 				self.packets_history.update(\
 				    flow.packets, \
 				    flow.flow_start, \
@@ -348,10 +362,12 @@ class flow_statistics:
 		if last is not None:
 			last -= self.average_clockskew
 			last *= 1000.0
-		self.packets_history.crop(first, last)
-		self.octets_history.crop(first, last)
+		if self.packets_history is not None:
+			self.packets_history.crop(first, last)
+		if self.octets_history is not None:
+			self.octets_history.crop(first, last)
 
-	def __str__(self):
+	def report(self):
 		ret = ""
 		ret += "total_flows: %u\n" % self.flows
 		if self.octets is not None:
@@ -359,28 +375,36 @@ class flow_statistics:
 		if self.packets is not None:
 			ret += "total_packets: %u\n" % self.packets
 		ret += "\n"
-		ret += "duration_histogram:\n"
-		ret += str(self.duration_hist)
-		ret += "\n"
-		ret += "octets_histogram:\n"
-		ret += str(self.octets_hist)
-		ret += "\n"
-		ret += "packets_histogram:\n"
-		ret += str(self.packets_hist)
-		ret += "\n"
+		if self.duration_hist is not None:
+			ret += "duration_histogram:\n"
+			ret += self.duration_hist.report()
+			ret += "\n"
+		if self.octets_hist is not None:
+			ret += "octets_histogram:\n"
+			ret += self.octets_hist.report()
+			ret += "\n"
+		if self.packets_hist is not None:
+			ret += "packets_histogram:\n"
+			ret += self.packets_hist.report()
+			ret += "\n"
 
 		ret += "src_ports:\n"
-		ret += str(self.src_port)
+		ret += self.src_port.report()
+		ret += "\n\n"
 		ret += "dst_ports:\n"
-		ret += str(self.dst_port)
+		ret += self.dst_port.report()
+		ret += "\n\n"
 		ret += "protocols:\n"
-		ret += str(self.protocol)
+		ret += self.protocol.report()
+		ret += "\n\n"
 		ret += "source address:\n"
-		ret += str(self.src_addr)
+		ret += self.src_addr.report()
+		ret += "\n\n"
 		ret += "destination address:\n"
-		ret += str(self.dst_addr)
+		ret += self.dst_addr.report()
+		ret += "\n\n"
 		ret += "source / destination tuples:\n"
-		ret += str(self.fromto)
+		ret += self.fromto.report()
 		return ret
 
 def iso_units(x):
@@ -421,40 +445,41 @@ def main():
 		if o in ('-p', '--pickle'):
 			pickle_file = a
 
-	start_line = None
-	if sys.stderr.isatty():
+	# Get clear-to-line-end sequence for progress display
+	ceol = None
+	if sys.stderr.isatty() and not no_curses:
 		curses.setupterm()
-		el = curses.tigetstr("el")
-		if el is not None:
-			el = curses.tparm(el, 0, 0)
-			start_line = "\r" + el
+		ceol = curses.tigetstr("el")
+		if ceol is not None:
+			ceol = curses.tparm(ceol, 0, 0)
+	if ceol is None:
+		ceol = ""
 
 	if len(args) == 0:
 		print >> sys.stderr, "No logfiles specified"
 		usage()
 
 	i = 0;
-	j = 0;
 	for ffile in args:
+		j = 0
 		flog = flowd.FlowLog(ffile)
 		for flow in flog:
 			stats.update(flow)
-			if start_line is not None and i >= 0 and j % 1000 == 0:
-				sys.stderr.write("%s%s: %d flows (total %d)" % \
-				    (start_line, ffile, j, i))
+			if ceol != "" and i >= 0 and j % 1000 == 0:
+				print >> sys.stderr, "\r%s: %d flows" % \
+				    (ffile, j),
+				if i != j:
+					print >> sys.stderr, " total %d" % i,
+				print >> sys.stderr, ceol,
 				sys.stderr.flush()
 			i += 1
 			j += 1
-			# debugging goop
-			#if j > 50000:
-			#	break
-		sys.stderr.write("%s%s: %d flows (total %d)\n" % \
-		    (start_line, ffile, j, i))
+		print >> sys.stderr, "\r%s: %d flows (total %d)%s\n" % \
+		    (ffile, j, i, ceol)
 		sys.stderr.flush()
-		j = 0
 
 	stats.crop()
-	print stats
+	print stats.report()
 
 	if pickle_file is not None:
 		out = open(pickle_file, "wb")

@@ -3,6 +3,7 @@
  - (djm) Fix another typo in tools/stats.py, spotted by alshu@tut.by
  - (djm) Sync usage for flowd-reader
  - (djm) -Wall cleanup flowd_python.c
+ - (djm) Tidy stats.py, and remove hard dependency on curses module
 
 20050918
  - (djm) Fix typo in tools/stats.py, spotted by alshu@tut.by
