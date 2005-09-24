@@ -42,6 +42,7 @@ usage(void)
 	    PROGNAME);
 	fprintf(stderr, "This is %s version %s. Valid commandline options:\n",
 	    PROGNAME, PROGVER);
+	fprintf(stderr, "  -H num   Read and/or write only the first 'num' flows\n");
 	fprintf(stderr, "  -L       Read/convert legacy flow logs\n");
 	fprintf(stderr, "  -q       Don't print flows to stdout (use with -o)\n");
 	fprintf(stderr, "  -d       Print debugging information\n");
