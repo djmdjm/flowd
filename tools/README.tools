@@ -3,6 +3,13 @@ its API. To use these tools, you must have the Perl and/or Python modules
 installed in a place that the intepreter knows about (e.g. by following the
 instructions in ../INSTALL).
 
+stats.py
+--------
+
+A basic top-10 reporter using the Python API. Also contains some extra code
+to track time series data (for charting) and calculate histograms of flow size 
+(octets and packets) and duration. This extra code isn't enabled by default.
+
 flowinsert.pl
 -------------
 
