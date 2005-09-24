@@ -1,5 +1,6 @@
 20050918
  - (djm) Fix error reporting on logsock send failures
+ - (djm) Fix another typo in tools/stats.py, spotted by alshu@tut.by
 
 20050918
  - (djm) Fix typo in tools/stats.py, spotted by alshu@tut.by
