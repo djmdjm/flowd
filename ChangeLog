@@ -1,4 +1,7 @@
 20050918
+ - (djm) Fix error reporting on logsock send failures
+
+20050918
  - (djm) Fix typo in tools/stats.py, spotted by alshu@tut.by
  - (djm) Mention softflowd and pfflowd in README, suggested by alshu@tut.by
 

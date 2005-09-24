@@ -227,7 +227,7 @@ process_flow(struct store_flow_complete *flow, struct flowd_config *conf,
 			    "(num errors %d)", strerror(errno),
 			    logsock_num_errors);
 		}
-		if (errno != errno != ENOBUFS) {
+		if (errno != ENOBUFS) {
 			if (logsock_first_error == 0)
 				logsock_first_error = time(NULL);
 			logsock_num_errors++;
