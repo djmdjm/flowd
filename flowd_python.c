@@ -749,16 +749,15 @@ The time will be rendered in the current timezone unless utc_flag is set.\n\
 static PyObject *
 flow_iso_time(PyObject *self, PyObject *args, PyObject *kw_args)
 {
-	FlowLogObject *rv;
 	static char *keywords[] = { "time", "utc_flag", NULL };
 	int utc_flag = 0;
-	long time;
+	long when;
 
 	if (!PyArg_ParseTupleAndKeywords(args, kw_args, "l|i:iso_time",
-	    keywords, &time, &utc_flag))
+	    keywords, &when, &utc_flag))
 		return NULL;
 
-	return (PyObject *)PyString_FromString(iso_time(time, utc_flag));
+	return (PyObject *)PyString_FromString(iso_time(when, utc_flag));
 }
 
 PyDoc_STRVAR(flow_interval_time_doc,
@@ -770,16 +769,14 @@ Formats a duration in seconds into a string.\n\
 static PyObject *
 flow_interval_time(PyObject *self, PyObject *args, PyObject *kw_args)
 {
-	FlowLogObject *rv;
 	static char *keywords[] = { "time", NULL };
-	int utc_flag = 0;
-	long time;
+	long when;
 
 	if (!PyArg_ParseTupleAndKeywords(args, kw_args, "l:iso_time",
-	    keywords, &time))
+	    keywords, &when))
 		return NULL;
 
-	return (PyObject *)PyString_FromString(interval_time(time));
+	return (PyObject *)PyString_FromString(interval_time(when));
 }
 
 static PyMethodDef flowd_methods[] = {
