@@ -68,6 +68,53 @@ static sig_atomic_t reconf_flag = 0;
 static sig_atomic_t reopen_flag = 0;
 static sig_atomic_t info_flag = 0;
 
+#define INPUT_MAX_PACKET_PER_FD		1024
+
+struct flow_packet {
+	TAILQ_ENTRY(flow_packet) entry;
+	struct timeval recv_time;
+	struct xaddr flow_source;
+	u_int len;
+	u_int8_t *packet;
+};
+TAILQ_HEAD(flow_packets, flow_packet);
+
+struct flow_packets input_queue = TAILQ_HEAD_INITIALIZER(input_queue);
+
+/* Allocate a new packet (XXX: make this use a pool of preallocated entries) */
+static struct flow_packet
+*flow_packet_alloc(void)
+{
+	return (calloc(1, sizeof(struct flow_packet)));
+}
+
+/* Deallocate a flow packet (XXX: change to return entry to freelist) */
+static void
+flow_packet_dealloc(struct flow_packet *f)
+{
+	if (f->packet != NULL)
+		free(f->packet);
+	free(f);
+}
+
+/* Enqueue a flow packet in the input queue */
+static void
+flow_packet_enqueue(struct flow_packet *f)
+{
+	TAILQ_INSERT_TAIL(&input_queue, f, entry);
+}
+
+/* Pull the first flow packet off the queue */
+static struct flow_packet
+*flow_packet_dequeue(void)
+{
+	struct flow_packet *f;
+
+	if ((f = TAILQ_FIRST(&input_queue)) != NULL)
+		TAILQ_REMOVE(&input_queue, f, entry);
+	return (f);
+}
+
 /* Signal handlers */
 static void
 sighand_exit(int signo)
@@ -244,35 +291,35 @@ process_flow(struct store_flow_complete *flow, struct flowd_config *conf,
 }
 
 static void
-process_netflow_v1(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
-    struct flowd_config *conf, struct peer_state *peer, struct peers *peers,
-    int log_fd, int log_socket)
+process_netflow_v1(struct flow_packet *fp, struct flowd_config *conf,
+    struct peer_state *peer, struct peers *peers, int log_fd, int log_socket)
 {
-	struct NF1_HEADER *nf1_hdr = (struct NF1_HEADER *)pkt;
+	struct NF1_HEADER *nf1_hdr = (struct NF1_HEADER *)fp->packet;
 	struct NF1_FLOW *nf1_flow;
 	struct store_flow_complete flow;
 	size_t offset;
 	u_int i, nflows;
 	struct timeval tv;
 
-	if (len < sizeof(*nf1_hdr)) {
+	if (fp->len < sizeof(*nf1_hdr)) {
 		peer->ninvalid++;
 		logit(LOG_WARNING, "short netflow v.1 packet %d bytes from %s",
-		    len, addr_ntop_buf(flow_source));
+		    fp->len, addr_ntop_buf(&fp->flow_source));
 		return;
 	}
 	nflows = ntohs(nf1_hdr->c.flows);
 	if (nflows == 0 || nflows > NF1_MAXFLOWS) {
 		peer->ninvalid++;
 		logit(LOG_WARNING, "Invalid number of flows (%u) in netflow "
-		    "v.1 packet from %s", nflows, addr_ntop_buf(flow_source));
+		    "v.1 packet from %s", nflows,
+		    addr_ntop_buf(&fp->flow_source));
 		return;
 	}
-	if (len != NF1_PACKET_SIZE(nflows)) {
+	if (fp->len != NF1_PACKET_SIZE(nflows)) {
 		peer->ninvalid++;
 		logit(LOG_WARNING, "Inconsistent Netflow v.1 packet from %s: "
-		    "len %u expected %u", addr_ntop_buf(flow_source), len,
-		    NF1_PACKET_SIZE(nflows));
+		    "len %u expected %u", addr_ntop_buf(&fp->flow_source),
+		    fp->len, NF1_PACKET_SIZE(nflows));
 		return;
 	}
 
@@ -281,7 +328,7 @@ process_netflow_v1(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
 
 	for (i = 0; i < nflows; i++) {
 		offset = NF1_PACKET_SIZE(i);
-		nf1_flow = (struct NF1_FLOW *)(pkt + offset);
+		nf1_flow = (struct NF1_FLOW *)(fp->packet + offset);
 
 		bzero(&flow, sizeof(flow));
 
@@ -295,15 +342,15 @@ process_netflow_v1(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
 		flow.hdr.fields &= ~STORE_FIELD_AS_INFO;
 		flow.hdr.fields &= ~STORE_FIELD_FLOW_ENGINE_INFO;
 
-		gettimeofday(&tv, NULL);
-		flow.recv_time.recv_sec = tv.tv_sec;
+		flow.recv_time.recv_sec = fp->recv_time.tv_sec;
 		flow.recv_time.recv_usec = tv.tv_usec;
 
 		flow.pft.tcp_flags = nf1_flow->tcp_flags;
 		flow.pft.protocol = nf1_flow->protocol;
 		flow.pft.tos = nf1_flow->tos;
 
-		memcpy(&flow.agent_addr, flow_source, sizeof(flow.agent_addr));
+		memcpy(&flow.agent_addr, &fp->flow_source,
+		    sizeof(flow.agent_addr));
 
 		flow.src_addr.v4.s_addr = nf1_flow->src_ip;
 		flow.src_addr.af = AF_INET;
@@ -336,35 +383,34 @@ process_netflow_v1(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
 }
 
 static void
-process_netflow_v5(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
-    struct flowd_config *conf, struct peer_state *peer, struct peers *peers,
-    int log_fd, int log_socket)
+process_netflow_v5(struct flow_packet *fp, struct flowd_config *conf,
+    struct peer_state *peer, struct peers *peers, int log_fd, int log_socket)
 {
-	struct NF5_HEADER *nf5_hdr = (struct NF5_HEADER *)pkt;
+	struct NF5_HEADER *nf5_hdr = (struct NF5_HEADER *)fp->packet;
 	struct NF5_FLOW *nf5_flow;
 	struct store_flow_complete flow;
 	size_t offset;
 	u_int i, nflows;
-	struct timeval tv;
 
-	if (len < sizeof(*nf5_hdr)) {
+	if (fp->len < sizeof(*nf5_hdr)) {
 		peer->ninvalid++;
 		logit(LOG_WARNING, "short netflow v.5 packet %d bytes from %s",
-		    len, addr_ntop_buf(flow_source));
+		    fp->len, addr_ntop_buf(&fp->flow_source));
 		return;
 	}
 	nflows = ntohs(nf5_hdr->c.flows);
 	if (nflows == 0 || nflows > NF5_MAXFLOWS) {
 		peer->ninvalid++;
 		logit(LOG_WARNING, "Invalid number of flows (%u) in netflow "
-		    "v.5 packet from %s", nflows, addr_ntop_buf(flow_source));
+		    "v.5 packet from %s", nflows,
+		    addr_ntop_buf(&fp->flow_source));
 		return;
 	}
-	if (len != NF5_PACKET_SIZE(nflows)) {
+	if (fp->len != NF5_PACKET_SIZE(nflows)) {
 		peer->ninvalid++;
 		logit(LOG_WARNING, "Inconsistent Netflow v.5 packet from %s: "
-		    "len %u expected %u", addr_ntop_buf(flow_source), len,
-		    NF5_PACKET_SIZE(nflows));
+		    "len %u expected %u", addr_ntop_buf(&fp->flow_source),
+		    fp->len, NF5_PACKET_SIZE(nflows));
 		return;
 	}
 
@@ -373,7 +419,7 @@ process_netflow_v5(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
 
 	for (i = 0; i < nflows; i++) {
 		offset = NF5_PACKET_SIZE(i);
-		nf5_flow = (struct NF5_FLOW *)(pkt + offset);
+		nf5_flow = (struct NF5_FLOW *)(fp->packet + offset);
 
 		bzero(&flow, sizeof(flow));
 
@@ -385,15 +431,15 @@ process_netflow_v5(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
 		flow.hdr.fields &= ~STORE_FIELD_DST_ADDR6;
 		flow.hdr.fields &= ~STORE_FIELD_GATEWAY_ADDR6;
 
-		gettimeofday(&tv, NULL);
-		flow.recv_time.recv_sec = tv.tv_sec;
-		flow.recv_time.recv_usec = tv.tv_usec;
+		flow.recv_time.recv_sec = fp->recv_time.tv_sec;
+		flow.recv_time.recv_usec = fp->recv_time.tv_usec;
 
 		flow.pft.tcp_flags = nf5_flow->tcp_flags;
 		flow.pft.protocol = nf5_flow->protocol;
 		flow.pft.tos = nf5_flow->tos;
 
-		memcpy(&flow.agent_addr, flow_source, sizeof(flow.agent_addr));
+		memcpy(&flow.agent_addr, &fp->flow_source,
+		    sizeof(flow.agent_addr));
 
 		flow.src_addr.v4.s_addr = nf5_flow->src_ip;
 		flow.src_addr.af = AF_INET;
@@ -435,35 +481,34 @@ process_netflow_v5(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
 }
 
 static void
-process_netflow_v7(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
-    struct flowd_config *conf, struct peer_state *peer, struct peers *peers,
-    int log_fd, int log_socket)
+process_netflow_v7(struct flow_packet *fp, struct flowd_config *conf,
+    struct peer_state *peer, struct peers *peers, int log_fd, int log_socket)
 {
-	struct NF7_HEADER *nf7_hdr = (struct NF7_HEADER *)pkt;
+	struct NF7_HEADER *nf7_hdr = (struct NF7_HEADER *)fp->packet;
 	struct NF7_FLOW *nf7_flow;
 	struct store_flow_complete flow;
 	size_t offset;
 	u_int i, nflows;
-	struct timeval tv;
 
-	if (len < sizeof(*nf7_hdr)) {
+	if (fp->len < sizeof(*nf7_hdr)) {
 		peer->ninvalid++;
 		logit(LOG_WARNING, "short netflow v.7 packet %d bytes from %s",
-		    len, addr_ntop_buf(flow_source));
+		    fp->len, addr_ntop_buf(&fp->flow_source));
 		return;
 	}
 	nflows = ntohs(nf7_hdr->c.flows);
 	if (nflows == 0 || nflows > NF7_MAXFLOWS) {
 		peer->ninvalid++;
 		logit(LOG_WARNING, "Invalid number of flows (%u) in netflow "
-		    "v.7 packet from %s", nflows, addr_ntop_buf(flow_source));
+		    "v.7 packet from %s", nflows,
+		    addr_ntop_buf(&fp->flow_source));
 		return;
 	}
-	if (len != NF7_PACKET_SIZE(nflows)) {
+	if (fp->len != NF7_PACKET_SIZE(nflows)) {
 		peer->ninvalid++;
 		logit(LOG_WARNING, "Inconsistent Netflow v.7 packet from %s: "
-		    "len %u expected %u", addr_ntop_buf(flow_source), len,
-		    NF7_PACKET_SIZE(nflows));
+		    "len %u expected %u", addr_ntop_buf(&fp->flow_source),
+		    fp->len, NF7_PACKET_SIZE(nflows));
 		return;
 	}
 
@@ -472,7 +517,7 @@ process_netflow_v7(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
 
 	for (i = 0; i < nflows; i++) {
 		offset = NF7_PACKET_SIZE(i);
-		nf7_flow = (struct NF7_FLOW *)(pkt + offset);
+		nf7_flow = (struct NF7_FLOW *)(fp->packet + offset);
 
 		bzero(&flow, sizeof(flow));
 
@@ -490,15 +535,15 @@ process_netflow_v7(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
 		 * the Cat5k (e.g. destination-only mls nde mode)
 		 */
 
-		gettimeofday(&tv, NULL);
-		flow.recv_time.recv_sec = tv.tv_sec;
-		flow.recv_time.recv_usec = tv.tv_usec;
+		flow.recv_time.recv_sec = fp->recv_time.tv_sec;
+		flow.recv_time.recv_usec = fp->recv_time.tv_usec;
 
 		flow.pft.tcp_flags = nf7_flow->tcp_flags;
 		flow.pft.protocol = nf7_flow->protocol;
 		flow.pft.tos = nf7_flow->tos;
 
-		memcpy(&flow.agent_addr, flow_source, sizeof(flow.agent_addr));
+		memcpy(&flow.agent_addr, &fp->flow_source,
+		    sizeof(flow.agent_addr));
 
 		flow.src_addr.v4.s_addr = nf7_flow->src_ip;
 		flow.src_addr.af = AF_INET;
@@ -641,12 +686,12 @@ nf9_check_rec_len(u_int type, u_int len)
 }
 
 static int
-nf9_flowset_to_store(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
-    struct NF9_HEADER *nf9_hdr, struct peer_nf9_template *template,
-    u_int32_t source_id, struct store_flow_complete *flow)
+nf9_flowset_to_store(u_int8_t *pkt, size_t len, struct timeval *tv, 
+    struct xaddr *flow_source, struct NF9_HEADER *nf9_hdr,
+    struct peer_nf9_template *template, u_int32_t source_id,
+    struct store_flow_complete *flow)
 {
 	u_int offset, i;
-	struct timeval tv;
 
 	if (template->total_len > len)
 		return (-1);
@@ -660,9 +705,8 @@ nf9_flowset_to_store(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
 	flow->ainfo.netflow_version = nf9_hdr->c.version;
 	flow->finf.flow_sequence = nf9_hdr->package_sequence;
 	flow->finf.source_id = htonl(source_id);
-	gettimeofday(&tv, NULL);
-	flow->recv_time.recv_sec = tv.tv_sec;
-	flow->recv_time.recv_usec = tv.tv_usec;
+	flow->recv_time.recv_sec = tv->tv_sec;
+	flow->recv_time.recv_usec = tv->tv_usec;
 	memcpy(&flow->agent_addr, flow_source, sizeof(flow->agent_addr));
 
 	offset = 0;
@@ -688,7 +732,7 @@ process_netflow_v9_template(u_int8_t *pkt, size_t len, struct peer_state *peer,
 	struct peer_nf9_record *recs;
 	struct peer_nf9_template *template;
 
-	logit(LOG_DEBUG, "netflow v.9 tempate flowset");
+	logit(LOG_DEBUG, "netflow v.9 template flowset (len %d)", len);
 	/* dump_packet(__func__, pkt, len); */
 
 	tmplh = (struct NF9_TEMPLATE_FLOWSET_HEADER *)pkt;
@@ -771,9 +815,9 @@ process_netflow_v9_template(u_int8_t *pkt, size_t len, struct peer_state *peer,
 }
 
 static int
-process_netflow_v9_data(u_int8_t *pkt, size_t len, struct peer_state *peer,
-    u_int32_t source_id, struct NF9_HEADER *nf9_hdr, struct flowd_config *conf,
-    int log_fd, int log_socket, u_int *num_flows)
+process_netflow_v9_data(u_int8_t *pkt, size_t len, struct timeval *tv, 
+    struct peer_state *peer, u_int32_t source_id, struct NF9_HEADER *nf9_hdr,
+    struct flowd_config *conf, int log_fd, int log_socket, u_int *num_flows)
 {
 	struct store_flow_complete *flows;
 	struct peer_nf9_template *template;
@@ -782,7 +826,7 @@ process_netflow_v9_data(u_int8_t *pkt, size_t len, struct peer_state *peer,
 
 	*num_flows = 0;
 
-	logit(LOG_DEBUG, "netflow v.9 data flowset");
+	logit(LOG_DEBUG, "netflow v.9 data flowset (len %d)", len);
 
 	dath = (struct NF9_DATA_FLOWSET_HEADER *)pkt;
 	if (len < sizeof(*dath)) {
@@ -821,7 +865,7 @@ process_netflow_v9_data(u_int8_t *pkt, size_t len, struct peer_state *peer,
 		logerrx("%s: calloc failed (num %d)", __func__, num_flowsets);
 
 	for (i = 0; i < num_flowsets; i++) {
-		if (nf9_flowset_to_store(pkt + offset, template->total_len,
+		if (nf9_flowset_to_store(pkt + offset, template->total_len, tv,
 		    &peer->from, nf9_hdr, template, source_id, 
 		    &flows[i]) == -1) {
 			peer->ninvalid++;
@@ -845,19 +889,21 @@ process_netflow_v9_data(u_int8_t *pkt, size_t len, struct peer_state *peer,
 }
 
 static void
-process_netflow_v9(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
-    struct flowd_config *conf, struct peer_state *peer, struct peers *peers,
-    int log_fd, int log_socket)
+process_netflow_v9(struct flow_packet *fp, struct flowd_config *conf,
+    struct peer_state *peer, struct peers *peers, int log_fd, int log_socket)
 {
-	struct NF9_HEADER *nf9_hdr = (struct NF9_HEADER *)pkt;
+	struct NF9_HEADER *nf9_hdr = (struct NF9_HEADER *)fp->packet;
 	struct NF9_FLOWSET_HEADER_COMMON *flowset;
 	u_int32_t i, count, flowset_id, flowset_len, flowset_flows;
 	u_int32_t offset, source_id, total_flows;
 
-	if (len < sizeof(*nf9_hdr)) {
+	logit(LOG_DEBUG, "netflow v.9 packet (len %d)", fp->len);
+dump_packet(__func__, fp->packet, fp->len);
+
+	if (fp->len < sizeof(*nf9_hdr)) {
 		peer->ninvalid++;
 		logit(LOG_WARNING, "short netflow v.9 header %d bytes from %s",
-		    len, addr_ntop_buf(flow_source));
+		    fp->len, addr_ntop_buf(&fp->flow_source));
 		return;
 	}
 
@@ -869,21 +915,24 @@ process_netflow_v9(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
 
 	for (i = 0;; i++) {
 		/* Make sure we don't run off the end of the flow */
-		if (offset >= len) {
+		if (offset >= fp->len) {
 			peer->ninvalid++;
 			logit(LOG_WARNING,
 			    "short netflow v.9 flowset header %d bytes from %s",
-			    len, addr_ntop_buf(flow_source));
+			    fp->len, addr_ntop_buf(&fp->flow_source));
 			return;
 		}
 
-		flowset = (struct NF9_FLOWSET_HEADER_COMMON *)(pkt + offset);
+		flowset = (struct NF9_FLOWSET_HEADER_COMMON *)
+		    (fp->packet + offset);
 		flowset_id = ntohs(flowset->flowset_id);
 		flowset_len = ntohs(flowset->length);
 
 #ifdef DEBUG_NF9
-		logit(LOG_DEBUG, "offset=%d i=%d len=%d count=%d", offset, i, len, count);
-		logit(LOG_DEBUG, "netflow v.9 flowset %d: type %d(0x%04x) len %d(0x%04x)",
+		logit(LOG_DEBUG, "offset=%d i=%d len=%d count=%d",
+		    offset, i, fp->len, count);
+		logit(LOG_DEBUG, "netflow v.9 flowset %d: type %d(0x%04x) "
+		    "len %d(0x%04x)",
 		    i, flowset_id, flowset_id, flowset_len, flowset_len);
 #endif
 
@@ -893,17 +942,17 @@ process_netflow_v9(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
 		 * the packet before we pass it to the flowset-specific
 		 * handlers below.
 		 */
-		if (offset + flowset_len > len) {
+		if (offset + flowset_len > fp->len) {
 			peer->ninvalid++;
 			logit(LOG_WARNING,
 			    "short netflow v.9 flowset length %d bytes from %s",
-			    len, addr_ntop_buf(flow_source));
+			    fp->len, addr_ntop_buf(&fp->flow_source));
 			return;
 		}
 
 		switch (flowset_id) {
 		case NF9_TEMPLATE_FLOWSET_ID:
-			if (process_netflow_v9_template(pkt + offset,
+			if (process_netflow_v9_template(fp->packet + offset,
 			    flowset_len, peer, peers, source_id) != 0)
 				return;
 			break;
@@ -915,19 +964,21 @@ process_netflow_v9(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
 			if (flowset_id < NF9_MIN_RECORD_FLOWSET_ID) {
 				logit(LOG_WARNING, "Received unknown netflow "
 				    "v.9 reserved flowset type %d from %s",
-				    flowset_id, addr_ntop_buf(flow_source));
+				    flowset_id,
+				    addr_ntop_buf(&fp->flow_source));
 				/* XXX ratelimit */
 				break;
 			}
-			if (process_netflow_v9_data(pkt + offset, flowset_len,
-			    peer, source_id, nf9_hdr, conf, log_fd, log_socket,
+			if (process_netflow_v9_data(fp->packet + offset,
+			    flowset_len, &fp->recv_time, peer, source_id,
+			    nf9_hdr, conf, log_fd, log_socket,
 			    &flowset_flows) != 0)
 				return;
 			total_flows += flowset_flows;
 			break;
 		}
 		offset += flowset_len;
-		if (offset == len)
+		if (offset == fp->len)
 			break;
 		/* XXX check header->count against what we got */
 	}
@@ -937,17 +988,21 @@ process_netflow_v9(u_int8_t *pkt, size_t len, struct xaddr *flow_source,
 		update_peer(peers, peer, total_flows, 9);
 }
 
-static void
-process_input(struct flowd_config *conf, struct peers *peers,
-    int net_fd, int log_fd, int log_socket)
+static int
+receive_packet(struct flowd_config *conf, struct peers *peers, int net_fd)
 {
 	struct sockaddr_storage from;
 	struct peer_state *peer;
 	socklen_t fromlen;
 	u_int8_t buf[2048];
 	ssize_t len;
-	struct NF_HEADER_COMMON *hdr;
 	struct xaddr flow_source;
+	struct flow_packet *fp;
+
+	if ((fp = flow_packet_alloc()) == NULL) {
+		logit(LOG_WARNING, "flow packet metadata alloc failed");
+		return (0);
+	}
 
  retry:
 	fromlen = sizeof(from);
@@ -955,58 +1010,111 @@ process_input(struct flowd_config *conf, struct peers *peers,
 	    (struct sockaddr *)&from, &fromlen)) < 0) {
 		if (errno == EINTR)
 			goto retry;
-		if (errno != EAGAIN) {
+		if (errno != EAGAIN)
 			logit(LOG_WARNING, "recvfrom(fd = %d)", net_fd);
-		}
 		/* XXX ratelimit errors */
-		return;
+		flow_packet_dealloc(fp);
+		return (0);
 	}
+	fp->len = len;
+	gettimeofday(&fp->recv_time, NULL);
+
 	if (addr_sa_to_xaddr((struct sockaddr *)&from, fromlen,
-	    &flow_source) == -1) {
+	    &fp->flow_source) == -1) {
 		logit(LOG_WARNING, "Invalid agent address");
-		return;
+		flow_packet_dealloc(fp);
+		return (1);
 	}
 
-	if ((peer = find_peer(peers, &flow_source)) == NULL)
-		peer = new_peer(peers, conf, &flow_source);
+	if ((peer = find_peer(peers, &fp->flow_source)) == NULL)
+		peer = new_peer(peers, conf, &fp->flow_source);
 	if (peer == NULL) {
 		logit(LOG_DEBUG, "packet from unauthorised agent %s",
-		    addr_ntop_buf(&flow_source));
-		return;
+		    addr_ntop_buf(&fp->flow_source));
+		flow_packet_dealloc(fp);
+		return (1);
 	}
 
-	if ((size_t)len < sizeof(*hdr)) {
+	if (fp->len < sizeof(struct NF_HEADER_COMMON)) {
 		peer->ninvalid++;
-		logit(LOG_WARNING, "short packet %d bytes from %s", len,
+		logit(LOG_WARNING, "short packet %d bytes from %s", fp->len,
 		    addr_ntop_buf(&flow_source));
+		flow_packet_dealloc(fp);
+		return (1);
+	}
+
+	if ((fp->packet = malloc(fp->len)) == NULL) {
+		logit(LOG_WARNING, "flow packet alloc failed (len %d)",
+		    fp->len);
+		flow_packet_dealloc(fp);
+		return (0);
+	}
+	memcpy(fp->packet, buf, fp->len);
+	flow_packet_enqueue(fp);
+
+	return (1);
+}
+
+static void
+receive_many(struct flowd_config *conf, struct peers *peers, int net_fd)
+{
+	int i;
+
+	for (i = 0; i < INPUT_MAX_PACKET_PER_FD; i++) {
+		if (receive_packet(conf, peers, net_fd) == 0) {
+			syslog(LOG_WARNING, "Received max number of packets "
+			    "(%d) on fd %d", INPUT_MAX_PACKET_PER_FD, net_fd);
+			return;
+		}
+	}
+}
+
+static void
+process_packet(struct flow_packet *fp, struct flowd_config *conf,
+    struct peers *peers, int log_fd, int log_socket)
+{
+	struct peer_state *peer;
+	struct NF_HEADER_COMMON *hdr = (struct NF_HEADER_COMMON *)fp->packet;
+
+	if ((peer = find_peer(peers, &fp->flow_source)) == NULL) {
+		logit(LOG_WARNING, "flow source %s was expired between "
+		    "between flow packet reception and processing", 
+		    addr_ntop_buf(&fp->flow_source));
 		return;
 	}
 
-	hdr = (struct NF_HEADER_COMMON *)buf;
 	switch (ntohs(hdr->version)) {
 	case 1:
-		process_netflow_v1(buf, len, &flow_source, conf, peer,
-		    peers, log_fd, log_socket);
+		process_netflow_v1(fp, conf, peer, peers, log_fd, log_socket);
 		break;
 	case 5:
-		process_netflow_v5(buf, len, &flow_source, conf, peer,
-		    peers, log_fd, log_socket);
+		process_netflow_v5(fp, conf, peer, peers, log_fd, log_socket);
 		break;
 	case 7:
-		process_netflow_v7(buf, len, &flow_source, conf, peer,
-		    peers, log_fd, log_socket);
+		process_netflow_v7(fp, conf, peer, peers, log_fd, log_socket);
 		break;
 	case 9:
-		process_netflow_v9(buf, len, &flow_source, conf, peer,
-		    peers, log_fd, log_socket);
+		process_netflow_v9(fp, conf, peer, peers, log_fd, log_socket);
 		break;
 	default:
 		logit(LOG_INFO, "Unsupported netflow version %u from %s",
-		    ntohs(hdr->version), addr_ntop_buf(&flow_source));
+		    ntohs(hdr->version), addr_ntop_buf(&fp->flow_source));
 #ifdef DEBUG_UNKNOWN
-		dump_packet("Unknown packet type", buf, len);
+		dump_packet("Unknown packet type", fp->packet, fp->len);
 #endif
 		return;
+	}
+}
+
+static void
+process_input_queue(struct flowd_config *conf, struct peers *peers,
+    int log_fd, int log_socket)
+{
+	struct flow_packet *fp;
+
+	while ((fp = flow_packet_dequeue()) != NULL) {
+		process_packet(fp, conf, peers, log_fd, log_socket);
+		flow_packet_dealloc(fp);
 	}
 }
 
@@ -1116,10 +1224,11 @@ flowd_mainloop(struct flowd_config *conf, struct peers *peers, int monitor_fd)
 		i = 1;
 		TAILQ_FOREACH(la, &conf->listen_addrs, entry) {
 			if ((pfd[i].revents & POLLIN) != 0)
-				process_input(conf, peers, pfd[i].fd,
-				    log_fd, log_socket);
+				receive_many(conf, peers, pfd[i].fd);
 			i++;
 		}
+
+		process_input_queue(conf, peers, log_fd, log_socket);
 	}
 
 	if (exit_flag != 0)

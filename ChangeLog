@@ -1,3 +1,7 @@
+20050928
+ - (djm) Add a basic input queue to flowd, to improve its behaviour when it
+   receives sudden bursts of packets.
+
 20050918
  - (djm) Fix error reporting on logsock send failures
  - (djm) Fix another typo in tools/stats.py, spotted by alshu@tut.by
