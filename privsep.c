@@ -121,7 +121,7 @@ write_pid_file(const char *path)
 int
 open_listener(struct xaddr *addr, u_int16_t port, struct join_groups *groups)
 {
-	int fd, fl;
+	int fd, fl, i, orig;
 	struct sockaddr_storage ss;
 	socklen_t slen = sizeof(ss);
 	struct join_group *jg;
@@ -166,6 +166,27 @@ open_listener(struct xaddr *addr, u_int16_t port, struct join_groups *groups)
 
 	logit(LOG_DEBUG, "Listener for [%s]:%d fd = %d", addr_ntop_buf(addr),
 	    port, fd);
+
+	/* Crank up socket receive buffer size to cope with bursts of flows */
+	slen = sizeof(fl);
+	if (getsockopt(fd, SOL_SOCKET, SO_RCVBUF, &orig, &slen) == 0) {
+		for (i = 3; i >= 1; i--) {
+			fl = (1024 * 64) << i;
+			if (setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &fl,
+			    sizeof(fl)) == 0) {
+				logit(LOG_DEBUG, "Increased socket receive "
+				    "buffer from %d to %d", orig, fl);
+				break;
+			} else if (i == 1)
+				logitm(LOG_DEBUG, "setsockopt(SO_RCVBUF)");
+		}
+	}
+
+	/* Shrink send buffer, because we never use it */
+	fl = 1024;
+	logit(LOG_DEBUG, "Setting socket send buf to %d", fl);
+	if (setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &fl, sizeof(fl)) == -1)
+		logitm(LOG_DEBUG, "setsockopt(SO_SNDBUF)");
 
 	TAILQ_FOREACH(jg, groups, entry) {
 		if (jg->addr.af != addr->af)

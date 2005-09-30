@@ -1,5 +1,7 @@
 20051001
  - (djm) Add FlowLog_from_file method to Python module
+ - (djm) Increase UDP socket receive buffer size, shrink socket send buffer size
+   to cope better with bursts of flows
 
 20050928
  - (djm) Add a basic input queue to flowd, to improve its behaviour when it
