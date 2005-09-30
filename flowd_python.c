@@ -715,9 +715,9 @@ flow_Flow(PyObject *self, PyObject *args, PyObject *kw_args)
 }
 
 PyDoc_STRVAR(flow_FlowLog_doc,
-"FlowLog(path, mode = \"rb\") -> new FlowFlow object\n\
+"FlowLog(path, mode = \"rb\") -> new FlowLog object\n\
 \n\
-Instantiate a new FlowLog object.\n\
+Open a flowd log file by path.\n\
 ");
 
 static PyObject *
@@ -734,6 +734,31 @@ flow_FlowLog(PyObject *self, PyObject *args, PyObject *kw_args)
 		return (NULL);
 	if ((rv->flowlog = PyFile_FromString(path, mode)) == NULL)
 		return (NULL);
+	PyFile_SetBufSize(rv->flowlog, 8192);
+
+	return (PyObject *)rv;
+}
+
+PyDoc_STRVAR(flow_FlowLog_fromfile_doc,
+"FlowLog_fromfile(file) -> new FlowLog object\n\
+\n\
+Open a flowd log file from an open file object.\n\
+");
+
+static PyObject *
+flow_FlowLog_fromfile(PyObject *self, PyObject *args, PyObject *kw_args)
+{
+	FlowLogObject *rv;
+	static char *keywords[] = { "file", NULL };
+	PyObject *file = NULL;
+
+	if (!PyArg_ParseTupleAndKeywords(args, kw_args, "O!:FlowLog_fromfile",
+	    keywords, &PyFile_Type, (PyObject *)&file))
+		return NULL;
+	if ((rv = PyObject_New(FlowLogObject, &FlowLog_Type)) == NULL)
+		return (NULL);
+	Py_INCREF(file);
+	rv->flowlog = file;
 	PyFile_SetBufSize(rv->flowlog, 8192);
 
 	return (PyObject *)rv;
@@ -782,6 +807,7 @@ flow_interval_time(PyObject *self, PyObject *args, PyObject *kw_args)
 static PyMethodDef flowd_methods[] = {
 	{"Flow",	(PyCFunction)flow_Flow,    METH_VARARGS|METH_KEYWORDS,	flow_Flow_doc	},
 	{"FlowLog",	(PyCFunction)flow_FlowLog, METH_VARARGS|METH_KEYWORDS,	flow_FlowLog_doc },
+	{"FlowLog_fromfile",(PyCFunction)flow_FlowLog_fromfile, METH_VARARGS|METH_KEYWORDS,	flow_FlowLog_fromfile_doc },
 	{"iso_time",	(PyCFunction)flow_iso_time, METH_VARARGS|METH_KEYWORDS,	flow_iso_time_doc },
 	{"interval_time",(PyCFunction)flow_interval_time, METH_VARARGS|METH_KEYWORDS,	flow_interval_time_doc },
 	{NULL,		NULL}		/* sentinel */

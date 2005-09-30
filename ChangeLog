@@ -1,3 +1,6 @@
+20051001
+ - (djm) Add FlowLog_from_file method to Python module
+
 20050928
  - (djm) Add a basic input queue to flowd, to improve its behaviour when it
    receives sudden bursts of packets.
