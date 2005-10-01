@@ -234,8 +234,8 @@ store_get_flow(int fd, struct store_flow_complete *f, char *ebuf, int elen)
 
 	len = ((struct store_flow *)buf)->len_words * 4;
 	if (len > sizeof(buf) - sizeof(struct store_flow))
-		SFAILX(STORE_ERR_INTERNAL,
-		    "Internal error: flow buffer too small", 1);
+		SFAILX(STORE_ERR_INTERNAL, "internal flow buffer too small "
+		    "(flow is probably corrupt)", 1);
 
 	if ((r = atomicio(read, fd, buf + sizeof(struct store_flow), len)) == -1)
 		SFAIL(STORE_ERR_IO, "read flow data", 0);
