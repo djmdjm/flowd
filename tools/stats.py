@@ -43,6 +43,7 @@ import getopt
 import time
 import datetime
 import pickle
+import gzip
 
 try:
 	import curses
@@ -462,7 +463,10 @@ def main():
 	i = 0;
 	for ffile in args:
 		j = 0
-		flog = flowd.FlowLog(ffile)
+		if ffile == "-":
+			flog = flowd.FlowLog_fromfile(sys.stdin)
+		else:
+			flog = flowd.FlowLog(ffile, "rb")
 		for flow in flog:
 			stats.update(flow)
 			if ceol != "" and i >= 0 and j % 1000 == 0:

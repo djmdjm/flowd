@@ -2,6 +2,7 @@
  - (djm) Add FlowLog_from_file method to Python module
  - (djm) Increase UDP socket receive buffer size, shrink socket send buffer size
    to cope better with bursts of flows
+ - (djm) Allow reading from standard input in tools/stats.py
 
 20050928
  - (djm) Add a basic input queue to flowd, to improve its behaviour when it
