@@ -61,7 +61,7 @@ open_start_log(const char *path, int debug)
 	if (path == NULL) {
 		/* Logfile on stdout */
 		fd = STDOUT_FILENO;
-	} else if ((fd = open(path, O_RDWR|O_APPEND|O_CREAT, 0600)) == -1)
+	} else if ((fd = open(path, O_RDWR|O_CREAT, 0600)) == -1)
 		logerr("open(%s)", path);
 
 	if (debug)

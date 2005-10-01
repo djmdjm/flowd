@@ -4,6 +4,8 @@
    to cope better with bursts of flows
  - (djm) Allow reading from standard input in tools/stats.py
  - (djm) Better error message on corrupt flows
+ - (djm) Change flowd-reader to *overwrite* existing log files, not *append* to
+   them
 
 20050928
  - (djm) Add a basic input queue to flowd, to improve its behaviour when it
