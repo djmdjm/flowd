@@ -215,10 +215,8 @@ flow_match(const struct filter_rule *rule,
 	}
 
 	if (FRMATCH(AF)) {
-		m = ((FRMATCH(SRC_ADDR) &&
-		    rule->match.src_addr.af == rule->match.af) ||
-		    (FRMATCH(DST_ADDR) &&
-		    rule->match.dst_addr.af == rule->match.af));
+		m = flow->src_addr.af == rule->match.af ||
+		    flow->dst_addr.af == rule->match.af;
 		FRRET(AF);
 	}
 

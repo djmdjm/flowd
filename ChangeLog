@@ -1,3 +1,7 @@
+20051013
+ - (djm) Fix bug that broke filtering on address family in flows, spotted by
+   Gijs Molenaar
+
 20051001
  - (djm) Add FlowLog_from_file method to Python module
  - (djm) Increase UDP socket receive buffer size, shrink socket send buffer size
