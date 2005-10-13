@@ -18,7 +18,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "common.h"
+#include "flowd-common.h"
+
 #ifndef HAVE_STRLCAT
 
 RCSID("$Id$");

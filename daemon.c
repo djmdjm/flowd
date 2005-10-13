@@ -29,7 +29,7 @@
  * SUCH DAMAGE.
  */
 
-#include "common.h"
+#include "flowd-common.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>

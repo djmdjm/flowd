@@ -21,7 +21,7 @@
 #ifndef _FILTER_H
 #define _FILTER_H
 
-#include "common.h"
+#include "flowd-common.h"
 #include "sys-queue.h"
 #include "addr.h"
 #include "store.h"

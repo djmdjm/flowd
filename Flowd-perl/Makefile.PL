@@ -10,7 +10,7 @@ WriteMakefile(
       (ABSTRACT_FROM  => 'lib/Flowd.pm', # retrieve abstract from module
        AUTHOR         => 'Damien Miller <djm@mindrot.org>') : ()),
     LIBS              => ['-L.. -lflowd'], # e.g., '-lm'
-    DEFINE            => '', # e.g., '-DHAVE_SOMETHING'
+#    DEFINE            => '-DHAVE_CONFIG_H', # e.g., '-DHAVE_SOMETHING'
     INC               => '-I. -I..', # e.g., '-I. -I/usr/include/other'
 	# Un-comment this if you add C files to link with later:
     # OBJECT            => '$(O_FILES)', # link all the C files too

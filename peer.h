@@ -26,7 +26,7 @@
 #define _PEER_H
 
 #include <sys/types.h>
-#include "common.h"
+#include "flowd-common.h"
 #include "sys-queue.h"
 #include "sys-tree.h"
 #include "addr.h"

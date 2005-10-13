@@ -19,9 +19,7 @@
 #ifndef _FLOWD_COMMON_H
 #define _FLOWD_COMMON_H
 
-#ifdef HAVE_CONFIG_H
 #include "flowd-config.h"
-#endif
 
 #if defined(HAVE_SYS_CDEFS_H)
 # include <sys/cdefs.h>
@@ -67,9 +65,6 @@
 #  define __packed		__attribute__((__packed__))
 # endif
 #endif
-
-/* More autoconf-driven compat goop */
-#ifdef HAVE_CONFIG_H
 
 /* Prototypes for absent friends */
 #ifndef HAVE_CLOSEFROM
@@ -125,7 +120,4 @@ typedef OUR_CFG_U_INT64_T u_int64_t;
 typedef unsigned int u_int;
 #endif
 
-#endif /* HAVE_CONFIG_H */
-
 #endif /* _FLOWD_COMMON_H */
-

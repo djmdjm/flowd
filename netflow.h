@@ -21,7 +21,7 @@
 #ifndef _NETFLOW_H
 #define _NETFLOW_H
 
-#include "common.h"
+#include "flowd-common.h"
 
 /*
  * These are Cisco Netflow(tm) packet formats

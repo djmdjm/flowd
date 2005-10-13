@@ -23,6 +23,7 @@
 
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include "flowd-common.h"
 
 struct xaddr {
 	sa_family_t	af;

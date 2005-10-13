@@ -16,7 +16,7 @@
 
 /* $Id$ */
 
-#include "common.h"
+#include "flowd-common.h"
 
 #include <stdlib.h>
 #include <stdio.h>

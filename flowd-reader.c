@@ -16,7 +16,7 @@
 
 #define PROGNAME	"flowd-reader"
 
-#include "common.h"
+#include "flowd-common.h"
 
 #include <sys/types.h>
 

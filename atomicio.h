@@ -29,7 +29,7 @@
 #ifndef _ATOMICIO_H
 #define _ATOMICIO_H
 
-#include "common.h"
+#include "flowd-common.h"
 
 /*
  * Ensure all of data on socket comes through. f==read || f==vwrite

@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  */
 
-#include "common.h"
+#include "flowd-common.h"
 #include "flowd.h"
 
 #ifndef HAVE_SETPROCTITLE

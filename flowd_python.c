@@ -15,7 +15,7 @@
  */
 
 #include "Python.h"
-#include "common.h"
+#include "flowd-common.h"
 #include "structmember.h"
 #include "store.h"
 #include "flowd-pytypes.h"

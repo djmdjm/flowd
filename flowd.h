@@ -24,7 +24,7 @@
 #include <stdarg.h>
 #include <syslog.h>
 
-#include "common.h"
+#include "flowd-common.h"
 #include "sys-queue.h"
 #include "addr.h"
 #include "filter.h"

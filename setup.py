@@ -20,7 +20,6 @@ import sys
 from distutils.core import setup, Extension
 
 DEFS = [
-	( 'HAVE_CONFIG_H',	'1' ),
 	( 'PROGVER',		'"0.9"' ),
 ]
 
