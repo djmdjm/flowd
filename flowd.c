@@ -47,7 +47,7 @@ RCSID("$Id$");
 /* #define DEBUG_UNKNOWN */
 
 /* Reams of netflow v.9 verbosity */
-/* #define DEBUG_NF9 */
+#define DEBUG_NF9
 
 /* Number of errors on Unix Domain log socket before we reopen */
 #define LOGSOCK_REOPEN_ERROR_COUNT	128
@@ -235,6 +235,7 @@ process_flow(struct store_flow_complete *flow, struct flowd_config *conf,
 {
 	char ebuf[512], fbuf[1024];
 	int flen;
+	u_int filtres;
 
 	/* Another sanity check */
 	if (flow->src_addr.af != flow->dst_addr.af) {
@@ -248,15 +249,17 @@ process_flow(struct store_flow_complete *flow, struct flowd_config *conf,
 	flow->recv_time.recv_sec = htonl(flow->recv_time.recv_sec);
 	flow->recv_time.recv_usec = htonl(flow->recv_time.recv_usec);
 
+	filtres = filter_flow(flow, &conf->filter_list);
 	if (conf->opts & FLOWD_OPT_VERBOSE) {
 		char fmtbuf[1024];
 
 		store_format_flow(flow, fmtbuf, sizeof(fmtbuf), 0,
 		    STORE_DISPLAY_ALL, 0);
-		logit(LOG_DEBUG, "%s: flow %s", __func__, fmtbuf);
+		logit(LOG_DEBUG, "%s: %s flow %s", __func__,
+		    filtres == FF_ACTION_DISCARD ? "DISCARD" : "ACCEPT", fmtbuf);
 	}
 
-	if (filter_flow(flow, &conf->filter_list) == FF_ACTION_DISCARD)
+	if (filtres == FF_ACTION_DISCARD)
 		return;
 
 	if (store_flow_serialise_masked(flow, conf->store_mask, fbuf,
@@ -733,7 +736,9 @@ process_netflow_v9_template(u_int8_t *pkt, size_t len, struct peer_state *peer,
 	struct peer_nf9_template *template;
 
 	logit(LOG_DEBUG, "netflow v.9 template flowset (len %d)", len);
-	/* dump_packet(__func__, pkt, len); */
+#ifdef DEBUG_NF9
+	dump_packet(__func__, pkt, len);
+#endif
 
 	tmplh = (struct NF9_TEMPLATE_FLOWSET_HEADER *)pkt;
 	if (len < sizeof(*tmplh)) {
@@ -898,7 +903,9 @@ process_netflow_v9(struct flow_packet *fp, struct flowd_config *conf,
 	u_int32_t offset, source_id, total_flows;
 
 	logit(LOG_DEBUG, "netflow v.9 packet (len %d)", fp->len);
-dump_packet(__func__, fp->packet, fp->len);
+#ifdef DEBUG_NF9
+	dump_packet(__func__, fp->packet, fp->len);
+#endif
 
 	if (fp->len < sizeof(*nf9_hdr)) {
 		peer->ninvalid++;
