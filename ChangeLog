@@ -1,3 +1,8 @@
+20051111
+ - (djm) Support devices that send multiple templates in a single template
+   packet section. Thanks to Gijs Molenaar for packet dumps that demonstrated
+   this
+
 20051013
  - (djm) Fix bug that broke filtering on address family in flows, spotted by
    Gijs Molenaar

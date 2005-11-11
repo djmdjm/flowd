@@ -729,6 +729,7 @@ static int
 process_netflow_v9_template(u_int8_t *pkt, size_t len, struct peer_state *peer,
     struct peers *peers, u_int32_t source_id)
 {
+	struct NF9_FLOWSET_HEADER_COMMON *template_header;
 	struct NF9_TEMPLATE_FLOWSET_HEADER *tmplh;
 	struct NF9_TEMPLATE_FLOWSET_RECORD *tmplr;
 	u_int i, count, offset, template_id, total_size;
@@ -740,81 +741,91 @@ process_netflow_v9_template(u_int8_t *pkt, size_t len, struct peer_state *peer,
 	dump_packet(__func__, pkt, len);
 #endif
 
-	tmplh = (struct NF9_TEMPLATE_FLOWSET_HEADER *)pkt;
-	if (len < sizeof(*tmplh)) {
+	template_header = (struct NF9_FLOWSET_HEADER_COMMON *)pkt;
+	if (len < sizeof(*template_header)) {
 		peer->ninvalid++;
 		logit(LOG_WARNING, "short netflow v.9 flowset template header "
 		    "%d bytes from %s", len, addr_ntop_buf(&peer->from));
 		/* XXX ratelimit */
 		return (-1);
 	}
+	if (ntohs(template_header->flowset_id) != NF9_TEMPLATE_FLOWSET_ID)
+		logerrx("Confused template");
 
-	template_id = ntohs(tmplh->template_id);
-	count = ntohs(tmplh->count);
+	logit(LOG_DEBUG, "NetFlow v.9 template with len %d:", len);
 
-	if ((recs = calloc(count, sizeof(*recs))) == NULL)
-		logerrx("%s: calloc failed (num %d)", __func__, count);
+	for (offset = sizeof(*template_header); offset < len;) {
+		tmplh = (struct NF9_TEMPLATE_FLOWSET_HEADER *)(pkt + offset);
 
-	logit(LOG_DEBUG, "NetFlow v.9 template with %d records:", count);
+		template_id = ntohs(tmplh->template_id);
+		count = ntohs(tmplh->count);
+		offset += sizeof(*tmplh);
 
-	offset = sizeof(*tmplh);
-	total_size = 0;
+		logit(LOG_DEBUG, " Contains template_id %d with %d records:",
+		    template_id, count);
 
-	for (i = 0; i < count; i++) {
-		if (offset >= len) {
-			free(recs);
-			peer->ninvalid++;
-			logit(LOG_WARNING, "short netflow v.9 flowset template "
-			    "packet %d bytes from %s", len,
-			    addr_ntop_buf(&peer->from));
-			/* XXX ratelimit */
-			return (-1);
-		}
-		tmplr = (struct NF9_TEMPLATE_FLOWSET_RECORD *)(pkt + offset);
+		if ((recs = calloc(count, sizeof(*recs))) == NULL)
+			logerrx("%s: calloc failed (num %d)", __func__, count);
 
-		recs[i].type = ntohs(tmplr->type);
-		recs[i].len = ntohs(tmplr->length);
+		total_size = 0;
+		for (i = 0; i < count; i++) {
+			if (offset >= len) {
+				free(recs);
+				peer->ninvalid++;
+				logit(LOG_WARNING, "short netflow v.9 flowset "
+				    "template packet %d bytes from %s", len,
+				    addr_ntop_buf(&peer->from));
+				/* XXX ratelimit */
+				return (-1);
+			}
+			tmplr = (struct NF9_TEMPLATE_FLOWSET_RECORD *)
+			    (pkt + offset);
+			recs[i].type = ntohs(tmplr->type);
+			recs[i].len = ntohs(tmplr->length);
+			offset += sizeof(tmplr);
 #ifdef DEBUG_NF9
-		logit(LOG_DEBUG, "  record %d: type %d len %d",
-		    i, recs[i].type, recs[i].len);
+			logit(LOG_DEBUG, "  record %d: type %d len %d",
+			    i, recs[i].type, recs[i].len);
 #endif
-		total_size += recs[i].len;
-		if (total_size > peers->max_template_len) {
-			free(recs);
-			peer->ninvalid++;
-			logit(LOG_WARNING, "netflow v.9 flowset template "
-			    "from %s too large len %d > max %d",
-			    addr_ntop_buf(&peer->from), total_size,
-			    peers->max_template_len);
-			/* XXX ratelimit */
-			return (-1);
+			total_size += recs[i].len;
+			if (total_size > peers->max_template_len) {
+				free(recs);
+				peer->ninvalid++;
+				logit(LOG_WARNING, "netflow v.9 flowset "
+				    "template from %s too large "
+				    "len %d > max %d", 
+				    addr_ntop_buf(&peer->from), total_size,
+				    peers->max_template_len);
+				/* XXX ratelimit */
+				return (-1);
+			}
+			if (!nf9_check_rec_len(recs[i].type, recs[i].len)) {
+				free(recs);
+				peer->ninvalid++;
+				logit(LOG_WARNING, "Invalid field length in "
+				    "netflow v.9 flowset template %d from "
+				    "%s/%08x type %d len %d", template_id, 
+				    addr_ntop_buf(&peer->from), source_id,
+				    recs[i].type, recs[i].len);
+				/* XXX ratelimit */
+				return (-1);
+			}
+			/* XXX kill existing template on error! */
 		}
-		if (!nf9_check_rec_len(recs[i].type, recs[i].len)) {
-			free(recs);
-			peer->ninvalid++;
-			logit(LOG_WARNING, "Invalid field length in netflow v.9 "
-			    "flowset template %d from %s/%08x type %d len %d",
-			    template_id, addr_ntop_buf(&peer->from), source_id,
-			    recs[i].type, recs[i].len);
-			/* XXX ratelimit */
-			return (-1);
+	
+		template = peer_nf9_find_template(peer, source_id, template_id);
+		if (template == NULL) {
+			template = peer_nf9_new_template(peer, peers,
+			    source_id, template_id);
 		}
-		/* XXX kill existing template on error! */
-		offset += sizeof(*tmplr);
+	
+		if (template->records != NULL)
+			free(template->records);
+	
+		template->records = recs;
+		template->num_records = i;
+		template->total_len = total_size;
 	}
-
-	template = peer_nf9_find_template(peer, source_id, template_id);
-	if (template == NULL) {
-		template = peer_nf9_new_template(peer, peers,
-		    source_id, template_id);
-	}
-
-	if (template->records != NULL)
-		free(template->records);
-
-	template->records = recs;
-	template->num_records = i;
-	template->total_len = total_size;
 
 	return (0);
 }

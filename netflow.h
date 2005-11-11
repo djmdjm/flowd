@@ -119,7 +119,6 @@ struct NF9_FLOWSET_HEADER_COMMON {
 	u_int16_t flowset_id, length;
 } __packed;
 struct NF9_TEMPLATE_FLOWSET_HEADER {
-	struct NF9_FLOWSET_HEADER_COMMON c;
 	u_int16_t template_id, count;
 } __packed;
 struct NF9_TEMPLATE_FLOWSET_RECORD {
