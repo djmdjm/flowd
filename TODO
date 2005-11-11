@@ -70,3 +70,6 @@
 
 - Allow startup of flowd with detached logsock (maybe return a /dev/null fd
   from the monitor - it will error on send)
+
+- Implement CryptoPAN address anonymisation
+  http://www.cc.gatech.edu/computing/Telecomm/cryptopan/
