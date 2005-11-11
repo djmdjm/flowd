@@ -47,7 +47,7 @@ RCSID("$Id$");
 /* #define DEBUG_UNKNOWN */
 
 /* Reams of netflow v.9 verbosity */
-#define DEBUG_NF9
+/* #define DEBUG_NF9 */
 
 /* Number of errors on Unix Domain log socket before we reopen */
 #define LOGSOCK_REOPEN_ERROR_COUNT	128
