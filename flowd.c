@@ -754,7 +754,7 @@ process_netflow_v9_template(u_int8_t *pkt, size_t len, struct peer_state *peer,
 	if (ntohs(template_header->flowset_id) != NF9_TEMPLATE_FLOWSET_ID)
 		logerrx("Confused template");
 
-	logit(LOG_DEBUG, "NetFlow v.9 template from %s/0x%x with len %d:",
+	logit(LOG_DEBUG, "NetFlow v.9 template set from %s/0x%x with len %d:",
 	    addr_ntop_buf(&peer->from), source_id, len);
 
 	for (offset = sizeof(*template_header); offset < len;) {
@@ -764,8 +764,8 @@ process_netflow_v9_template(u_int8_t *pkt, size_t len, struct peer_state *peer,
 		count = ntohs(tmplh->count);
 		offset += sizeof(*tmplh);
 
-		logit(LOG_DEBUG, " Contains template_id %d with %d records:",
-		    template_id, count);
+		logit(LOG_DEBUG, " Contains template 0x%08x/%d with "
+		    "%d records:", source_id, template_id, count);
 
 		if ((recs = calloc(count, sizeof(*recs))) == NULL)
 			logerrx("%s: calloc failed (num %d)", __func__, count);
@@ -776,7 +776,8 @@ process_netflow_v9_template(u_int8_t *pkt, size_t len, struct peer_state *peer,
 				free(recs);
 				peer->ninvalid++;
 				logit(LOG_WARNING, "short netflow v.9 flowset "
-				    "template packet %d bytes from %s", len,
+				    "template 0x%08x/0x%04x %d bytes from %s", 
+				    source_id, template_id, len, 
 				    addr_ntop_buf(&peer->from));
 				/* XXX ratelimit */
 				return (-1);
@@ -795,8 +796,8 @@ process_netflow_v9_template(u_int8_t *pkt, size_t len, struct peer_state *peer,
 				free(recs);
 				peer->ninvalid++;
 				logit(LOG_WARNING, "netflow v.9 flowset "
-				    "template from %s too large "
-				    "len %d > max %d", 
+				    "template 0x%08x/0x%04x from %s too large "
+				    "len %d > max %d", source_id, template_id,
 				    addr_ntop_buf(&peer->from), total_size,
 				    peers->max_template_len);
 				/* XXX ratelimit */
@@ -845,7 +846,8 @@ process_netflow_v9_data(u_int8_t *pkt, size_t len, struct timeval *tv,
 
 	*num_flows = 0;
 
-	logit(LOG_DEBUG, "netflow v.9 data flowset (len %d)", len);
+	logit(LOG_DEBUG, "netflow v.9 data flowset (len %d) source 0x%08x",
+	    len, source_id);
 
 	dath = (struct NF9_DATA_FLOWSET_HEADER *)pkt;
 	if (len < sizeof(*dath)) {
@@ -916,20 +918,25 @@ process_netflow_v9(struct flow_packet *fp, struct flowd_config *conf,
 	u_int32_t i, count, flowset_id, flowset_len, flowset_flows;
 	u_int32_t offset, source_id, total_flows;
 
-	logit(LOG_DEBUG, "netflow v.9 packet (len %d)", fp->len);
-#ifdef DEBUG_NF9
-	dump_packet(__func__, fp->packet, fp->len);
-#endif
-
 	if (fp->len < sizeof(*nf9_hdr)) {
 		peer->ninvalid++;
 		logit(LOG_WARNING, "short netflow v.9 header %d bytes from %s",
 		    fp->len, addr_ntop_buf(&fp->flow_source));
+#ifdef DEBUG_NF9
+		dump_packet(__func__, fp->packet, fp->len);
+#endif
 		return;
 	}
 
 	count = ntohs(nf9_hdr->c.flows);
 	source_id = ntohl(nf9_hdr->source_id);
+
+	logit(LOG_DEBUG, "netflow v.9 packet (len %d) %d recs, source 0x%08x",
+	    fp->len, count, source_id);
+
+#ifdef DEBUG_NF9
+	dump_packet(__func__, fp->packet, fp->len);
+#endif
 
 	offset = sizeof(*nf9_hdr);
 	total_flows = 0;
@@ -984,9 +991,9 @@ process_netflow_v9(struct flow_packet *fp, struct flowd_config *conf,
 		default:
 			if (flowset_id < NF9_MIN_RECORD_FLOWSET_ID) {
 				logit(LOG_WARNING, "Received unknown netflow "
-				    "v.9 reserved flowset type %d from %s",
-				    flowset_id,
-				    addr_ntop_buf(&fp->flow_source));
+				    "v.9 reserved flowset type %d "
+				    "from %s/0x%08x", flowset_id,
+				    addr_ntop_buf(&fp->flow_source), source_id);
 				/* XXX ratelimit */
 				break;
 			}

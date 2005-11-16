@@ -1,5 +1,6 @@
 20051117
  - (djm) Prefix all hex integers in logs with "0x"
+ - (djm) More source_id debugging everywhere
 
 20051111
  - (djm) Support devices that send multiple templates in a single template
