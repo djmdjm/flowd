@@ -1,3 +1,6 @@
+20051117
+ - (djm) Prefix all hex integers in logs with "0x"
+
 20051111
  - (djm) Support devices that send multiple templates in a single template
    packet section. Thanks to Gijs Molenaar for packet dumps that demonstrated

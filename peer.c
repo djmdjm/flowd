@@ -115,7 +115,7 @@ struct peer_nf9_template *peer_nf9_find_template(struct peer_state *peer,
 	nf9src = peer_nf9_lookup_source(peer, source_id);
 
 #ifdef PEER_DEBUG_NF9
-	logit(LOG_DEBUG, "%s: Lookup source %08x for peer %s: %sFOUND",
+	logit(LOG_DEBUG, "%s: Lookup source 0x%08x for peer %s: %sFOUND",
 	    __func__, source_id, addr_ntop_buf(&peer->from),
 	    nf9src == NULL ? "NOT " : "");
 #endif
@@ -126,7 +126,7 @@ struct peer_nf9_template *peer_nf9_find_template(struct peer_state *peer,
 	nf9tmpl = peer_nf9_lookup_template(nf9src, template_id);
 
 #ifdef PEER_DEBUG_NF9
-	logit(LOG_DEBUG, "%s: Lookup template %04x: %sFOUND", __func__,
+	logit(LOG_DEBUG, "%s: Lookup template 0x%04x: %sFOUND", __func__,
 	    template_id, nf9tmpl == NULL ? "NOT " : "");
 #endif
 
@@ -134,7 +134,7 @@ struct peer_nf9_template *peer_nf9_find_template(struct peer_state *peer,
 		return (NULL);
 
 #ifdef PEER_DEBUG_NF9
-	logit(LOG_DEBUG, "%s: Found template %s/%08x/%04x: %d records %p",
+	logit(LOG_DEBUG, "%s: Found template %s/0x%08x/0x%04x: %d records %p",
 	    __func__, addr_ntop_buf(&peer->from), source_id, template_id,
 	    nf9tmpl->num_records, nf9tmpl->records);
 #endif
@@ -149,7 +149,7 @@ peer_nf9_template_update(struct peer_state *peer, u_int32_t source_id,
 	struct peer_nf9_template *nf9tmpl;
 
 #ifdef PEER_DEBUG_NF9
-	logit(LOG_DEBUG, "%s: Lookup template %s/%08x/%04x",
+	logit(LOG_DEBUG, "%s: Lookup template %s/0x%08x/0x%04x",
 	    __func__, addr_ntop_buf(&peer->from), template_id, source_id);
 #endif
 	nf9src = peer_nf9_lookup_source(peer, source_id);
@@ -189,8 +189,8 @@ peer_nf9_new_source(struct peer_state *peer, struct peers *peers,
 	peer->nf9_num_sources++;
 	if (peer->nf9_num_sources > peers->max_sources) {
 		nf9src = TAILQ_LAST(&peer->nf9, peer_nf9_list);
-		logit(LOG_WARNING, "forced deletion of source %08x of peer %s",
-		    source_id, addr_ntop_buf(&peer->from));
+		logit(LOG_WARNING, "forced deletion of source 0x%08x "
+		    "of peer %s", source_id, addr_ntop_buf(&peer->from));
 		/* XXX ratelimit errors */
 		peer_nf9_source_delete(peer, nf9src)    ;
 	}
@@ -202,7 +202,7 @@ peer_nf9_new_source(struct peer_state *peer, struct peers *peers,
 	TAILQ_INSERT_HEAD(&peer->nf9, nf9src, lp);
 
 #ifdef PEER_DEBUG_NF9
-	logit(LOG_DEBUG, "%s: new source %s/%08x", __func__,
+	logit(LOG_DEBUG, "%s: new source %s/0x%08x", __func__,
 	    addr_ntop_buf(&peer->from), source_id);
 #endif
 
@@ -225,8 +225,8 @@ peer_nf9_new_template(struct peer_state *peer, struct peers *peers,
 	if (nf9src->num_templates > peers->max_templates) {
 		nf9tmpl = TAILQ_LAST(&nf9src->templates,
 		    peer_nf9_template_list);
-		logit(LOG_WARNING, "forced deletion of template %04x from "
-		    "peer %s/%08x", template_id, addr_ntop_buf(&peer->from),
+		logit(LOG_WARNING, "forced deletion of template 0x%04x from "
+		    "peer %s/0x%08x", template_id, addr_ntop_buf(&peer->from),
 		    source_id);
 		/* XXX ratelimit errors */
 		peer_nf9_template_delete(nf9src, nf9tmpl)    ;
@@ -238,7 +238,7 @@ peer_nf9_new_template(struct peer_state *peer, struct peers *peers,
 	TAILQ_INSERT_HEAD(&nf9src->templates, nf9tmpl, lp);
 
 #ifdef PEER_DEBUG_NF9
-	logit(LOG_DEBUG, "%s: new template %s/%08x/%04x", __func__,
+	logit(LOG_DEBUG, "%s: new template %s/0x%08x/0x%04x", __func__,
 	    addr_ntop_buf(&peer->from), source_id, template_id);
 #endif
 
