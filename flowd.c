@@ -68,8 +68,9 @@ static sig_atomic_t reconf_flag = 0;
 static sig_atomic_t reopen_flag = 0;
 static sig_atomic_t info_flag = 0;
 
-#define INPUT_MAX_PACKET_PER_FD		1024
+/* Input queue management */
 
+#define INPUT_MAX_PACKET_PER_FD		1024
 struct flow_packet {
 	TAILQ_ENTRY(flow_packet) entry;
 	struct timeval recv_time;
@@ -113,6 +114,93 @@ static struct flow_packet
 	if ((f = TAILQ_FIRST(&input_queue)) != NULL)
 		TAILQ_REMOVE(&input_queue, f, entry);
 	return (f);
+}
+
+/* Output queue management */
+
+#define OUTPUT_INITIAL_QLEN	(1024*16)
+#define OUTPUT_MAX_QLEN		(1024*512) /* Must be 2^x multiple of initial */
+u_int8_t *output_queue = NULL;
+size_t output_queue_alloc = 0;
+size_t output_queue_offset = 0;
+
+/* Enqueue a flow for output, return 0 on success, -1 on queue full */
+static int
+output_flow_enqueue(u_int8_t *f, size_t len, int verbose)
+{
+	/* Force flush on overflow */
+	if (output_queue_offset + len > OUTPUT_MAX_QLEN) {
+		logit(LOG_DEBUG, "%s: output queue full", __func__);
+		return (-1);
+	}
+
+	if (output_queue == NULL) {
+		output_queue_alloc = OUTPUT_INITIAL_QLEN;
+		if ((output_queue = malloc(output_queue_alloc)) == NULL) {
+			logerrx("Output queue allocation (%u bytes) failed",
+			    output_queue_alloc);
+		}
+		if (verbose) {
+			logit(LOG_DEBUG, "%s: initial allocation %u", __func__,
+			    output_queue_alloc);
+		}
+	}
+	
+	while (output_queue_offset + len > output_queue_alloc) {
+		u_int8_t *tmp_q;
+		size_t tmp_len = output_queue_alloc << 1;
+
+		/* This should never happen if max = initial * 2^x */
+		if (tmp_len > OUTPUT_MAX_QLEN) {
+			logit(LOG_DEBUG, "%s: oops, tmp_len (%u) > "
+			    "OUTPUT_MAX_QLEN (%u)", __func__, tmp_len,
+			    OUTPUT_MAX_QLEN);
+			return (-1);
+		}
+		if ((tmp_q = realloc(output_queue, tmp_len)) == NULL) {
+			logit(LOG_DEBUG, "%s: realloc of %u fail", __func__,
+			    tmp_len);
+			return (-1);
+		}
+		if (verbose) {
+			logit(LOG_DEBUG, "%s: increased output queue "
+			    "from %uKB to %uKB", __func__,
+			    output_queue_alloc >> 10, tmp_len >> 10);
+		}
+		output_queue = tmp_q;
+		output_queue_alloc = tmp_len;
+	}
+	memcpy(output_queue + output_queue_offset, f, len);
+	output_queue_offset += len;
+	if (verbose) {
+		logit(LOG_DEBUG, "%s: offset %u alloc %u", __func__,
+		    output_queue_offset, output_queue_alloc);
+	}
+	
+	return (0);
+}
+
+static void
+output_flow_flush(int log_fd, int verbose)
+{
+	char ebuf[512];
+
+	if (log_fd == -1)
+		return;
+
+	if (verbose) {
+		logit(LOG_DEBUG, "%s: flushing output queue len %u", __func__,
+		    output_queue_offset);
+	}
+
+	if (output_queue_offset == 0)
+		return;
+	
+	if (store_put_buf(log_fd, output_queue, output_queue_offset, ebuf,
+	    sizeof(ebuf)) != STORE_ERR_OK)
+		logerrx("%s: exiting on %s", __func__, ebuf);
+
+	output_queue_offset = 0;
 }
 
 /* Signal handlers */
@@ -265,6 +353,15 @@ process_flow(struct store_flow_complete *flow, struct flowd_config *conf,
 	if (store_flow_serialise_masked(flow, conf->store_mask, fbuf,
 	    sizeof(fbuf), &flen, ebuf, sizeof(ebuf)) != STORE_ERR_OK)
 		logerrx("%s: exiting on %s", __func__, ebuf);
+
+	if (output_flow_enqueue(fbuf, flen,
+	    conf->opts & FLOWD_OPT_VERBOSE) == -1) {
+		output_flow_flush(log_fd, conf->opts & FLOWD_OPT_VERBOSE);
+		/* Must not fail after flush */
+		if (output_flow_enqueue(fbuf, flen,
+		    conf->opts & FLOWD_OPT_VERBOSE) == -1)
+			logerrx("%s: enqueue failed after flush", __func__);
+	}
 
 	if (log_fd != -1 && store_put_buf(log_fd, fbuf, flen, ebuf,
 	    sizeof(ebuf)) != STORE_ERR_OK)
@@ -1257,6 +1354,7 @@ flowd_mainloop(struct flowd_config *conf, struct peers *peers, int monitor_fd)
 		}
 
 		process_input_queue(conf, peers, log_fd, log_socket);
+		output_flow_flush(log_fd, conf->opts & FLOWD_OPT_VERBOSE);
 	}
 
 	if (exit_flag != 0)

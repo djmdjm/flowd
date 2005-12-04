@@ -1,3 +1,7 @@
+20051204
+ - (djm) Add an output queue, so we don't do tiny little filesystem writes for
+   each flow we receive
+
 20051117
  - (djm) Prefix all hex integers in logs with "0x"
  - (djm) More source_id debugging everywhere
