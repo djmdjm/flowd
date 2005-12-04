@@ -1,5 +1,4 @@
-/*	$Id$	*/
-/*	$OpenBSD: queue.h,v 1.26 2004/05/04 16:59:32 grange Exp $	*/
+/*	$OpenBSD: queue.h,v 1.30 2005/10/25 06:37:47 otto Exp $	*/
 /*	$NetBSD: queue.h,v 1.11 1996/05/16 05:17:14 mycroft Exp $	*/
 
 /*
@@ -145,10 +144,10 @@ struct {								\
 #define SLIST_REMOVE(head, elm, type, field) do {			\
 	if ((head)->slh_first == (elm)) {				\
 		SLIST_REMOVE_HEAD((head), field);			\
-	}								\
-	else {								\
+	} else {							\
 		struct type *curelm = (head)->slh_first;		\
-		while( curelm->field.sle_next != (elm) )		\
+									\
+		while (curelm->field.sle_next != (elm))			\
 			curelm = curelm->field.sle_next;		\
 		curelm->field.sle_next =				\
 		    curelm->field.sle_next->field.sle_next;		\

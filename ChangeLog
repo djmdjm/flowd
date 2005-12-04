@@ -1,6 +1,7 @@
 20051204
  - (djm) Add an output queue, so we don't do tiny little filesystem writes for
    each flow we receive
+ - (djm) Sync tree.h and queue.h with OpenBSD
 
 20051117
  - (djm) Prefix all hex integers in logs with "0x"
