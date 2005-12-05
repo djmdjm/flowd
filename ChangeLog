@@ -1,3 +1,6 @@
+20051206
+ - (djm) Rename some filter members to make absolute time filtering easier
+
 20051204
  - (djm) Add an output queue, so we don't do tiny little filesystem writes for
    each flow we receive

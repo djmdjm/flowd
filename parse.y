@@ -111,7 +111,7 @@ static const char *longdays[7] = {
 %type	<v.addr>		address
 %type	<v.addrport>		address_port
 %type	<v.prefix>		prefix prefix_or_any
-%type	<v.filter_match>	match_agent match_src match_dst match_proto match_tos match_tcp_flags match_af match_day match_after match_before
+%type	<v.filter_match>	match_agent match_src match_dst match_proto match_tos match_tcp_flags match_af match_day match_dayafter match_daybefore
 %type	<v.filter_action>	action tag
 %%
 
@@ -463,7 +463,7 @@ logspec		: STRING	{
 			free($1);
 		}
 
-filterrule	: action tag quick match_agent match_af match_src match_dst match_proto match_tos match_tcp_flags match_day match_after match_before
+filterrule	: action tag quick match_agent match_af match_src match_dst match_proto match_tos match_tcp_flags match_day match_dayafter match_daybefore
 		{
 			struct filter_rule	*r;
 
@@ -519,11 +519,11 @@ filterrule	: action tag quick match_agent match_af match_src match_dst match_pro
 			r->match.match_what |= $11.match_what;
 			r->match.match_negate |= $11.match_negate;
 
-			r->match.after = $12.after - 1;
+			r->match.dayafter = $12.dayafter - 1;
 			r->match.match_what |= $12.match_what;
 			r->match.match_negate |= $12.match_negate;
 
-			r->match.before = $13.before - 1;
+			r->match.daybefore = $13.daybefore - 1;
 			r->match.match_what |= $13.match_what;
 			r->match.match_negate |= $13.match_negate;
 
@@ -749,18 +749,18 @@ match_day	: /* empty */	{ bzero(&$$, sizeof($$)); }
 		}
 		;
 
-match_after	: /* empty */			{ bzero(&$$, sizeof($$)); }
+match_dayafter	: /* empty */			{ bzero(&$$, sizeof($$)); }
 		| AFTER daytime {
 			bzero(&$$, sizeof($$));
-			$$.after = $2 + 1;
+			$$.dayafter = $2 + 1;
 			$$.match_what |= FF_MATCH_DAYTIME;
 		}
 		;
 
-match_before	: /* empty */			{ bzero(&$$, sizeof($$)); }
+match_daybefore	: /* empty */			{ bzero(&$$, sizeof($$)); }
 		| BEFORE daytime {
 			bzero(&$$, sizeof($$));
-			$$.before = $2 + 1;
+			$$.daybefore = $2 + 1;
 			$$.match_what |= FF_MATCH_DAYTIME;
 		}
 		;

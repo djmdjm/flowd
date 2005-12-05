@@ -149,19 +149,19 @@ format_rule(const struct filter_rule *rule)
 		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
 	}
 	if (rule->match.match_what & FF_MATCH_DAYTIME &&
-	    rule->match.after != -1) {
+	    rule->match.dayafter != -1) {
 		snprintf(tmpbuf, sizeof(tmpbuf), "after %02d:%02d:%02d ",
-		    rule->match.after / 3600, 
-		    (rule->match.after / 60) % 60, 
-		    rule->match.after % 60);
+		    rule->match.dayafter / 3600, 
+		    (rule->match.dayafter / 60) % 60, 
+		    rule->match.dayafter % 60);
 		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
 	}
 	if (rule->match.match_what & FF_MATCH_DAYTIME &&
-	    rule->match.before != -1) {
+	    rule->match.daybefore != -1) {
 		snprintf(tmpbuf, sizeof(tmpbuf), "before %02d:%02d:%02d ",
-		    rule->match.before / 3600, 
-		    (rule->match.before / 60) % 60, 
-		    rule->match.before % 60);
+		    rule->match.daybefore / 3600, 
+		    (rule->match.daybefore / 60) % 60, 
+		    rule->match.daybefore % 60);
 		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
 	}
 
@@ -176,7 +176,7 @@ format_rule(const struct filter_rule *rule)
 }
 
 static int
-flow_time_match(time_t recv_sec, int day_mask, int after, int before)
+flow_time_match(time_t recv_sec, int day_mask, int dayafter, int daybefore)
 {
 	struct tm *tm;
 	int sec;
@@ -188,9 +188,9 @@ flow_time_match(time_t recv_sec, int day_mask, int after, int before)
 
 	sec = tm->tm_sec + (tm->tm_min * 60) + (tm->tm_hour * 3600);
 
-	if ((before != -1) && sec > before)
+	if ((daybefore != -1) && sec > daybefore)
 		return (0);
-	if ((after != -1) && sec < after)
+	if ((dayafter != -1) && sec < dayafter)
 		return (0);
 	
 	return (1);
@@ -259,8 +259,8 @@ flow_match(const struct filter_rule *rule,
 	}
 	if (FRMATCH(DAYTIME)) {
 		m = flow_time_match(ntohl(flow->recv_time.recv_sec), 
-		    rule->match.day_mask, rule->match.after,
-		    rule->match.before);
+		    rule->match.day_mask, rule->match.dayafter,
+		    rule->match.daybefore);
 		FRRET(DAYTIME);
 	}
 

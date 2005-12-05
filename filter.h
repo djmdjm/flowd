@@ -61,8 +61,8 @@ struct filter_match {
 	int		tcp_flags_mask;
 	int		tcp_flags_equals;
 	int		day_mask;
-	int		after;
-	int		before;
+	int		dayafter;
+	int		daybefore;
 };
 
 struct filter_rule {
