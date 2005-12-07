@@ -1,3 +1,7 @@
+20051207
+ - (djm) Demote input buffer full warning to a debug and reduce the length
+   of the input queue (now that we have an output queue)
+
 20051206
  - (djm) Rename some filter members to make absolute time filtering easier
 

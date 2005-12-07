@@ -70,7 +70,7 @@ static sig_atomic_t info_flag = 0;
 
 /* Input queue management */
 
-#define INPUT_MAX_PACKET_PER_FD		1024
+#define INPUT_MAX_PACKET_PER_FD		512
 struct flow_packet {
 	TAILQ_ENTRY(flow_packet) entry;
 	struct timeval recv_time;
@@ -1187,7 +1187,7 @@ receive_many(struct flowd_config *conf, struct peers *peers, int net_fd)
 
 	for (i = 0; i < INPUT_MAX_PACKET_PER_FD; i++) {
 		if (receive_packet(conf, peers, net_fd) == 0) {
-			syslog(LOG_WARNING, "Received max number of packets "
+			syslog(LOG_DEBUG, "Received max number of packets "
 			    "(%d) on fd %d", INPUT_MAX_PACKET_PER_FD, net_fd);
 			return;
 		}
