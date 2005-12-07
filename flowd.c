@@ -363,10 +363,6 @@ process_flow(struct store_flow_complete *flow, struct flowd_config *conf,
 			logerrx("%s: enqueue failed after flush", __func__);
 	}
 
-	if (log_fd != -1 && store_put_buf(log_fd, fbuf, flen, ebuf,
-	    sizeof(ebuf)) != STORE_ERR_OK)
-		logerrx("%s: exiting on %s", __func__, ebuf);
-
 	/* Track failures to send on log socket so we can reopen it */
 	if (log_socket != -1 && send(log_socket, fbuf, flen, 0) == -1) {
 		if ((logsock_num_errors % 10) == 0) {
@@ -862,7 +858,8 @@ process_netflow_v9_template(u_int8_t *pkt, size_t len, struct peer_state *peer,
 		offset += sizeof(*tmplh);
 
 		logit(LOG_DEBUG, " Contains template 0x%08x/0x%04x with "
-		    "%d records:", source_id, template_id, count);
+		    "%d records (offset %d):", source_id, template_id,
+		    count, offset);
 
 		if ((recs = calloc(count, sizeof(*recs))) == NULL)
 			logerrx("%s: calloc failed (num %d)", __func__, count);
