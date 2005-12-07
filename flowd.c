@@ -861,7 +861,7 @@ process_netflow_v9_template(u_int8_t *pkt, size_t len, struct peer_state *peer,
 		count = ntohs(tmplh->count);
 		offset += sizeof(*tmplh);
 
-		logit(LOG_DEBUG, " Contains template 0x%08x/%d with "
+		logit(LOG_DEBUG, " Contains template 0x%08x/0x%04x with "
 		    "%d records:", source_id, template_id, count);
 
 		if ((recs = calloc(count, sizeof(*recs))) == NULL)
