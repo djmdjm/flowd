@@ -21,8 +21,7 @@
  - other fields, in particular netflow version
  - time of day filtering on flow_start|flow_finish
  - clarify what happens when fields are missing
- - filtering on absolute date time, extending before/after syntax
-   - e.g. before date YYYYMMDD HH:MM:SS is an absolute time
+ - allow specification of filter parameters in any order
 
 - Improve log handling
  - E.g. multiple log files, based on tag?
