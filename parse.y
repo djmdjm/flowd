@@ -58,6 +58,7 @@ int	lungetc(int);
 int	findeol(void);
 int	yylex(void);
 int	atoul(char *, u_long *);
+int	parse_abstime(const char *s, struct tm *tp);
 
 TAILQ_HEAD(symhead, sym)	 symhead = TAILQ_HEAD_INITIALIZER(symhead);
 struct sym {
@@ -103,15 +104,15 @@ static const char *longdays[7] = {
 
 %token	LISTEN ON JOIN GROUP LOGFILE LOGSOCK STORE PIDFILE FLOW SOURCE
 %token	ALL TAG ACCEPT DISCARD QUICK AGENT SRC DST PORT PROTO TOS ANY
-%token	TCP_FLAGS EQUALS MASK INET INET6 DAYS AFTER BEFORE
+%token	TCP_FLAGS EQUALS MASK INET INET6 DAYS AFTER BEFORE DATE
 %token	ERROR
 %token	<v.string>		STRING
-%type	<v.number>		number quick logspec not octet tcp_flags tcp_mask af dayname dayrange daylist dayspec daytime 
+%type	<v.number>		number quick logspec not octet tcp_flags tcp_mask af dayname dayrange daylist dayspec daytime abstime
 %type	<v.string>		string
 %type	<v.addr>		address
 %type	<v.addrport>		address_port
 %type	<v.prefix>		prefix prefix_or_any
-%type	<v.filter_match>	match_agent match_src match_dst match_proto match_tos match_tcp_flags match_af match_day match_dayafter match_daybefore
+%type	<v.filter_match>	match_agent match_src match_dst match_proto match_tos match_tcp_flags match_af match_day match_after match_before match_dayafter match_daybefore match_absafter match_absbefore
 %type	<v.filter_action>	action tag
 %%
 
@@ -358,6 +359,22 @@ daytime		: STRING	{
 		}
 		;
 
+abstime		: STRING	{
+			time_t t;
+			struct tm tm;
+
+			$$ = 0;
+			if (parse_abstime($1, &tm) != 0 ||
+			    (t = mktime(&tm)) < 0) {
+				yyerror("invalid time spec \"%s\"", $1);
+				free($1);
+				YYERROR;
+			}
+			$$ = t;
+			free($1);
+		}
+		;
+
 conf_main	: LISTEN ON address_port	{
 			struct listen_addr	*la;
 
@@ -463,7 +480,7 @@ logspec		: STRING	{
 			free($1);
 		}
 
-filterrule	: action tag quick match_agent match_af match_src match_dst match_proto match_tos match_tcp_flags match_day match_dayafter match_daybefore
+filterrule	: action tag quick match_agent match_af match_src match_dst match_proto match_tos match_tcp_flags match_day match_after match_before
 		{
 			struct filter_rule	*r;
 
@@ -520,12 +537,36 @@ filterrule	: action tag quick match_agent match_af match_src match_dst match_pro
 			r->match.match_negate |= $11.match_negate;
 
 			r->match.dayafter = $12.dayafter - 1;
+			r->match.absafter = $12.absafter;
 			r->match.match_what |= $12.match_what;
 			r->match.match_negate |= $12.match_negate;
 
 			r->match.daybefore = $13.daybefore - 1;
+			r->match.absbefore = $13.absbefore;
 			r->match.match_what |= $13.match_what;
 			r->match.match_negate |= $13.match_negate;
+
+			if ((r->match.match_what & FF_MATCH_DAYTIME) != 0) {
+				if (r->match.dayafter != 0 && 
+				    r->match.daybefore != 0 &&
+				    r->match.dayafter >= r->match.daybefore) {
+					yyerror("day start time is after "
+					    "day finish time");
+					free(r);
+					YYERROR;
+				}
+			}
+
+			if ((r->match.match_what & FF_MATCH_ABSTIME) != 0) {
+				if (r->match.absafter != 0 && 
+				    r->match.absbefore != 0 &&
+				    r->match.absafter >= r->match.absbefore) {
+					yyerror("date start time is after "
+					    "date finish time");
+					free(r);
+					YYERROR;
+				}
+			}
 
 			if ((r->match.match_what & 
 			    (FF_MATCH_SRC_PORT|FF_MATCH_DST_PORT)) && 
@@ -749,21 +790,41 @@ match_day	: /* empty */	{ bzero(&$$, sizeof($$)); }
 		}
 		;
 
-match_dayafter	: /* empty */			{ bzero(&$$, sizeof($$)); }
-		| AFTER daytime {
+match_dayafter	: AFTER daytime {
 			bzero(&$$, sizeof($$));
 			$$.dayafter = $2 + 1;
 			$$.match_what |= FF_MATCH_DAYTIME;
 		}
 		;
 
-match_daybefore	: /* empty */			{ bzero(&$$, sizeof($$)); }
-		| BEFORE daytime {
+match_daybefore	: BEFORE daytime {
 			bzero(&$$, sizeof($$));
 			$$.daybefore = $2 + 1;
 			$$.match_what |= FF_MATCH_DAYTIME;
 		}
 		;
+
+match_absafter	: AFTER DATE abstime {
+			bzero(&$$, sizeof($$));
+			$$.absafter = $3;
+			$$.match_what |= FF_MATCH_ABSTIME;
+		}
+		;
+
+match_absbefore	: BEFORE DATE abstime {
+			bzero(&$$, sizeof($$));
+			$$.absbefore = $3;
+			$$.match_what |= FF_MATCH_ABSTIME;
+		}
+		;
+
+match_after	: /* empty */			{ bzero(&$$, sizeof($$)); }
+		| match_dayafter		{ $$ = $1; }
+		| match_absafter		{ $$ = $1; }
+
+match_before	: /* empty */			{ bzero(&$$, sizeof($$)); }
+		| match_daybefore		{ $$ = $1; }
+		| match_absbefore		{ $$ = $1; } 
 
 %%
 
@@ -806,6 +867,7 @@ lookup(char *s)
 		{ "all",		ALL},
 		{ "any",		ANY},
 		{ "before",		BEFORE},
+		{ "date",		DATE},
 		{ "days",		DAYS},
 		{ "discard",		DISCARD},
 		{ "dst",		DST},
@@ -1174,6 +1236,32 @@ atoul(char *s, u_long *ulvalp)
 		return (-1);
 	*ulvalp = ulval;
 	return (0);
+}
+
+int
+parse_abstime(const char *s, struct tm *tp)
+{
+	const char *cp;
+	
+	bzero(tp, sizeof(*tp));
+	if ((cp = strptime(s, "%Y%m%d%H%M%S", tp)) != NULL && *cp == '\0')
+		goto good;
+	if ((cp = strptime(s, "%Y%m%d%H%M", tp)) != NULL && *cp == '\0')
+		goto good;
+	if ((cp = strptime(s, "%Y%m%d%H", tp)) != NULL && *cp == '\0')
+		goto good;
+	if ((cp = strptime(s, "%Y%m%d", tp)) != NULL && *cp == '\0')
+		goto good;
+	if ((cp = strptime(s, "%Y%m", tp)) != NULL && *cp == '\0')
+		goto good;
+	if ((cp = strptime(s, "%Y", tp)) != NULL && *cp == '\0')
+		goto good;
+
+	return -1;
+
+ good:
+	tp->tm_isdst = -1;
+	return 0;
 }
 
 void

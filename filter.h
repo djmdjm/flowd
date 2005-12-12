@@ -44,6 +44,7 @@ struct filter_action {
 #define FF_MATCH_TCP_FLAGS	(1<<7)
 #define FF_MATCH_AF		(1<<8)
 #define FF_MATCH_DAYTIME	(1<<9)
+#define FF_MATCH_ABSTIME	(1<<10)
 struct filter_match {
 	u_int32_t	match_what;
 	u_int32_t	match_negate;
@@ -63,6 +64,8 @@ struct filter_match {
 	int		day_mask;
 	int		dayafter;
 	int		daybefore;
+	int		absafter;
+	int		absbefore;
 };
 
 struct filter_rule {

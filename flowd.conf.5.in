@@ -408,6 +408,24 @@ This rule only applies for flows received after the specified time of day.
 .Sm on
 .Xc
 This rule only applies for flows received before the specified time of day.
+.It Ar after date Xo
+.Sm off
+.Ar <YYYY
+.Oo MMDD 
+.Oo HHMM
+.Oo SS Oc Oc Oc >
+.Sm on
+.Xc
+This rule only applies for flows received after the specified date / time.
+.It Ar before date Xo
+.Sm off
+.Ar <YYYY
+.Oo MMDD 
+.Oo HHMM
+.Oo SS Oc Oc Oc >
+.Sm on
+.Xc
+This rule only applies for flows received before the specified date / time.
 .El
 .Pp
 This is an example of the filtering language in action:
@@ -431,6 +449,8 @@ discard proto tcp tcp_flags mask 0x12 !equals 0x12
 accept days Monday-Friday after 08:30:00 before 17:30:00
 # Ignore flows sent on weekends
 discard days Sat,Sun
+# Ignore flows sent outside a certain date/time range
+discard after date 20051123 before date 20051124084459
 .Ed
 .Pp
 .Sh AUTHORS

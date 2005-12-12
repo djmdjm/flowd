@@ -176,7 +176,7 @@ format_rule(const struct filter_rule *rule)
 }
 
 static int
-flow_time_match(time_t recv_sec, int day_mask, int dayafter, int daybefore)
+flow_daytime_match(time_t recv_sec, int day_mask, int dayafter, int daybefore)
 {
 	struct tm *tm;
 	int sec;
@@ -201,6 +201,7 @@ flow_match(const struct filter_rule *rule,
     const struct store_flow_complete *flow)
 {
 	int m;
+	u_int tt;
 
 #define FRNEG(what) (rule->match.match_negate & FF_MATCH_##what)
 #define FRMATCH(what) (rule->match.match_what & FF_MATCH_##what)
@@ -257,11 +258,21 @@ flow_match(const struct filter_rule *rule,
 		    rule->match.tcp_flags_equals);
 		FRRET(TCP_FLAGS);
 	}
+
+	tt = ntohl(flow->recv_time.recv_sec);
+
 	if (FRMATCH(DAYTIME)) {
-		m = flow_time_match(ntohl(flow->recv_time.recv_sec), 
-		    rule->match.day_mask, rule->match.dayafter,
-		    rule->match.daybefore);
+		m = flow_daytime_match(tt, rule->match.day_mask,
+		    rule->match.dayafter, rule->match.daybefore);
 		FRRET(DAYTIME);
+	}
+	if (FRMATCH(ABSTIME)) {
+		m = 1;
+		if (rule->match.absbefore > 0)
+			m &= tt < rule->match.absbefore;
+		if (rule->match.absafter > 0)
+			m &= tt > rule->match.absafter;
+		FRRET(ABSTIME);
 	}
 
 #undef FRMATCH
