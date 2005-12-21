@@ -83,12 +83,9 @@ peer_nf9_lookup_source(struct peer_state *peer, u_int32_t source_id)
 
 	TAILQ_FOREACH(nf9src, &peer->nf9, lp) {
 		if (nf9src->source_id == source_id)
-			break;
+			return (nf9src);
 	}
-	if (nf9src == NULL)
-		return (NULL);
-
-	return (nf9src);
+	return (NULL);
 }
 
 static struct peer_nf9_template *
