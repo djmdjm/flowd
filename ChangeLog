@@ -1,3 +1,7 @@
+20051220
+ - (djm) Fix byte swapping of src/dst AS and interface indices, spotted 
+   and fix tested by Gijs Molenaar
+
 20051208
  - (djm) Implement absolute time (before & after) filters, requested by
    alshu AT tut.by

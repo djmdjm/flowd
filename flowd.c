@@ -463,8 +463,8 @@ process_netflow_v1(struct flow_packet *fp, struct flowd_config *conf,
 		flow.packets.flow_packets = NTO64(nf1_flow->flow_packets);
 #undef NTO64
 
-		flow.ifndx.if_index_in = nf1_flow->if_index_in;
-		flow.ifndx.if_index_out = nf1_flow->if_index_out;
+		flow.ifndx.if_index_in = htonl(ntohs(nf1_flow->if_index_in));
+		flow.ifndx.if_index_out = htonl(ntohs(nf1_flow->if_index_out));
 
 		flow.ainfo.sys_uptime_ms = nf1_hdr->uptime_ms;
 		flow.ainfo.time_sec = nf1_hdr->time_sec;
@@ -552,8 +552,8 @@ process_netflow_v5(struct flow_packet *fp, struct flowd_config *conf,
 		flow.packets.flow_packets = NTO64(nf5_flow->flow_packets);
 #undef NTO64
 
-		flow.ifndx.if_index_in = nf5_flow->if_index_in;
-		flow.ifndx.if_index_out = nf5_flow->if_index_out;
+		flow.ifndx.if_index_in = htonl(ntohs(nf5_flow->if_index_in));
+		flow.ifndx.if_index_out = htonl(ntohs(nf5_flow->if_index_out));
 
 		flow.ainfo.sys_uptime_ms = nf5_hdr->uptime_ms;
 		flow.ainfo.time_sec = nf5_hdr->time_sec;
@@ -563,8 +563,8 @@ process_netflow_v5(struct flow_packet *fp, struct flowd_config *conf,
 		flow.ftimes.flow_start = nf5_flow->flow_start;
 		flow.ftimes.flow_finish = nf5_flow->flow_finish;
 
-		flow.asinf.src_as = nf5_flow->src_as;
-		flow.asinf.dst_as = nf5_flow->dest_as;
+		flow.asinf.src_as = htonl(ntohs(nf5_flow->src_as));
+		flow.asinf.dst_as = htonl(ntohs(nf5_flow->dest_as));
 		flow.asinf.src_mask = nf5_flow->src_mask;
 		flow.asinf.dst_mask = nf5_flow->dst_mask;
 
@@ -656,8 +656,8 @@ process_netflow_v7(struct flow_packet *fp, struct flowd_config *conf,
 		flow.packets.flow_packets = NTO64(nf7_flow->flow_packets);
 #undef NTO64
 
-		flow.ifndx.if_index_in = nf7_flow->if_index_in;
-		flow.ifndx.if_index_out = nf7_flow->if_index_out;
+		flow.ifndx.if_index_in = htonl(ntohs(nf7_flow->if_index_in));
+		flow.ifndx.if_index_out = htonl(ntohs(nf7_flow->if_index_out));
 
 		flow.ainfo.sys_uptime_ms = nf7_hdr->uptime_ms;
 		flow.ainfo.time_sec = nf7_hdr->time_sec;
@@ -667,8 +667,8 @@ process_netflow_v7(struct flow_packet *fp, struct flowd_config *conf,
 		flow.ftimes.flow_start = nf7_flow->flow_start;
 		flow.ftimes.flow_finish = nf7_flow->flow_finish;
 
-		flow.asinf.src_as = nf7_flow->src_as;
-		flow.asinf.dst_as = nf7_flow->dest_as;
+		flow.asinf.src_as = htonl(ntohs(nf7_flow->src_as));
+		flow.asinf.dst_as = htonl(ntohs(nf7_flow->dest_as));
 		flow.asinf.src_mask = nf7_flow->src_mask;
 		flow.asinf.dst_mask = nf7_flow->dst_mask;
 

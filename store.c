@@ -729,8 +729,8 @@ store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
 	}
 	if (SHASFIELD(IF_INDICES)) {
 		snprintf(tmp, sizeof(tmp), "in_if %d out_if %d ",
-			fmt_ntoh16(flow->ifndx.if_index_in),
-			fmt_ntoh16(flow->ifndx.if_index_out));
+			fmt_ntoh32(flow->ifndx.if_index_in),
+			fmt_ntoh32(flow->ifndx.if_index_out));
 		strlcat(buf, tmp, len);
 	}
 	if (SHASFIELD(AGENT_INFO)) {
@@ -758,10 +758,10 @@ store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
 	}
 	if (SHASFIELD(AS_INFO)) {
 		snprintf(tmp, sizeof(tmp), "src_AS %u src_masklen %u ",
-		    fmt_ntoh16(flow->asinf.src_as), flow->asinf.src_mask);
+		    fmt_ntoh32(flow->asinf.src_as), flow->asinf.src_mask);
 		strlcat(buf, tmp, len);
 		snprintf(tmp, sizeof(tmp), "dst_AS %u dst_masklen %u ",
-		    fmt_ntoh16(flow->asinf.dst_as), flow->asinf.dst_mask);
+		    fmt_ntoh32(flow->asinf.dst_as), flow->asinf.dst_mask);
 		strlcat(buf, tmp, len);
 	}
 	if (SHASFIELD(FLOW_ENGINE_INFO)) {
