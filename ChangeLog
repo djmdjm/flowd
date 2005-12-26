@@ -1,3 +1,6 @@
+20051227
+ - (djm) Add RPM spec and init files for SuSE Linux from alshu AT tut.by
+
 20051220
  - (djm) Fix byte swapping of src/dst AS and interface indices, spotted 
    and fix tested by Gijs Molenaar
