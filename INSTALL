@@ -7,6 +7,11 @@ work for flowd (patches welcome). Berkeley yacc is installed by default on
 BSD based systems and is available on most Linux systems in a package called 
 "byacc".
 
+If you are on SuSE, Redhat, or relative Linux systems, you should consider
+using the RPM spec files to build packages of flowd on your system. The
+file "flowd.spec" is for Redhat-like systems and "flowd.spec.suse" is for 
+SuSE Linux.
+
 To build flowd, follow the familiar incantation:
 
 ./configure [options]
