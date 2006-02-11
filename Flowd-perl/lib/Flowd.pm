@@ -20,7 +20,7 @@ use 5.006;
 use strict;
 use warnings;
 
-use constant VERSION		=> "0.8.5";
+use constant VERSION		=> "0.9";
 
 # Flowd log header fields
 use constant TAG		=> 0x00000001;
