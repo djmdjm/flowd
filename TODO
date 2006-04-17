@@ -73,3 +73,5 @@
 - Implement CryptoPAN address anonymisation
   http://www.cc.gatech.edu/computing/Telecomm/cryptopan/
 
+- Read/write zlib compressed flow logs
+
