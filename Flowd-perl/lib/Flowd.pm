@@ -74,7 +74,7 @@ our @EXPORT = qw(
 	
 );
 
-our $VERSION = '0.8.5';
+our $VERSION = '0.9';
 
 require XSLoader;
 XSLoader::load('Flowd', $VERSION);
