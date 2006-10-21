@@ -21,9 +21,9 @@
 #ifndef _CRC32_H
 #define _CRC32_H
 
-void crc32_start(u_int32_t *crcp);
-void crc32_update(const u_char *buf, u_int32_t size, u_int32_t *crcp);
-u_int32_t crc32(const u_char *buf, u_int32_t size);
+void flowd_crc32_start(u_int32_t *crcp);
+void flowd_crc32_update(const u_char *buf, u_int32_t size, u_int32_t *crcp);
+u_int32_t flowd_crc32(const u_char *buf, u_int32_t size);
 
 #endif /* _CRC32_H */
 

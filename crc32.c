@@ -98,13 +98,13 @@ static const u_int32_t crc32tab[] = {
 };
 
 void
-crc32_start(u_int32_t *crcp)
+flowd_crc32_start(u_int32_t *crcp)
 {
 	*crcp = 0;
 }
 
 void
-crc32_update(const u_char *buf, u_int32_t size, u_int32_t *crcp)
+flowd_crc32_update(const u_char *buf, u_int32_t size, u_int32_t *crcp)
 {
 	u_int32_t i, crc;
 
@@ -115,12 +115,12 @@ crc32_update(const u_char *buf, u_int32_t size, u_int32_t *crcp)
 }
 
 u_int32_t
-crc32(const u_char *buf, u_int32_t size)
+flowd_crc32(const u_char *buf, u_int32_t size)
 {
 	u_int32_t crc;
 
-	crc32_start(&crc);
-	crc32_update(buf, size, &crc);
+	flowd_crc32_start(&crc);
+	flowd_crc32_update(buf, size, &crc);
 
 	return (crc);
 }

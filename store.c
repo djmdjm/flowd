@@ -112,7 +112,7 @@ store_flow_deserialise(u_int8_t *buf, int len, struct store_flow_complete *f,
 	u_int32_t donefields, fields, crc;
 
 	bzero(f, sizeof(*f));
-	crc32_start(&crc);
+	flowd_crc32_start(&crc);
 
 	if (len < sizeof(f->hdr))
 		SFAILX(STORE_ERR_BUFFER_SIZE,
@@ -128,7 +128,7 @@ store_flow_deserialise(u_int8_t *buf, int len, struct store_flow_complete *f,
 		SFAILX(STORE_ERR_BUFFER_SIZE,
 		    "incomplete flow record supplied", 1);
 
-	crc32_update((u_char *)&f->hdr, sizeof(f->hdr), &crc);
+	flowd_crc32_update((u_char *)&f->hdr, sizeof(f->hdr), &crc);
 
 	donefields = fields = ntohl(f->hdr.fields);
 	offset = sizeof(f->hdr);
@@ -139,8 +139,8 @@ store_flow_deserialise(u_int8_t *buf, int len, struct store_flow_complete *f,
 			offset += sizeof(dest); \
 			if (SHASFIELD(CRC32) && \
 			    STORE_FIELD_##flag != STORE_FIELD_CRC32) { \
-				crc32_update((u_char *)&dest, sizeof(dest), \
-				    &crc); \
+				flowd_crc32_update((u_char *)&dest, \
+				    sizeof(dest), &crc); \
 			} \
 			donefields &= ~STORE_FIELD_##flag; \
 		} } while (0)
@@ -403,8 +403,8 @@ store_flow_serialise(struct store_flow_complete *f, u_int8_t *buf, int buflen,
 	memcpy(buf, &f->hdr, sizeof(f->hdr));
 	offset = sizeof(f->hdr);
 
-	crc32_start(&crc);
-	crc32_update((u_char *)&f->hdr, sizeof(f->hdr), &crc);
+	flowd_crc32_start(&crc);
+	flowd_crc32_update((u_char *)&f->hdr, sizeof(f->hdr), &crc);
 
 #define WFIELD(spec, what) do {						\
 	if (SHASFIELD(spec)) {						\
@@ -412,8 +412,8 @@ store_flow_serialise(struct store_flow_complete *f, u_int8_t *buf, int buflen,
 		offset += sizeof(what);					\
 		if (SHASFIELD(spec) && 					\
 		    (STORE_FIELD_##spec != STORE_FIELD_CRC32)) {	\
-			crc32_update((u_char *)&(what), sizeof(what),	\
-			    &crc);					\
+			flowd_crc32_update((u_char *)&(what),		\
+			    sizeof(what), &crc);			\
 		}							\
 	}  } while (0)
 

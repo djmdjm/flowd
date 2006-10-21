@@ -136,7 +136,7 @@ store_v2_flow_deserialise(u_int8_t *buf, int len, struct store_v2_flow_complete 
 	u_int32_t fields, crc;
 
 	bzero(f, sizeof(*f));
-	crc32_start(&crc);
+	flowd_crc32_start(&crc);
 
 	memcpy(&f->hdr.fields, buf, sizeof(f->hdr.fields));
 
@@ -152,7 +152,7 @@ store_v2_flow_deserialise(u_int8_t *buf, int len, struct store_v2_flow_complete 
 		SFAILX(STORE_ERR_BUFFER_SIZE,
 		    "calulated flow length is less than supplied len", 1);
 
-	crc32_update((u_char *)&f->hdr, sizeof(f->hdr), &crc);
+	flowd_crc32_update((u_char *)&f->hdr, sizeof(f->hdr), &crc);
 
 	fields = ntohl(f->hdr.fields);
 
@@ -164,8 +164,8 @@ store_v2_flow_deserialise(u_int8_t *buf, int len, struct store_v2_flow_complete 
 			offset += sizeof(dest); \
 			if (SHASFIELD(CRC32) && \
 			    STORE_V2_FIELD_##flag != STORE_V2_FIELD_CRC32) { \
-				crc32_update((u_char *)&dest, sizeof(dest), \
-				    &crc); \
+				flowd_crc32_update((u_char *)&dest, \
+				    sizeof(dest), &crc); \
 			} \
 		} } while (0)
 
@@ -405,7 +405,7 @@ store_v2_flow_serialise(struct store_v2_flow_complete *f, u_int8_t *buf, int buf
 		SFAILX(STORE_ERR_FLOW_INVALID, "silly gateway addr af", 1);
 	}
 
-	crc32_start(&crc);
+	flowd_crc32_start(&crc);
 	offset = 0;
 
 	/* Fields have probably changes as a result of address conversion */
@@ -415,7 +415,7 @@ store_v2_flow_serialise(struct store_v2_flow_complete *f, u_int8_t *buf, int buf
 
 	memcpy(buf + offset, &f->hdr, sizeof(f->hdr));
 	offset += sizeof(f->hdr);
-	crc32_update((u_char *)&f->hdr, sizeof(f->hdr), &crc);
+	flowd_crc32_update((u_char *)&f->hdr, sizeof(f->hdr), &crc);
 
 #define WFIELD(spec, what) do {						\
 	if (SHASFIELD(spec)) {						\
@@ -423,8 +423,8 @@ store_v2_flow_serialise(struct store_v2_flow_complete *f, u_int8_t *buf, int buf
 		offset += sizeof(what);					\
 		if (SHASFIELD(spec) && 					\
 		    (STORE_V2_FIELD_##spec != STORE_V2_FIELD_CRC32)) {	\
-			crc32_update((u_char *)&(what), sizeof(what),	\
-			    &crc);					\
+			flowd_crc32_update((u_char *)&(what),		\
+			    sizeof(what), &crc);			\
 		}							\
 	}  } while (0)
 
