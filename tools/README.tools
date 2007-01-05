@@ -41,4 +41,3 @@ set will fit into RAM. It should probable use the Cache module from CPAN to
 do this properly (patches welcome).
 
 Despite this limitation, this is surprisingly useful.
-
