@@ -37,7 +37,8 @@ v.9. Exactly which components of the NetFlow records actually get
 written to disk may be specified at runtime, so the logs can be made
 quite compact by excluding information that is uninteresting to you.
 An optional, per-record CRC32 checksum is provided to detect log
-corruption.
+corruption. Efforts are made to ensure that flows are written atomically
+to disk, and backed out when a write fails.
 
 At present, flowd supports NetFlow v.1, v.5, v.7 and v.9 packet formats
 over both IPv4 and IPv6 transports. Future plans include sflow and IETF
