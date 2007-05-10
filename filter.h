@@ -45,6 +45,8 @@ struct filter_action {
 #define FF_MATCH_AF		(1<<8)
 #define FF_MATCH_DAYTIME	(1<<9)
 #define FF_MATCH_ABSTIME	(1<<10)
+#define FF_MATCH_IFNDX_IN	(1<<11)
+#define FF_MATCH_IFNDX_OUT	(1<<12)
 struct filter_match {
 	u_int32_t	match_what;
 	u_int32_t	match_negate;
@@ -55,6 +57,8 @@ struct filter_match {
 	struct xaddr	src_addr;
 	int		dst_masklen;
 	struct xaddr	dst_addr;
+	int		ifndx_in;
+	int		ifndx_out;
 	int		src_port;
 	int		dst_port;
 	int		proto;

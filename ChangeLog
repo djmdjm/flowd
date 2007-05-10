@@ -1,3 +1,7 @@
+20070510
+ - (djm) Add support for filtering input/output interface index. Requested
+   by Ralf Kleineisel, debugging assistance from Matthew Smart
+
 20061020
  - (djm) Rename CRC32 functions to avoid collisions with zlib;
    patch from Sergey Vasilenko <stalker@telemost.ru>

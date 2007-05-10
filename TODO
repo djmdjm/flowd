@@ -28,6 +28,8 @@
  - support relaying of pre/post-filter packets to another agent
    - UDP
  - Vanilla text logging
+ - XML logging
+ - build binary flows from XML (useful for regress tests)
 
 - Improve Perl and Python documentation				*
 - Add Perl and Python regress tests				*
@@ -74,3 +76,9 @@
   http://www.cc.gatech.edu/computing/Telecomm/cryptopan/
 
 - Read/write zlib compressed flow logs
+
+- Variable-length integer encoding for numeric fields
+- Magic start bit pattern for records + checksum on record header,
+  so we can resynch on read errors
+- separate inbound and outbound tags, or just allow multiple (within reason)
+

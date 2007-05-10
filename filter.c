@@ -67,6 +67,18 @@ format_rule(const struct filter_rule *rule)
 		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
 	}
 
+	if (rule->match.match_what & FF_MATCH_IFNDX_IN) {
+		snprintf(tmpbuf, sizeof(tmpbuf), "in_ifndx %s%d ",
+		    FRNEG(IFNDX_IN), rule->match.ifndx_in);
+		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
+	}
+
+	if (rule->match.match_what & FF_MATCH_IFNDX_OUT) {
+		snprintf(tmpbuf, sizeof(tmpbuf), "out_ifndx %s%d ",
+		    FRNEG(IFNDX_OUT), rule->match.ifndx_out);
+		strlcat(rulebuf, tmpbuf, sizeof(rulebuf));
+	}
+
 	if (rule->match.match_what & FF_MATCH_AF) {
 		strlcat(rulebuf, FRNEG(AF), sizeof(rulebuf));
 		if (rule->match.af == AF_INET)
@@ -213,6 +225,16 @@ flow_match(const struct filter_rule *rule,
 		    rule->match.agent_masklen) == 0);
 		if ((FRNEG(AGENT_ADDR) && m) || (!FRNEG(AGENT_ADDR) && !m))
 			return (0);
+	}
+
+	if (FRMATCH(IFNDX_IN)) {
+		m = flow->ifndx.if_index_in == rule->match.ifndx_in;
+		FRRET(IFNDX_IN);
+	}
+
+	if (FRMATCH(IFNDX_OUT)) {
+		m = flow->ifndx.if_index_out == rule->match.ifndx_out;
+		FRRET(IFNDX_OUT);
 	}
 
 	if (FRMATCH(AF)) {

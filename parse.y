@@ -105,6 +105,7 @@ static const char *longdays[7] = {
 %token	LISTEN ON JOIN GROUP LOGFILE LOGSOCK STORE PIDFILE FLOW SOURCE
 %token	ALL TAG ACCEPT DISCARD QUICK AGENT SRC DST PORT PROTO TOS ANY
 %token	TCP_FLAGS EQUALS MASK INET INET6 DAYS AFTER BEFORE DATE
+%token  IN_IFNDX OUT_IFNDX
 %token	ERROR
 %token	<v.string>		STRING
 %type	<v.number>		number quick logspec not octet tcp_flags tcp_mask af dayname dayrange daylist dayspec daytime abstime
@@ -112,7 +113,7 @@ static const char *longdays[7] = {
 %type	<v.addr>		address
 %type	<v.addrport>		address_port
 %type	<v.prefix>		prefix prefix_or_any
-%type	<v.filter_match>	match_agent match_src match_dst match_proto match_tos match_tcp_flags match_af match_day match_after match_before match_dayafter match_daybefore match_absafter match_absbefore
+%type	<v.filter_match>	match_agent match_src match_dst match_proto match_tos match_tcp_flags match_af match_day match_after match_before match_dayafter match_daybefore match_absafter match_absbefore match_if_in match_if_out
 %type	<v.filter_action>	action tag
 %%
 
@@ -480,7 +481,7 @@ logspec		: STRING	{
 			free($1);
 		}
 
-filterrule	: action tag quick match_agent match_af match_src match_dst match_proto match_tos match_tcp_flags match_day match_after match_before
+filterrule	: action tag quick match_agent match_if_in match_if_out match_af match_src match_dst match_proto match_tos match_tcp_flags match_day match_after match_before
 		{
 			struct filter_rule	*r;
 
@@ -503,48 +504,56 @@ filterrule	: action tag quick match_agent match_af match_src match_dst match_pro
 			r->match.match_what |= $4.match_what;
 			r->match.match_negate |= $4.match_negate;
 
-			r->match.af = $5.af;
+			r->match.ifndx_in = $5.ifndx_in;
 			r->match.match_what |= $5.match_what;
 			r->match.match_negate |= $5.match_negate;
 
-			r->match.src_addr = $6.src_addr;
-			r->match.src_masklen = $6.src_masklen;
-			r->match.src_port = $6.src_port;
+			r->match.ifndx_out = $6.ifndx_out;
 			r->match.match_what |= $6.match_what;
 			r->match.match_negate |= $6.match_negate;
-
-			r->match.dst_addr = $7.dst_addr;
-			r->match.dst_masklen = $7.dst_masklen;
-			r->match.dst_port = $7.dst_port;
+			
+			r->match.af = $7.af;
 			r->match.match_what |= $7.match_what;
 			r->match.match_negate |= $7.match_negate;
 
-			r->match.proto = $8.proto;
+			r->match.src_addr = $8.src_addr;
+			r->match.src_masklen = $8.src_masklen;
+			r->match.src_port = $8.src_port;
 			r->match.match_what |= $8.match_what;
 			r->match.match_negate |= $8.match_negate;
 
-			r->match.tos = $9.tos;
+			r->match.dst_addr = $9.dst_addr;
+			r->match.dst_masklen = $9.dst_masklen;
+			r->match.dst_port = $9.dst_port;
 			r->match.match_what |= $9.match_what;
 			r->match.match_negate |= $9.match_negate;
 
-			r->match.tcp_flags_mask = $10.tcp_flags_mask;
-			r->match.tcp_flags_equals = $10.tcp_flags_equals;
+			r->match.proto = $10.proto;
 			r->match.match_what |= $10.match_what;
 			r->match.match_negate |= $10.match_negate;
 
-			r->match.day_mask = $11.day_mask;
+			r->match.tos = $11.tos;
 			r->match.match_what |= $11.match_what;
 			r->match.match_negate |= $11.match_negate;
 
-			r->match.dayafter = $12.dayafter - 1;
-			r->match.absafter = $12.absafter;
+			r->match.tcp_flags_mask = $12.tcp_flags_mask;
+			r->match.tcp_flags_equals = $12.tcp_flags_equals;
 			r->match.match_what |= $12.match_what;
 			r->match.match_negate |= $12.match_negate;
 
-			r->match.daybefore = $13.daybefore - 1;
-			r->match.absbefore = $13.absbefore;
+			r->match.day_mask = $13.day_mask;
 			r->match.match_what |= $13.match_what;
 			r->match.match_negate |= $13.match_negate;
+
+			r->match.dayafter = $14.dayafter - 1;
+			r->match.absafter = $14.absafter;
+			r->match.match_what |= $14.match_what;
+			r->match.match_negate |= $14.match_negate;
+
+			r->match.daybefore = $15.daybefore - 1;
+			r->match.absbefore = $15.absbefore;
+			r->match.match_what |= $15.match_what;
+			r->match.match_negate |= $15.match_negate;
 
 			if ((r->match.match_what & FF_MATCH_DAYTIME) != 0) {
 				if (r->match.dayafter != 0 && 
@@ -669,6 +678,32 @@ match_agent	: /* empty */			{ bzero(&$$, sizeof($$)); }
 
 af		: INET				{ $$ = AF_INET; }
 		| INET6				{ $$ = AF_INET6; }
+
+match_if_in	: /* empty */			{ bzero(&$$, sizeof($$)); }
+		| IN_IFNDX not number 		{
+			bzero(&$$, sizeof($$));
+			$$.ifndx_in = $3;
+			$$.match_what |= FF_MATCH_IFNDX_IN;
+			$$.match_negate |= $2 ? FF_MATCH_IFNDX_IN : 0;
+			if ($$.ifndx_in <= 0 || $$.ifndx_in > 65535) {
+				yyerror("invalid input interface index");
+				YYERROR;
+			}
+		}
+		;
+
+match_if_out	: /* empty */			{ bzero(&$$, sizeof($$)); }
+		| OUT_IFNDX not number 		{
+			bzero(&$$, sizeof($$));
+			$$.ifndx_out = $3;
+			$$.match_what |= FF_MATCH_IFNDX_OUT;
+			$$.match_negate |= $2 ? FF_MATCH_IFNDX_OUT : 0;
+			if ($$.ifndx_out <= 0 || $$.ifndx_out > 65535) {
+				yyerror("invalid output interface index");
+				YYERROR;
+			}
+		}
+		;
 
 match_af	: /* empty */			{ bzero(&$$, sizeof($$)); }
 		| not af		{
@@ -874,6 +909,7 @@ lookup(char *s)
 		{ "equals",		EQUALS},
 		{ "flow",		FLOW},
 		{ "group",		GROUP},
+		{ "in_ifndx",		IN_IFNDX},
 		{ "inet",		INET},
 		{ "inet6",		INET6},
 		{ "join",		JOIN},
@@ -882,6 +918,7 @@ lookup(char *s)
 		{ "logsock",		LOGSOCK},
 		{ "mask",		MASK},
 		{ "on",			ON},
+		{ "out_ifndx",		OUT_IFNDX},
 		{ "pidfile",		PIDFILE},
 		{ "port",		PORT},
 		{ "proto",		PROTO},

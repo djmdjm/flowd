@@ -320,6 +320,18 @@ within the packet itself.
 .Xc
 This rule applies to flows whose source or destination address family matches
 that specified.
+.It Ar in_ifndx Xo
+.Oo Ar !\& Oc
+.Ar <index>
+.Xc
+Match traffic whose input interface number matches
+.Ar index .
+.It Ar out_ifndx Xo
+.Oo Ar !\& Oc
+.Ar <index>
+.Xc
+Match traffic whose output interface number matches
+.Ar index .
 .It Ar src Xo
 .Oo !\& Oc
 .Ar <address>/<len> Oo port Oo !\& Oc <port> Oc
@@ -451,6 +463,8 @@ accept days Monday-Friday after 08:30:00 before 17:30:00
 discard days Sat,Sun
 # Ignore flows sent outside a certain date/time range
 discard after date 20051123 before date 20051124084459
+# Ignore flows coming in interface 10
+discard in_ifndx 10
 .Ed
 .Pp
 .Sh AUTHORS
