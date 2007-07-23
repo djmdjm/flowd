@@ -1,3 +1,7 @@
+20070723
+ - (djm) Fix NetFlow v.9 flowset template parsing on LP!32 platforms.
+   Report and fix from zhangjinxue AT cernet.edu.cn
+
 20070510
  - (djm) Add support for filtering input/output interface index. Requested
    by Ralf Kleineisel, debugging assistance from Matthew Smart

@@ -880,7 +880,7 @@ process_netflow_v9_template(u_int8_t *pkt, size_t len, struct peer_state *peer,
 			    (pkt + offset);
 			recs[i].type = ntohs(tmplr->type);
 			recs[i].len = ntohs(tmplr->length);
-			offset += sizeof(tmplr);
+			offset += sizeof(*tmplr);
 #ifdef DEBUG_NF9
 			logit(LOG_DEBUG, "  record %d: type %d len %d",
 			    i, recs[i].type, recs[i].len);
