@@ -53,7 +53,7 @@ for (my $i = 0; $i < scalar(@ARGV); $i++) {
 		    " src_port, dst_port, octets, packets, protocol) VALUES ".
 		    "(%u, %s, %s, %s, %s, %u, %u, %u, %u, %u)" ,
 		    $tag, 
-		    $db->quote(Flowd::iso_time($flow->{recv_secs})),
+		    $db->quote(Flowd::iso_time($flow->{recv_sec})),
 		    $db->quote($flow->{agent_addr}), 
 		    $db->quote($flow->{src_addr}), 
 		    $db->quote($flow->{dst_addr}),
