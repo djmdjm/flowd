@@ -354,7 +354,7 @@ process_flow(struct store_flow_complete *flow, struct flowd_config *conf,
 	    sizeof(fbuf), &flen, ebuf, sizeof(ebuf)) != STORE_ERR_OK)
 		logerrx("%s: exiting on %s", __func__, ebuf);
 
-	if (output_flow_enqueue(fbuf, flen,
+	if (log_fd != -1 && output_flow_enqueue(fbuf, flen,
 	    conf->opts & FLOWD_OPT_VERBOSE) == -1) {
 		output_flow_flush(log_fd, conf->opts & FLOWD_OPT_VERBOSE);
 		/* Must not fail after flush */
@@ -365,7 +365,8 @@ process_flow(struct store_flow_complete *flow, struct flowd_config *conf,
 
 	/* Track failures to send on log socket so we can reopen it */
 	if (log_socket != -1 && send(log_socket, fbuf, flen, 0) == -1) {
-		if ((logsock_num_errors % 10) == 0) {
+		if (logsock_num_errors > 0 &&
+		    (logsock_num_errors % 10) == 0) {
 			logit(LOG_WARNING, "log socket send: %s "
 			    "(num errors %d)", strerror(errno),
 			    logsock_num_errors);
