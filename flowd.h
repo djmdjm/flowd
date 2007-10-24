@@ -55,6 +55,7 @@ struct listen_addr {
 	struct xaddr			addr;
 	u_int16_t			port;
 	int				fd;
+	size_t				bufsiz;
 	TAILQ_ENTRY(listen_addr)	entry;
 };
 TAILQ_HEAD(listen_addrs, listen_addr);
@@ -72,6 +73,7 @@ TAILQ_HEAD(join_groups, join_group);
 struct flowd_config {
 	char			*log_file;
 	char			*log_socket;
+	size_t			log_socket_bufsiz;
 	char			*pid_file;
 	u_int32_t		store_mask;
 	u_int32_t		opts;

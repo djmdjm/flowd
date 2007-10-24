@@ -1365,7 +1365,7 @@ startup_listen_init(struct flowd_config *conf)
 	struct listen_addr *la;
 
 	TAILQ_FOREACH(la, &conf->listen_addrs, entry) {
-		if ((la->fd = open_listener(&la->addr, la->port,
+		if ((la->fd = open_listener(&la->addr, la->port, la->bufsiz,
 		    &conf->join_groups)) == -1) {
 			logerrx("Listener setup of [%s]:%d failed",
 			    addr_ntop_buf(&la->addr), la->port);

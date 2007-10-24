@@ -102,7 +102,7 @@ static const char *longdays[7] = {
 
 %}
 
-%token	LISTEN ON JOIN GROUP LOGFILE LOGSOCK STORE PIDFILE FLOW SOURCE
+%token	LISTEN ON JOIN GROUP LOGFILE LOGSOCK BUFSIZE STORE PIDFILE FLOW SOURCE
 %token	ALL TAG ACCEPT DISCARD QUICK AGENT SRC DST PORT PROTO TOS ANY
 %token	TCP_FLAGS EQUALS MASK INET INET6 DAYS AFTER BEFORE DATE
 %token  IN_IFNDX OUT_IFNDX
@@ -385,7 +385,21 @@ conf_main	: LISTEN ON address_port	{
 			la->fd = -1;
 			la->addr = $3.addr;
 			la->port = $3.port;
+			la->bufsiz = 0;
 			TAILQ_INSERT_TAIL(&conf->listen_addrs, la, entry);
+		}
+		| LISTEN ON address_port BUFSIZE number {
+			struct listen_addr	*la;
+
+			if ((la = calloc(1, sizeof(*la))) == NULL)
+				logerrx("listen_on: calloc");
+
+			la->fd = -1;
+			la->addr = $3.addr;
+			la->port = $3.port;
+			la->bufsiz = $5;
+			TAILQ_INSERT_TAIL(&conf->listen_addrs, la, entry);
+
 		}
 		| FLOW SOURCE prefix_or_any	{
 			struct allowed_device	*ad;
@@ -413,6 +427,10 @@ conf_main	: LISTEN ON address_port	{
 		}
 		| LOGSOCK string		{
 			conf->log_socket = $2;
+		}
+		| LOGSOCK string BUFSIZE number {
+			conf->log_socket = $2;
+			conf->log_socket_bufsiz = $4;
 		}
 		| PIDFILE string		{
 			conf->pid_file = $2;
@@ -902,6 +920,7 @@ lookup(char *s)
 		{ "all",		ALL},
 		{ "any",		ANY},
 		{ "before",		BEFORE},
+		{ "bufsize",		BUFSIZE},
 		{ "date",		DATE},
 		{ "days",		DAYS},
 		{ "discard",		DISCARD},

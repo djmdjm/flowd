@@ -119,7 +119,7 @@ write_pid_file(const char *path)
 }
 
 int
-open_listener(struct xaddr *addr, u_int16_t port, struct join_groups *groups)
+open_listener(struct xaddr *addr, u_int16_t port, size_t bufsiz, struct join_groups *groups)
 {
 	int fd, fl, i, orig;
 	struct sockaddr_storage ss;
@@ -167,18 +167,32 @@ open_listener(struct xaddr *addr, u_int16_t port, struct join_groups *groups)
 	logit(LOG_DEBUG, "Listener for [%s]:%d fd = %d", addr_ntop_buf(addr),
 	    port, fd);
 
-	/* Crank up socket receive buffer size to cope with bursts of flows */
+	/*
+	 * Crank up socket receive buffer size to cope with bursts of flows
+	 * If the config doesn't contain an explicit buffer size, we
+	 * fall back to guessing.
+	 */
 	slen = sizeof(fl);
 	if (getsockopt(fd, SOL_SOCKET, SO_RCVBUF, &orig, &slen) == 0) {
-		for (i = 3; i >= 1; i--) {
+		if (bufsiz > 0) {
+			fl = bufsiz;
+			if (setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &fl,
+			    sizeof(fl)) == 0) {
+				logit(LOG_DEBUG, "Adjusted socket receive "
+					"buffer from %d to %d", orig, fl);
+			} else
+				logerr("%s: setsockopt(SO_RCVBUF)", __func__);
+		} else {
+		    for (i = 3; i >= 1; i--) {
 			fl = (1024 * 64) << i;
 			if (setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &fl,
 			    sizeof(fl)) == 0) {
-				logit(LOG_DEBUG, "Increased socket receive "
+				logit(LOG_DEBUG, "Adjusted socket receive "
 				    "buffer from %d to %d", orig, fl);
 				break;
 			} else if (i == 1)
 				logitm(LOG_DEBUG, "setsockopt(SO_RCVBUF)");
+		    }
 		}
 	}
 
@@ -299,6 +313,13 @@ recv_config(int fd, struct flowd_config *conf)
 
 	newconf.log_file = privsep_read_string(fd, 1);
 	newconf.log_socket = privsep_read_string(fd, 1);
+
+	if (atomicio(read, fd, &newconf.log_socket_bufsiz,
+	    sizeof(newconf.log_socket_bufsiz)) !=
+	    sizeof(newconf.log_socket_bufsiz)) {
+		logitm(LOG_ERR, "%s: read(conf.log_socket_bufsiz)", __func__);
+		return (-1);
+	}
 
 	if ((newconf.pid_file = privsep_read_string(fd, 0)) == NULL) {
 		logit(LOG_ERR, "%s: Couldn't read conf.pid_file", __func__);
@@ -431,6 +452,13 @@ send_config(int fd, struct flowd_config *conf)
 		logit(LOG_ERR, "%s: Couldn't write conf.log_socket", __func__);
 		return (-1);
 	}
+	if (atomicio(vwrite, fd, &conf->log_socket_bufsiz,
+	    sizeof(conf->log_socket_bufsiz)) !=
+	    sizeof(conf->log_socket_bufsiz)) {
+		logitm(LOG_ERR, "%s: write(conf.log_socket_bufsiz)", __func__);
+		return (-1);
+	}
+
 	if (privsep_write_string(fd, conf->pid_file, 0) == -1) {
 		logit(LOG_ERR, "%s: Couldn't write conf.pid_file", __func__);
 		return (-1);
@@ -581,7 +609,7 @@ child_get_config(const char *path, struct flowd_config *conf)
 	FILE *cfg;
 	struct passwd *pw = NULL;
 	struct flowd_config newconf = {
-		NULL, NULL, NULL, 0, 0,
+		NULL, NULL, 0, NULL, 0, 0,
 		TAILQ_HEAD_INITIALIZER(newconf.listen_addrs),
 		TAILQ_HEAD_INITIALIZER(newconf.filter_list),
 		TAILQ_HEAD_INITIALIZER(newconf.allowed_devices),
@@ -786,7 +814,7 @@ answer_open_log(struct flowd_config *conf, int client_fd)
 static int
 answer_open_socket(struct flowd_config *conf, int client_fd)
 {
-	int fd;
+	int fd, slen, orig;
 	struct sockaddr_un to;
 	socklen_t tolen;
 
@@ -814,6 +842,19 @@ answer_open_socket(struct flowd_config *conf, int client_fd)
 	if (connect(fd, (struct sockaddr *)&to, tolen) == -1) {
 		logitm(LOG_ERR, "connect to logsock");
 		return (-1);
+	}
+
+	slen = sizeof(orig);
+	if (conf->log_socket_bufsiz > 0 &&
+	    getsockopt(fd, SOL_SOCKET, SO_SNDBUF, &orig, &slen) == 0) {
+		if (setsockopt(fd, SOL_SOCKET, SO_SNDBUF, 
+		    &conf->log_socket_bufsiz,
+		    sizeof(conf->log_socket_bufsiz)) == 0) {
+			logit(LOG_DEBUG, "Adjusted log_socket send "
+			    "buffer from %d to %d", orig,
+			    conf->log_socket_bufsiz);
+		} else
+			logerr("%s: setsockopt(SO_SNDBUF)", __func__);
 	}
 
 	if (send_fd(client_fd, fd) == -1)
@@ -850,7 +891,7 @@ answer_reconfigure(struct flowd_config *conf, int client_fd,
 	}
 
 	TAILQ_FOREACH(la, &newconf.listen_addrs, entry) {
-		if ((la->fd = open_listener(&la->addr, la->port,
+		if ((la->fd = open_listener(&la->addr, la->port, la->bufsiz,
 		    &conf->join_groups)) == -1) {
 			logit(LOG_ERR, "Listener setup of [%s]:%d failed",
 			    addr_ntop_buf(&la->addr), la->port);

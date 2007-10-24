@@ -1,3 +1,7 @@
+20071024
+ - (djm) Support explicit specification of "listen on" and "logsock"
+   socket buffer sizes. Patch from kempfj2 AT cs.rpi.edu
+
 20071010
  - (djm) Make local socket-only logging work, and fix spurious warnings
    from socket logging. Patch from kempfj2 AT cs.rpi.edu
