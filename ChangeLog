@@ -1,3 +1,7 @@
+20080422
+ - (djm) Support flow-tools CSV output format in flowd-reader. Patch from
+   weinhold AT berbee.com
+
 20071024
  - (djm) Support explicit specification of "listen on" and "logsock"
    socket buffer sizes. Patch from kempfj2 AT cs.rpi.edu

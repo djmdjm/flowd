@@ -49,6 +49,7 @@ usage(void)
 	fprintf(stderr, "  -f path  Filter flows using rule file\n");
 	fprintf(stderr, "  -o path  Write binary log to path (use with -f)\n");
 	fprintf(stderr, "  -v       Display all available flow information\n");
+	fprintf(stderr, "  -c       Return CSV output compatible with flow-import\n");
 	fprintf(stderr, "  -U       Report times in UTC rather than local time\n");
 	fprintf(stderr, "  -h       Display this help\n");
 }
@@ -74,7 +75,7 @@ open_start_log(const char *path, int debug)
 int
 main(int argc, char **argv)
 {
-	int ch, i, fd, utc, r, verbose, debug;
+	int ch, i, fd, utc, r, verbose, debug, csv;
 	extern char *optarg;
 	extern int optind;
 	struct store_flow_complete flow;
@@ -87,7 +88,7 @@ main(int argc, char **argv)
 	struct flowd_config filter_config;
 	struct store_v2_header hdr_v2;
 
-	utc = verbose = debug = read_legacy = 0;
+	utc = verbose = debug = read_legacy = csv = 0;
 	ofile = ffile = NULL;
 	ofd = -1;
 	ffilef = NULL;
@@ -95,7 +96,7 @@ main(int argc, char **argv)
 
 	bzero(&filter_config, sizeof(filter_config));
 
-	while ((ch = getopt(argc, argv, "H:LUdf:ho:qv")) != -1) {
+	while ((ch = getopt(argc, argv, "H:LUdf:ho:qvc")) != -1) {
 		switch (ch) {
 		case 'h':
 			usage();
@@ -128,6 +129,9 @@ main(int argc, char **argv)
 			break;
 		case 'v':
 			verbose = 1;
+			break;
+		case 'c':
+			csv = 1;
 			break;
 		default:
 			usage();
@@ -178,13 +182,22 @@ main(int argc, char **argv)
 		    sizeof(ebuf)) != STORE_ERR_OK)
 			logerrx("%s", ebuf);
 
-		if (verbose >= 0) {
+		if (verbose >= 1) {
 			printf("LOGFILE %s", argv[i]);
 			if (read_legacy)
 				printf(" started at %s",
 				    iso_time(ntohl(hdr_v2.start_time), utc));
 			printf("\n");
 			fflush(stdout);
+		}
+
+		if (csv == 1) {
+			csv++;
+			printf("#:unix_secs,unix_nsecs,sysuptime,exaddr,"
+			    "dpkts,doctets,first,last,engine_type,engine_id,"
+			    "srcaddr,dstaddr,nexthop,input,output,srcport,"
+			    "dstport,prot,tos,tcp_flags,src_mask,dst_mask,"
+			    "src_as,dst_as\n");
 		}
 
 		for (nflows = 0; head == 0 || nflows < head; nflows++) {
@@ -209,7 +222,12 @@ main(int argc, char **argv)
 			if (ffile != NULL && filter_flow(&flow,
 			    &filter_config.filter_list) == FF_ACTION_DISCARD)
 				continue;
-			if (verbose >= 0) {
+			if (csv) {
+				store_format_flow_flowtools_csv(&flow, buf,
+				    sizeof(buf), utc, disp_mask, 0);
+				printf("%s\n", buf);
+			}
+			else if (verbose >= 0) {
 				store_format_flow(&flow, buf, sizeof(buf), 
 				    utc, disp_mask, 0);
 				printf("%s\n", buf);

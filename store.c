@@ -644,6 +644,7 @@ store_swp_fake16(u_int16_t v)
 	return v;
 }
 
+
 void
 store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
     int utc_flag, u_int32_t display_mask, int hostorder)
@@ -780,6 +781,68 @@ store_format_flow(struct store_flow_complete *flow, char *buf, size_t len,
 	}
 }
 
+void
+store_format_flow_flowtools_csv(struct store_flow_complete *flow, char *buf,
+    size_t len, int utc_flag, u_int32_t display_mask, int hostorder)
+{
+	char tmp[256];
+	u_int32_t fields;
+	u_int64_t (*fmt_ntoh64)(u_int64_t) = store_swp_ntoh64;
+	u_int32_t (*fmt_ntoh32)(u_int32_t) = store_swp_ntoh32;
+	u_int16_t (*fmt_ntoh16)(u_int16_t) = store_swp_ntoh16;
+
+	if (hostorder) {
+		fmt_ntoh64 = store_swp_fake64;
+		fmt_ntoh32 = store_swp_fake32;
+		fmt_ntoh16 = store_swp_fake16;
+	}
+
+	*buf = '\0';
+
+	fields = fmt_ntoh32(flow->hdr.fields) & display_mask;
+
+	snprintf(tmp, sizeof(tmp), "%lu,%lu,%lu,%s,%llu,%llu,%lu,%lu,%u,%u,",
+		fmt_ntoh32(flow->ainfo.time_sec),	// unix_secs
+		fmt_ntoh32(flow->ainfo.time_nanosec),	// unix_nsecs
+		fmt_ntoh32(flow->ainfo.sys_uptime_ms),	// sysuptime
+		addr_ntop_buf(&flow->agent_addr),	// exaddr
+		fmt_ntoh64(flow->packets.flow_packets),	// dpkts
+		fmt_ntoh64(flow->octets.flow_octets),	// doctets
+		fmt_ntoh32(flow->ftimes.flow_start),	// first
+		fmt_ntoh32(flow->ftimes.flow_finish),	// last
+		fmt_ntoh16(flow->finf.engine_type),	// engine_type
+		fmt_ntoh16(flow->finf.engine_id)	// engine_id
+	);
+	strlcat(buf, tmp, len);
+
+	// srcaddr
+	snprintf(tmp, sizeof(tmp), "%s,", addr_ntop_buf(&flow->src_addr));
+	strlcat(buf, tmp, len);
+
+	// dstaddr
+	snprintf(tmp, sizeof(tmp), "%s,", addr_ntop_buf(&flow->dst_addr));
+	strlcat(buf, tmp, len);
+
+	// nexthop
+	snprintf(tmp, sizeof(tmp), "%s,", addr_ntop_buf(&flow->gateway_addr));
+	strlcat(buf, tmp, len);
+
+	// input
+	snprintf(tmp, sizeof(tmp), "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u",
+		fmt_ntoh32(flow->ifndx.if_index_in),	// input
+		fmt_ntoh32(flow->ifndx.if_index_out),	// output
+		fmt_ntoh16(flow->ports.src_port),	// srcport
+		fmt_ntoh16(flow->ports.dst_port),	// dstport
+		flow->pft.protocol,			// prot
+		flow->pft.tos,				// tos
+		flow->pft.tcp_flags,			// tcp_flags
+		flow->asinf.src_mask,			// src_mask
+		flow->asinf.dst_mask,			// dst_mask
+		fmt_ntoh32(flow->asinf.src_as),		// src_as
+		fmt_ntoh32(flow->asinf.dst_as)		// dst_as
+	);
+	strlcat(buf, tmp, len);
+}
 
 void
 store_swab_flow(struct store_flow_complete *flow, int to_net)

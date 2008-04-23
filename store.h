@@ -280,6 +280,9 @@ int store_calc_flow_len(struct store_flow *hdr);
 /* Formatting and conversion */
 void store_format_flow(struct store_flow_complete *flow, char *buf,
     size_t len, int utc_flag, u_int32_t display_mask, int hostorder);
+void store_format_flow_flowtools_csv(struct store_flow_complete *flow,
+    char *buf, size_t len, int utc_flag, u_int32_t display_mask,
+    int hostorder);
 void store_swab_flow(struct store_flow_complete *flow, int to_net);
 
 /* Utility functions */
