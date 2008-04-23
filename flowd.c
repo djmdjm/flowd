@@ -1185,7 +1185,7 @@ receive_many(struct flowd_config *conf, struct peers *peers, int net_fd)
 
 	for (i = 0; i < INPUT_MAX_PACKET_PER_FD; i++) {
 		if (receive_packet(conf, peers, net_fd) == 0) {
-			syslog(LOG_DEBUG, "Received max number of packets "
+			logit(LOG_DEBUG, "Received max number of packets "
 			    "(%d) on fd %d", INPUT_MAX_PACKET_PER_FD, net_fd);
 			return;
 		}
