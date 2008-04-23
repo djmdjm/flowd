@@ -119,7 +119,8 @@ write_pid_file(const char *path)
 }
 
 int
-open_listener(struct xaddr *addr, u_int16_t port, size_t bufsiz, struct join_groups *groups)
+open_listener(struct xaddr *addr, u_int16_t port, size_t bufsiz,
+    struct join_groups *groups)
 {
 	int fd, fl, i, orig;
 	struct sockaddr_storage ss;
