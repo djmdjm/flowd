@@ -228,12 +228,12 @@ flow_match(const struct filter_rule *rule,
 	}
 
 	if (FRMATCH(IFNDX_IN)) {
-		m = flow->ifndx.if_index_in == rule->match.ifndx_in;
+		m = ntohl(flow->ifndx.if_index_in) == rule->match.ifndx_in;
 		FRRET(IFNDX_IN);
 	}
 
 	if (FRMATCH(IFNDX_OUT)) {
-		m = flow->ifndx.if_index_out == rule->match.ifndx_out;
+		m = ntohl(flow->ifndx.if_index_out) == rule->match.ifndx_out;
 		FRRET(IFNDX_OUT);
 	}
 
