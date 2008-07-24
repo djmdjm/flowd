@@ -713,8 +713,8 @@ nf9_rec_to_flow(struct peer_nf9_record *rec, struct store_flow_complete *flow,
 	V9_FIELD(NF9_OUTPUT_SNMP, IF_INDICES, ifndx.if_index_out);
 	V9_FIELD(NF9_SRC_AS, AS_INFO, asinf.src_as);
 	V9_FIELD(NF9_DST_AS, AS_INFO, asinf.dst_as);
-	V9_FIELD(NF9_LAST_SWITCHED, FLOW_TIMES, ftimes.flow_start);
-	V9_FIELD(NF9_FIRST_SWITCHED, FLOW_TIMES, ftimes.flow_finish);
+	V9_FIELD(NF9_LAST_SWITCHED, FLOW_TIMES, ftimes.flow_finish);
+	V9_FIELD(NF9_FIRST_SWITCHED, FLOW_TIMES, ftimes.flow_start);
 	V9_FIELD(NF9_IPV6_SRC_MASK, AS_INFO, asinf.src_mask);
 	V9_FIELD(NF9_IPV6_DST_MASK, AS_INFO, asinf.dst_mask);
 	V9_FIELD(NF9_ENGINE_TYPE, FLOW_ENGINE_INFO, finf.engine_type);
