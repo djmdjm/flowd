@@ -2,6 +2,7 @@
  - (djm) byte swap interface indices before testing them in filters
  - (djm) Fixed swapped last/first_switched times in netflow v.9 code
    patch from weinhold AT berbee.com
+ - (djm) Released flowd-0.9.1
 
 20080422
  - (djm) Support flow-tools CSV output format in flowd-reader. Patch from
@@ -32,6 +33,7 @@
 
 20051227
  - (djm) Add RPM spec and init files for SuSE Linux from alshu AT tut.by
+ - (djm) Released flowd-0.9
 
 20051220
  - (djm) Fix byte swapping of src/dst AS and interface indices, spotted 

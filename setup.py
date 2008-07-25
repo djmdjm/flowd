@@ -20,7 +20,7 @@ import sys
 from distutils.core import setup, Extension
 
 DEFS = [
-	( 'PROGVER',		'"0.9"' ),
+	( 'PROGVER',		'"0.9.1"' ),
 ]
 
 if __name__ == '__main__':
@@ -35,7 +35,7 @@ if __name__ == '__main__':
 		libraries = ['flowd'],
 		library_dirs = ['.', '../..'])
 	setup(	name = "flowd",
-		version = "0.9",
+		version = "0.9.1",
 		author = "Damien Miller",
 		author_email = "djm@mindrot.org",
 		url = "http://www.mindrot.org/flowd.html",
