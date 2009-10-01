@@ -1121,6 +1121,7 @@ receive_packet(struct flowd_config *conf, struct peers *peers, int net_fd)
 	ssize_t len;
 	struct xaddr flow_source;
 	struct flow_packet *fp;
+	struct forward_addr *fa;
 
 	if ((fp = flow_packet_alloc()) == NULL) {
 		logit(LOG_WARNING, "flow packet metadata alloc failed");
@@ -1174,6 +1175,11 @@ receive_packet(struct flowd_config *conf, struct peers *peers, int net_fd)
 	}
 	memcpy(fp->packet, buf, fp->len);
 	flow_packet_enqueue(fp);
+
+	TAILQ_FOREACH(fa, &conf->forward_addrs, entry) {
+		logit(LOG_DEBUG, "Forwarding packet to %s", addr_ntop_buf(&fa->addr));
+		send(fa->fd, fp->packet, fp->len, 0);
+	}
 
 	return (1);
 }
@@ -1373,6 +1379,20 @@ startup_listen_init(struct flowd_config *conf)
 	}
 }
 
+static void
+startup_forward_init(struct flowd_config *conf)
+{
+	struct forward_addr *fa;
+
+	TAILQ_FOREACH(fa, &conf->forward_addrs, entry) {
+		if ((fa->fd = open_sender(&fa->addr, fa->port, fa->bufsiz,
+		    &conf->join_groups)) == -1) {
+			logerrx("Listener setup of [%s]:%d failed",
+			    addr_ntop_buf(&fa->addr), fa->port);
+		}
+	}
+}
+
 /* Display commandline usage information */
 static void
 usage(void)
@@ -1459,6 +1479,9 @@ main(int argc, char **argv)
 
 	/* Start listening (do this early to report errors before privsep) */
 	startup_listen_init(&conf);
+
+	/* Start forwarding (same reason) */
+	startup_forward_init(&conf);
 
 	/* Start the monitor - we continue as the unprivileged child */
 	privsep_init(&conf, &monitor_fd, config_file);

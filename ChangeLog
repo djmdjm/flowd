@@ -1,3 +1,7 @@
+20091001
+ - (djm) Support for forwarding flow packets on to other flow collectors.
+   Patch from kempf AT rpi.edu
+
 20080725
  - (djm) byte swap interface indices before testing them in filters
  - (djm) Fixed swapped last/first_switched times in netflow v.9 code

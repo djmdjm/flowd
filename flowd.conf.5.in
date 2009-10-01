@@ -106,6 +106,24 @@ will accept flow records from any address.
 The use of this option is strongly recommended when flow export protocols
 are used that require the collector to retain state information (e.g.
 NetFlow v.9 flow templates) in order to avoid flooding attacks.
+.It Ar forward to
+Specifies an address and port to which
+.Xr flowd 8
+will forward verbatim copies of all flow packets received.
+IPv6 addresses must be surrounded by square brackets to distinguish them from
+the port number.
+This option may be specified more than once to send flows to mutiple
+destinations.
+.Pp
+For example,
+.Bd -literal -offset indent
+forward to 192.2.0.2:12345
+forward to [2001:db8::1]:12345
+.Ed
+.Pp
+The
+.Cm forward to
+directive is optional. There is no default value.
 .It Ar join group
 Specify multicast groups to join.
 This allows

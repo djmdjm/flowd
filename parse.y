@@ -103,7 +103,7 @@ static const char *longdays[7] = {
 %}
 
 %token	LISTEN ON JOIN GROUP LOGFILE LOGSOCK BUFSIZE STORE PIDFILE FLOW SOURCE
-%token	ALL TAG ACCEPT DISCARD QUICK AGENT SRC DST PORT PROTO TOS ANY
+%token	ALL TAG ACCEPT DISCARD QUICK AGENT SRC DST PORT PROTO TOS ANY FORWARD TO
 %token	TCP_FLAGS EQUALS MASK INET INET6 DAYS AFTER BEFORE DATE
 %token  IN_IFNDX OUT_IFNDX
 %token	ERROR
@@ -431,6 +431,20 @@ conf_main	: LISTEN ON address_port	{
 		| LOGSOCK string BUFSIZE number {
 			conf->log_socket = $2;
 			conf->log_socket_bufsiz = $4;
+		}
+		| FORWARD TO address_port {
+			struct forward_addr *fa;
+
+			if ((fa = calloc(1, sizeof(*fa))) == NULL)
+				logerrx("forward_to: calloc");
+
+			fa->fd = -1;
+			fa->addr = $3.addr;
+			fa->port = $3.port;
+			fa->bufsiz = -1;
+
+			TAILQ_INSERT_TAIL(&conf->forward_addrs, fa, entry);
+		
 		}
 		| PIDFILE string		{
 			conf->pid_file = $2;
@@ -927,6 +941,7 @@ lookup(char *s)
 		{ "dst",		DST},
 		{ "equals",		EQUALS},
 		{ "flow",		FLOW},
+		{ "forward",	FORWARD},
 		{ "group",		GROUP},
 		{ "in_ifndx",		IN_IFNDX},
 		{ "inet",		INET},
@@ -947,6 +962,7 @@ lookup(char *s)
 		{ "store",		STORE},
 		{ "tag",		TAG},
 		{ "tcp_flags",		TCP_FLAGS},
+		{ "to",			TO},
 		{ "tos",		TOS},
 	};
 	const struct keywords	*p;
@@ -1161,6 +1177,7 @@ parse_config(const char *path, FILE *f, struct flowd_config *mconf,
 	conf = mconf;
 
 	TAILQ_INIT(&conf->listen_addrs);
+	TAILQ_INIT(&conf->forward_addrs);
 	TAILQ_INIT(&conf->filter_list);
 	TAILQ_INIT(&conf->allowed_devices);
 	TAILQ_INIT(&conf->join_groups);

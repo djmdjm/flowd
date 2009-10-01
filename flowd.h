@@ -67,6 +67,15 @@ struct join_group {
 };
 TAILQ_HEAD(join_groups, join_group);
 
+struct forward_addr {
+	struct xaddr addr;
+	u_int16_t	port;
+	int			fd;
+	size_t		bufsiz;
+	TAILQ_ENTRY(forward_addr) entry;
+};
+TAILQ_HEAD(forward_addrs, forward_addr);
+
 #define FLOWD_OPT_DONT_FORK		(1)
 #define FLOWD_OPT_VERBOSE		(1<<1)
 #define FLOWD_OPT_INSECURE		(1<<2)
@@ -78,6 +87,7 @@ struct flowd_config {
 	u_int32_t		store_mask;
 	u_int32_t		opts;
 	struct listen_addrs	listen_addrs;
+	struct forward_addrs forward_addrs;
 	struct filter_list	filter_list;
 	struct allowed_devices	allowed_devices;
 	struct join_groups	join_groups;

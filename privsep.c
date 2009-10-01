@@ -119,6 +119,34 @@ write_pid_file(const char *path)
 }
 
 int
+open_sender(struct xaddr *addr, u_int16_t port, size_t bufsiz)
+{
+	int fd;
+	struct sockaddr_storage ss;
+	socklen_t slen = sizeof(ss);
+
+	if (addr_xaddr_to_sa(addr, (struct sockaddr *)&ss, &slen, port) == -1) {
+		logit(LOG_ERR, "(%s): %s", __func__, "addr_xaddr_to_sa");
+		return (-1);
+	}
+
+	if ((fd = socket(addr->af, SOCK_DGRAM, 0)) == -1) {
+		logitm(LOG_ERR, "(%s): %s", __func__, "socket");
+		return (-1);
+	}
+
+	if (connect(fd, (struct sockaddr *)&ss, slen) == -1) {
+		logitm(LOG_ERR, "connect");
+		return (-1);
+	}
+
+	logit(LOG_DEBUG, "Sender for [%s]:%d fd = %d", addr_ntop_buf(addr),
+	    port, fd);
+
+	return (fd);
+}
+
+int
 open_listener(struct xaddr *addr, u_int16_t port, size_t bufsiz,
     struct join_groups *groups)
 {
@@ -297,6 +325,7 @@ recv_config(int fd, struct flowd_config *conf)
 {
 	u_int n, i;
 	struct listen_addr *la;
+	struct forward_addr *fa;
 	struct filter_rule *fr;
 	struct allowed_device *ad;
 	struct join_group *jg;
@@ -306,6 +335,7 @@ recv_config(int fd, struct flowd_config *conf)
 
 	bzero(&newconf, sizeof(newconf));
 	TAILQ_INIT(&newconf.listen_addrs);
+	TAILQ_INIT(&newconf.forward_addrs);
 	TAILQ_INIT(&newconf.filter_list);
 	TAILQ_INIT(&newconf.allowed_devices);
 	TAILQ_INIT(&newconf.join_groups);
@@ -363,6 +393,32 @@ recv_config(int fd, struct flowd_config *conf)
 		TAILQ_INSERT_TAIL(&newconf.listen_addrs, la, entry);
 	}
 
+	/* Read Forward Addrs */
+	if (atomicio(read, fd, &n, sizeof(n)) != sizeof(n)) {
+		logitm(LOG_ERR, "%s: read(num forward_addrs)", __func__);
+		return (-1);
+	}
+	if (n < 0 || n > 8192) {
+		logit(LOG_ERR, "%s: silly number of forward_addrs: %d",
+		    __func__, n);
+		return (-1);
+	}
+	for (i = 0; i < n; i++) {
+		if ((fa = calloc(1, sizeof(*fa))) == NULL) {
+			logit(LOG_ERR, "%s: calloc", __func__);
+			return (-1);
+		}
+		if (atomicio(read, fd, fa, sizeof(*fa)) != sizeof(*fa)) {
+			logitm(LOG_ERR, "%s: read(forward_addr)", __func__);
+			return (-1);
+		}
+		if (fa->fd != -1 && (fa->fd = receive_fd(fd)) == -1)
+			return (-1);
+		logit(LOG_DEBUG, "%s: read forward addr %s.", __func__,
+			addr_ntop_buf(&fa->addr));
+		TAILQ_INSERT_TAIL(&newconf.forward_addrs, fa, entry);
+	}
+	
 	/* Read Filter Rules */
 	if (atomicio(read, fd, &n, sizeof(n)) != sizeof(n)) {
 		logitm(LOG_ERR, "%s: read(num filter_rules)", __func__);
@@ -439,6 +495,7 @@ send_config(int fd, struct flowd_config *conf)
 {
 	u_int n;
 	struct listen_addr *la;
+	struct forward_addr *fa;
 	struct filter_rule *fr;
 	struct allowed_device *ad;
 	struct join_group *jg;
@@ -491,6 +548,23 @@ send_config(int fd, struct flowd_config *conf)
 			return (-1);
 		}
 		if (la->fd != -1 && send_fd(fd, la->fd) == -1)
+			return (-1);
+	}
+
+	/* Write Forward Addrs */
+	n = 0;
+	TAILQ_FOREACH(fa, &conf->forward_addrs, entry)
+		n++;
+	if (atomicio(vwrite, fd, &n, sizeof(n)) != sizeof(n)) {
+		logitm(LOG_ERR, "%s: write(num forward_addrs)", __func__);
+		return (-1);
+	}
+	TAILQ_FOREACH(fa, &conf->forward_addrs, entry) {
+		if (atomicio(vwrite, fd, fa, sizeof(*fa)) != sizeof(*fa)) {
+			logitm(LOG_ERR, "%s: write(forward_addr)", __func__);
+			return (-1);
+		}
+		if (fa->fd != -1 && send_fd(fd, fa->fd) == -1)
 			return (-1);
 	}
 
@@ -612,6 +686,7 @@ child_get_config(const char *path, struct flowd_config *conf)
 	struct flowd_config newconf = {
 		NULL, NULL, 0, NULL, 0, 0,
 		TAILQ_HEAD_INITIALIZER(newconf.listen_addrs),
+		TAILQ_HEAD_INITIALIZER(newconf.forward_addrs),
 		TAILQ_HEAD_INITIALIZER(newconf.filter_list),
 		TAILQ_HEAD_INITIALIZER(newconf.allowed_devices),
 		TAILQ_HEAD_INITIALIZER(newconf.join_groups)
@@ -872,6 +947,7 @@ answer_reconfigure(struct flowd_config *conf, int client_fd,
 	u_int ok, rewrite_pidfile;
 	struct flowd_config newconf;
 	struct listen_addr *la;
+	struct forward_addr *fa;
 
 	bzero(&newconf, sizeof(newconf));
 	TAILQ_INIT(&newconf.listen_addrs);
@@ -900,8 +976,18 @@ answer_reconfigure(struct flowd_config *conf, int client_fd,
 			break;
 		}
 	}
-
 	logit(LOG_DEBUG, "%s: post listener open, ok = %d", __func__, ok);
+
+	TAILQ_FOREACH(fa, &newconf.forward_addrs, entry) {
+		if ((fa->fd = open_sender(&fa->addr, fa->port, fa->bufsiz)) == -1) {
+			logit(LOG_ERR, "Forwarder setup of [%s]:%d failed",
+			    addr_ntop_buf(&fa->addr), fa->port);
+			ok = 0;
+			break;
+		}
+	}
+
+	logit(LOG_DEBUG, "%s: post forwarder open, ok = %d", __func__, ok);
 	if (atomicio(vwrite, client_fd, &ok, sizeof(ok)) != sizeof(ok)) {
 		logitm(LOG_ERR, "%s: write(ok)", __func__);
 		return (-1);
