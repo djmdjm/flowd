@@ -277,8 +277,10 @@ Store the destination address from the NetFlow packet.
 Store the gateway address from the NetFlow packet.
 .It Ar SRCDST_PORT
 Store the source and destination ports from the NetFlow packet.
-.It Ar PACKETS_OCTETS
-Store the packet and octet counters from the NetFlow packet.
+.It Ar PACKETS
+Store the packet counters from the NetFlow packet.
+.It Ar OCTETS
+Store the octet counters from the NetFlow packet.
 .It Ar IF_INDICES
 Store the in and out interface indices from the NetFlow packet.
 .It Ar AGENT_INFO

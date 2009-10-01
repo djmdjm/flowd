@@ -2,6 +2,8 @@
  - (djm) Support for forwarding flow packets on to other flow collectors.
    Patch from kempf AT rpi.edu
  - (djm) Require Carp for Flowd.pm. Pointed out by tholo AT sigmasoft.com
+ - (djm) The old PACKETS_OCTETS store keyword has long been separated into
+   PACKETS and OCTETS, so adjust man page. Reported by Steve Meier.
 
 20080725
  - (djm) byte swap interface indices before testing them in filters
