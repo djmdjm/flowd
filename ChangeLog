@@ -1,6 +1,7 @@
 20091001
  - (djm) Support for forwarding flow packets on to other flow collectors.
    Patch from kempf AT rpi.edu
+ - (djm) Require Carp for Flowd.pm. Pointed out by tholo AT sigmasoft.com
 
 20080725
  - (djm) byte swap interface indices before testing them in filters

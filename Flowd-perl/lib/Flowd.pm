@@ -19,6 +19,7 @@ package Flowd;
 use 5.006;
 use strict;
 use warnings;
+require Carp;
 
 use constant VERSION		=> "0.9.1";
 
