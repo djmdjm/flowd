@@ -1,5 +1,6 @@
 20101101
  - (djm) Unbreak compilation
+ - (djm) Netflow v.9 storage was missing STORE_FIELD_FLOW_ENGINE_INFO
 
 20091001
  - (djm) Support for forwarding flow packets on to other flow collectors.
