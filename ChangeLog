@@ -1,3 +1,6 @@
+20101101
+ - (djm) Unbreak compilation
+
 20091001
  - (djm) Support for forwarding flow packets on to other flow collectors.
    Patch from kempf AT rpi.edu

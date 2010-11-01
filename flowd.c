@@ -1385,8 +1385,8 @@ startup_forward_init(struct flowd_config *conf)
 	struct forward_addr *fa;
 
 	TAILQ_FOREACH(fa, &conf->forward_addrs, entry) {
-		if ((fa->fd = open_sender(&fa->addr, fa->port, fa->bufsiz,
-		    &conf->join_groups)) == -1) {
+		if ((fa->fd = open_sender(&fa->addr, fa->port,
+		    fa->bufsiz)) == -1) {
 			logerrx("Listener setup of [%s]:%d failed",
 			    addr_ntop_buf(&fa->addr), fa->port);
 		}
