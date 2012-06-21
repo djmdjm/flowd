@@ -285,8 +285,11 @@ start_log(int monitor_fd)
 	if (r < sizeof(struct store_v2_header))
 		return (fd);
 
-	if ((r = lseek(fd, 0, SEEK_SET)) == -1)
+	if ((r = lseek(fd, 0, SEEK_SET)) == -1) {
+		if (errno == ESPIPE)
+			return fd;
 		logerr("%s: lseek", __func__);
+	}
 
 	switch (store_v2_check_header(fd, ebuf, sizeof(ebuf))) {
 	case STORE_ERR_OK:
