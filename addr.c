@@ -422,7 +422,8 @@ addr_pton_cidr(const char *p, struct xaddr *n, u_int *l)
 	char addrbuf[64], *mp, *cp;
 
 	/* Don't modify argument */
-	if (p == NULL || strlcpy(addrbuf, p, sizeof(addrbuf)) > sizeof(addrbuf))
+	if (p == NULL || strlcpy(addrbuf, p,
+	    sizeof(addrbuf)) >= sizeof(addrbuf))
 		return (-1);
 
 	if ((mp = strchr(addrbuf, '/')) != NULL) {
