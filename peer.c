@@ -248,6 +248,214 @@ peer_nf9_new_template(struct peer_state *peer, struct peers *peers,
 	return (nf9tmpl);
 }
 
+
+/* NetFlow v.10 specific function */
+
+static void
+peer_nf10_template_delete(struct peer_nf10_source *nf10src,
+    struct peer_nf10_template *template)
+{
+	TAILQ_REMOVE(&nf10src->templates, template, lp);
+	if (template->records != NULL)
+		free(template->records);
+	free(template);
+	nf10src->num_templates--;
+}
+
+static void peer_nf10_source_delete(struct peer_state *peer,
+    struct peer_nf10_source *nf10src)
+{
+	struct peer_nf10_template *nf10tmpl;
+
+	while ((nf10tmpl = TAILQ_FIRST(&nf10src->templates)) != NULL)
+		peer_nf10_template_delete(nf10src, nf10tmpl);
+	peer->nf10_num_sources--;
+	TAILQ_REMOVE(&peer->nf10, nf10src, lp);
+	free(nf10src);
+}
+
+static void
+peer_nf10_delete(struct peer_state *peer)
+{
+	struct peer_nf10_source *nf10src;
+
+	while ((nf10src = TAILQ_FIRST(&peer->nf10)) != NULL)
+		peer_nf10_source_delete(peer, nf10src);
+}
+
+static struct peer_nf10_source *
+peer_nf10_lookup_source(struct peer_state *peer, u_int32_t source_id)
+{
+	struct peer_nf10_source *nf10src;
+
+	TAILQ_FOREACH(nf10src, &peer->nf10, lp) {
+		if (nf10src->source_id == source_id)
+			return (nf10src);
+	}
+	return (NULL);
+}
+
+static struct peer_nf10_template *
+peer_nf10_lookup_template(struct peer_nf10_source *nf10src, u_int16_t template_id)
+{
+	struct peer_nf10_template *nf10tmpl;
+
+	TAILQ_FOREACH(nf10tmpl, &nf10src->templates, lp) {
+		if (nf10tmpl->template_id == template_id)
+			break;
+	}
+	if (nf10tmpl == NULL)
+		return (NULL);
+
+	return (nf10tmpl);
+}
+
+struct peer_nf10_template *
+peer_nf10_find_template(struct peer_state *peer,
+    u_int32_t source_id, u_int16_t template_id)
+{
+	struct peer_nf10_source *nf10src;
+	struct peer_nf10_template *nf10tmpl;
+
+	nf10src = peer_nf10_lookup_source(peer, source_id);
+
+#ifdef PEER_DEBUG_NF10
+	logit(LOG_DEBUG, "%s: Lookup source 0x%08x for peer %s: %sFOUND",
+	    __func__, source_id, addr_ntop_buf(&peer->from),
+	    nf10src == NULL ? "NOT " : "");
+#endif
+
+	if (nf10src == NULL)
+		return (NULL);
+
+	nf10tmpl = peer_nf10_lookup_template(nf10src, template_id);
+
+#ifdef PEER_DEBUG_NF10
+	logit(LOG_DEBUG, "%s: Lookup template 0x%04x: %sFOUND", __func__,
+	    template_id, nf10tmpl == NULL ? "NOT " : "");
+#endif
+
+	if (nf10tmpl == NULL)
+		return (NULL);
+
+#ifdef PEER_DEBUG_NF10
+	logit(LOG_DEBUG, "%s: Found template %s/0x%08x/0x%04x: %d records %p",
+	    __func__, addr_ntop_buf(&peer->from), source_id, template_id,
+	    nf10tmpl->num_records, nf10tmpl->records);
+#endif
+	return (nf10tmpl);
+}
+
+void
+peer_nf10_template_update(struct peer_state *peer, u_int32_t source_id,
+    u_int16_t template_id)
+{
+	struct peer_nf10_source *nf10src;
+	struct peer_nf10_template *nf10tmpl;
+
+#ifdef PEER_DEBUG_NF10
+	logit(LOG_DEBUG, "%s: Lookup template %s/0x%08x/0x%04x",
+	    __func__, addr_ntop_buf(&peer->from), template_id, source_id);
+#endif
+	nf10src = peer_nf10_lookup_source(peer, source_id);
+	if (nf10src == NULL)
+		return;
+	nf10tmpl = peer_nf10_lookup_template(nf10src, template_id);
+	if (nf10tmpl == NULL)
+		return;
+
+#ifdef PEER_DEBUG_NF10
+	logit(LOG_DEBUG, "%s: found template", __func__);
+#endif
+	/* Move source and template to the head of the list */
+	if (nf10src != TAILQ_FIRST(&peer->nf10)) {
+#ifdef PEER_DEBUG_NF10
+		logit(LOG_DEBUG, "%s: update source", __func__);
+#endif
+		TAILQ_REMOVE(&peer->nf10, nf10src, lp);
+		TAILQ_INSERT_HEAD(&peer->nf10, nf10src, lp);
+	}
+	if (nf10tmpl != TAILQ_FIRST(&nf10src->templates)) {
+#ifdef PEER_DEBUG_NF10
+		logit(LOG_DEBUG, "%s: update template", __func__);
+#endif
+		TAILQ_REMOVE(&nf10src->templates, nf10tmpl, lp);
+		TAILQ_INSERT_HEAD(&nf10src->templates, nf10tmpl, lp);
+	}
+}
+
+static struct peer_nf10_source *
+peer_nf10_new_source(struct peer_state *peer, struct peers *peers,
+    u_int32_t source_id)
+{
+	struct peer_nf10_source *nf10src;
+
+	/* If we have too many sources, then kick out the LRU */
+	peer->nf10_num_sources++;
+	if (peer->nf10_num_sources > peers->max_sources) {
+		nf10src = TAILQ_LAST(&peer->nf10, peer_nf10_list);
+		logit(LOG_WARNING, "forced deletion of source 0x%08x "
+		    "of peer %s", source_id, addr_ntop_buf(&peer->from));
+		/* XXX ratelimit errors */
+		peer_nf10_source_delete(peer, nf10src)    ;
+	}
+
+	if ((nf10src = calloc(1, sizeof(*nf10src))) == NULL)
+		logerrx("%s: calloc failed", __func__);
+	nf10src->source_id = source_id;
+	TAILQ_INIT(&nf10src->templates);
+	TAILQ_INSERT_HEAD(&peer->nf10, nf10src, lp);
+
+#ifdef PEER_DEBUG_NF10
+	logit(LOG_DEBUG, "%s: new source %s/0x%08x", __func__,
+	    addr_ntop_buf(&peer->from), source_id);
+#endif
+
+	return (nf10src);
+}
+
+struct peer_nf10_template *
+peer_nf10_new_template(struct peer_state *peer, struct peers *peers,
+    u_int32_t source_id, u_int16_t template_id)
+{
+	struct peer_nf10_source *nf10src;
+	struct peer_nf10_template *nf10tmpl;
+
+	nf10src = peer_nf10_lookup_source(peer, source_id);
+	if (nf10src == NULL)
+		nf10src = peer_nf10_new_source(peer, peers, source_id);
+
+	/* If the source has too many templates, then kick out the LRU */
+	nf10src->num_templates++;
+	if (nf10src->num_templates > peers->max_templates) {
+		nf10tmpl = TAILQ_LAST(&nf10src->templates,
+		    peer_nf10_template_list);
+		logit(LOG_WARNING, "forced deletion of template 0x%04x from "
+		    "peer %s/0x%08x", template_id, addr_ntop_buf(&peer->from),
+		    source_id);
+		/* XXX ratelimit errors */
+		peer_nf10_template_delete(nf10src, nf10tmpl)    ;
+	}
+
+	if ((nf10tmpl = calloc(1, sizeof(*nf10tmpl))) == NULL)
+		logerrx("%s: calloc failed", __func__);
+	nf10tmpl->template_id = template_id;
+	TAILQ_INSERT_HEAD(&nf10src->templates, nf10tmpl, lp);
+
+#ifdef PEER_DEBUG_NF10
+	logit(LOG_DEBUG, "%s: new template %s/0x%08x/0x%04x", __func__,
+	    addr_ntop_buf(&peer->from), source_id, template_id);
+#endif
+
+	/* Move source and template to the head of the list */
+	if (nf10src != TAILQ_FIRST(&peer->nf10)) {
+		TAILQ_REMOVE(&peer->nf10, nf10src, lp);
+		TAILQ_INSERT_HEAD(&peer->nf10, nf10src, lp);
+	}
+
+	return (nf10tmpl);
+}
+
 /* General peer state housekeeping functions */
 static int
 peer_compare(struct peer_state *a, struct peer_state *b)

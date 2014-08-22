@@ -163,6 +163,61 @@ struct NF9_DATA_FLOWSET_HEADER {
 /* ... */
 #define NF9_IPV6_NEXT_HOP		62
 
+/* Netflow v.10 */
+struct NF10_HEADER {
+	struct NF_HEADER_COMMON c;
+	u_int32_t time_sec;
+	u_int32_t package_sequence, source_id;
+} __packed;
+struct NF10_FLOWSET_HEADER_COMMON {
+	u_int16_t flowset_id, length;
+} __packed;
+struct NF10_TEMPLATE_FLOWSET_HEADER {
+	u_int16_t template_id, count;
+} __packed;
+struct NF10_TEMPLATE_FLOWSET_RECORD {
+	u_int16_t type, length;
+} __packed;
+struct NF10_DATA_FLOWSET_HEADER {
+	struct NF10_FLOWSET_HEADER_COMMON c;
+} __packed;
+#define NF10_TEMPLATE_FLOWSET_ID	2
+#define NF10_OPTIONS_FLOWSET_ID		3
+#define NF10_MIN_RECORD_FLOWSET_ID	256
+
+#define	NF10_ENTERPRISE			(1<<15)
+
+/* Flowset record types the we care about */
+#define NF10_IN_BYTES			1
+#define NF10_IN_PACKETS			2
+/* ... */
+#define NF10_IN_PROTOCOL		4
+#define NF10_SRC_TOS			5
+#define NF10_TCP_FLAGS			6
+#define NF10_L4_SRC_PORT		7
+#define NF10_IPV4_SRC_ADDR		8
+#define NF10_SRC_MASK			9
+#define NF10_INPUT_SNMP			10
+#define NF10_L4_DST_PORT		11
+#define NF10_IPV4_DST_ADDR		12
+#define NF10_DST_MASK			13
+#define NF10_OUTPUT_SNMP		14
+#define NF10_IPV4_NEXT_HOP		15
+#define NF10_SRC_AS			16
+#define NF10_DST_AS			17
+/* ... */
+#define NF10_LAST_SWITCHED		21
+#define NF10_FIRST_SWITCHED		22
+/* ... */
+#define NF10_IPV6_SRC_ADDR		27
+#define NF10_IPV6_DST_ADDR		28
+#define NF10_IPV6_SRC_MASK		29
+#define NF10_IPV6_DST_MASK		30
+/* ... */
+#define NF10_ENGINE_TYPE		38
+#define NF10_ENGINE_ID			39
+/* ... */
+#define NF10_IPV6_NEXT_HOP		62
 
 #endif /* _NETFLOW_H */
 

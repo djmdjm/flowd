@@ -77,6 +77,31 @@ struct peer_nf9_source {
 };
 TAILQ_HEAD(peer_nf9_list, peer_nf9_source);
 
+/* A record in a NetFlow v.10 template record */
+struct peer_nf10_record {
+	u_int type;
+	u_int len;
+};
+
+/* A NetFlow v.10 template record */
+struct peer_nf10_template {
+	TAILQ_ENTRY(peer_nf10_template) lp;
+	u_int16_t template_id;
+	u_int num_records;
+	u_int total_len;
+	struct peer_nf10_record *records;
+};
+TAILQ_HEAD(peer_nf10_template_list, peer_nf10_template);
+
+/* A distinct NetFlow v.10 source */
+struct peer_nf10_source {
+	TAILQ_ENTRY(peer_nf10_source) lp;
+	u_int32_t source_id;
+	u_int num_templates;
+	struct peer_nf10_template_list templates;
+};
+TAILQ_HEAD(peer_nf10_list, peer_nf10_source);
+
 /* General per-peer state */
 
 /*
@@ -96,6 +121,10 @@ struct peer_state {
 	/* NetFlow v.9 specific portions */
 	struct peer_nf9_list nf9;
 	u_int nf9_num_sources;
+
+	/* NetFlow v.10 specific portions */
+	struct peer_nf10_list nf10;
+	u_int nf10_num_sources;
 };
 
 /* Structures for top of peer state tree and head of list */
@@ -126,6 +155,15 @@ struct peer_nf9_template *
 peer_nf9_new_template(struct peer_state *peer, struct peers *peers,
     u_int32_t source_id, u_int16_t template_id);
 void peer_nf9_template_update(struct peer_state *peer,
+    u_int32_t source_id, u_int16_t template_id);
+
+/* NetFlow v.10 state handling functions */
+struct peer_nf10_template *peer_nf10_find_template(struct peer_state *peer,
+    u_int32_t source_id, u_int16_t template_id);
+struct peer_nf10_template *
+peer_nf10_new_template(struct peer_state *peer, struct peers *peers,
+    u_int32_t source_id, u_int16_t template_id);
+void peer_nf10_template_update(struct peer_state *peer,
     u_int32_t source_id, u_int16_t template_id);
 
 #endif /* _PEER_H */
