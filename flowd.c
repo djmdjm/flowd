@@ -902,13 +902,13 @@ process_netflow_v9_template(u_int8_t *pkt, size_t len, struct peer_state *peer,
 				return (-1);
 			}
 			if (!nf9_check_rec_len(recs[i].type, recs[i].len)) {
-				free(recs);
 				peer->ninvalid++;
 				logit(LOG_WARNING, "Invalid field length in "
 				    "netflow v.9 flowset template %d from "
 				    "%s/0x%08x type %d len %d", template_id, 
 				    addr_ntop_buf(&peer->from), source_id,
 				    recs[i].type, recs[i].len);
+				free(recs);
 				/* XXX ratelimit */
 				return (-1);
 			}
