@@ -399,7 +399,6 @@ process_netflow_v1(struct flow_packet *fp, struct flowd_config *conf,
 	struct store_flow_complete flow;
 	size_t offset;
 	u_int i, nflows;
-	struct timeval tv;
 
 	if (fp->len < sizeof(*nf1_hdr)) {
 		peer->ninvalid++;
@@ -443,7 +442,7 @@ process_netflow_v1(struct flow_packet *fp, struct flowd_config *conf,
 		flow.hdr.fields &= ~STORE_FIELD_FLOW_ENGINE_INFO;
 
 		flow.recv_time.recv_sec = fp->recv_time.tv_sec;
-		flow.recv_time.recv_usec = tv.tv_usec;
+		flow.recv_time.recv_usec = fp->recv_time.tv_usec;
 
 		flow.pft.tcp_flags = nf1_flow->tcp_flags;
 		flow.pft.protocol = nf1_flow->protocol;
