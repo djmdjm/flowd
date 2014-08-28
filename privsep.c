@@ -63,7 +63,7 @@ privsep_read_string(int fd, int nullok)
 	if (nullok && len == 0)
 		return (NULL);
 	if (len <= 0 || len >= sizeof(buf))
-		logerrx("%s: silly len: %u", __func__, len);
+		logerrx("%s: silly len: %zu", __func__, len);
 	if (atomicio(read, fd, buf, len) != len) {
 		logitm(LOG_ERR, "%s: read str", __func__);
 		return (NULL);
@@ -85,7 +85,7 @@ privsep_write_string(int fd, char *s, int nullok)
 			logerrx("%s: s == NULL", s);
 		len = 0;
 	} else if ((len = strlen(s)) <= 0) {
-		logit(LOG_ERR, "%s: silly len: %u", __func__, len);
+		logit(LOG_ERR, "%s: silly len: %zu", __func__, len);
 		return (-1);
 	}
 	if (atomicio(vwrite, fd, &len, sizeof(len)) != sizeof(len)) {
@@ -927,7 +927,7 @@ answer_open_socket(struct flowd_config *conf, int client_fd)
 		    &conf->log_socket_bufsiz,
 		    sizeof(conf->log_socket_bufsiz)) == 0) {
 			logit(LOG_DEBUG, "Adjusted log_socket send "
-			    "buffer from %d to %d", orig,
+			    "buffer from %d to %zd", orig,
 			    conf->log_socket_bufsiz);
 		} else
 			logerr("%s: setsockopt(SO_SNDBUF)", __func__);

@@ -137,11 +137,11 @@ output_flow_enqueue(u_int8_t *f, size_t len, int verbose)
 	if (output_queue == NULL) {
 		output_queue_alloc = OUTPUT_INITIAL_QLEN;
 		if ((output_queue = malloc(output_queue_alloc)) == NULL) {
-			logerrx("Output queue allocation (%u bytes) failed",
+			logerrx("Output queue allocation (%zu bytes) failed",
 			    output_queue_alloc);
 		}
 		if (verbose) {
-			logit(LOG_DEBUG, "%s: initial allocation %u", __func__,
+			logit(LOG_DEBUG, "%s: initial allocation %zu", __func__,
 			    output_queue_alloc);
 		}
 	}
@@ -152,19 +152,19 @@ output_flow_enqueue(u_int8_t *f, size_t len, int verbose)
 
 		/* This should never happen if max = initial * 2^x */
 		if (tmp_len > OUTPUT_MAX_QLEN) {
-			logit(LOG_DEBUG, "%s: oops, tmp_len (%u) > "
+			logit(LOG_DEBUG, "%s: oops, tmp_len (%zu) > "
 			    "OUTPUT_MAX_QLEN (%u)", __func__, tmp_len,
 			    OUTPUT_MAX_QLEN);
 			return (-1);
 		}
 		if ((tmp_q = realloc(output_queue, tmp_len)) == NULL) {
-			logit(LOG_DEBUG, "%s: realloc of %u fail", __func__,
+			logit(LOG_DEBUG, "%s: realloc of %zu fail", __func__,
 			    tmp_len);
 			return (-1);
 		}
 		if (verbose) {
 			logit(LOG_DEBUG, "%s: increased output queue "
-			    "from %uKB to %uKB", __func__,
+			    "from %zuKB to %zuKB", __func__,
 			    output_queue_alloc >> 10, tmp_len >> 10);
 		}
 		output_queue = tmp_q;
@@ -173,7 +173,7 @@ output_flow_enqueue(u_int8_t *f, size_t len, int verbose)
 	memcpy(output_queue + output_queue_offset, f, len);
 	output_queue_offset += len;
 	if (verbose) {
-		logit(LOG_DEBUG, "%s: offset %u alloc %u", __func__,
+		logit(LOG_DEBUG, "%s: offset %zu alloc %zu", __func__,
 		    output_queue_offset, output_queue_alloc);
 	}
 	
@@ -189,7 +189,7 @@ output_flow_flush(int log_fd, int verbose)
 		return;
 
 	if (verbose) {
-		logit(LOG_DEBUG, "%s: flushing output queue len %u", __func__,
+		logit(LOG_DEBUG, "%s: flushing output queue len %zu", __func__,
 		    output_queue_offset);
 	}
 
@@ -417,7 +417,7 @@ process_netflow_v1(struct flow_packet *fp, struct flowd_config *conf,
 	if (fp->len != NF1_PACKET_SIZE(nflows)) {
 		peer->ninvalid++;
 		logit(LOG_WARNING, "Inconsistent Netflow v.1 packet from %s: "
-		    "len %u expected %u", addr_ntop_buf(&fp->flow_source),
+		    "len %u expected %zu", addr_ntop_buf(&fp->flow_source),
 		    fp->len, NF1_PACKET_SIZE(nflows));
 		return;
 	}
@@ -508,7 +508,7 @@ process_netflow_v5(struct flow_packet *fp, struct flowd_config *conf,
 	if (fp->len != NF5_PACKET_SIZE(nflows)) {
 		peer->ninvalid++;
 		logit(LOG_WARNING, "Inconsistent Netflow v.5 packet from %s: "
-		    "len %u expected %u", addr_ntop_buf(&fp->flow_source),
+		    "len %u expected %zu", addr_ntop_buf(&fp->flow_source),
 		    fp->len, NF5_PACKET_SIZE(nflows));
 		return;
 	}
@@ -606,7 +606,7 @@ process_netflow_v7(struct flow_packet *fp, struct flowd_config *conf,
 	if (fp->len != NF7_PACKET_SIZE(nflows)) {
 		peer->ninvalid++;
 		logit(LOG_WARNING, "Inconsistent Netflow v.7 packet from %s: "
-		    "len %u expected %u", addr_ntop_buf(&fp->flow_source),
+		    "len %u expected %zu", addr_ntop_buf(&fp->flow_source),
 		    fp->len, NF7_PACKET_SIZE(nflows));
 		return;
 	}
@@ -833,7 +833,7 @@ process_netflow_v9_template(u_int8_t *pkt, size_t len, struct peer_state *peer,
 	struct peer_nf9_template *template;
 
 	logit(LOG_DEBUG, "netflow v.9 template flowset from source 0x%x "
-	    "(len %d)", source_id, len);
+	    "(len %zd)", source_id, len);
 #ifdef DEBUG_NF9
 	dump_packet(__func__, pkt, len);
 #endif
@@ -842,7 +842,7 @@ process_netflow_v9_template(u_int8_t *pkt, size_t len, struct peer_state *peer,
 	if (len < sizeof(*template_header)) {
 		peer->ninvalid++;
 		logit(LOG_WARNING, "short netflow v.9 flowset template header "
-		    "%d bytes from %s/0x%x", len, addr_ntop_buf(&peer->from),
+		    "%zd bytes from %s/0x%x", len, addr_ntop_buf(&peer->from),
 		    source_id);
 		/* XXX ratelimit */
 		return (-1);
@@ -850,7 +850,7 @@ process_netflow_v9_template(u_int8_t *pkt, size_t len, struct peer_state *peer,
 	if (ntohs(template_header->flowset_id) != NF9_TEMPLATE_FLOWSET_ID)
 		logerrx("Confused template");
 
-	logit(LOG_DEBUG, "NetFlow v.9 template set from %s/0x%x with len %d:",
+	logit(LOG_DEBUG, "NetFlow v.9 template set from %s/0x%x with len %zd:",
 	    addr_ntop_buf(&peer->from), source_id, len);
 
 	for (offset = sizeof(*template_header); offset < len;) {
@@ -873,7 +873,7 @@ process_netflow_v9_template(u_int8_t *pkt, size_t len, struct peer_state *peer,
 				free(recs);
 				peer->ninvalid++;
 				logit(LOG_WARNING, "short netflow v.9 flowset "
-				    "template 0x%08x/0x%04x %d bytes from %s", 
+				    "template 0x%08x/0x%04x %zd bytes from %s",
 				    source_id, template_id, len, 
 				    addr_ntop_buf(&peer->from));
 				/* XXX ratelimit */
@@ -943,14 +943,14 @@ process_netflow_v9_data(u_int8_t *pkt, size_t len, struct timeval *tv,
 
 	*num_flows = 0;
 
-	logit(LOG_DEBUG, "netflow v.9 data flowset (len %d) source 0x%08x",
+	logit(LOG_DEBUG, "netflow v.9 data flowset (len %zd) source 0x%08x",
 	    len, source_id);
 
 	dath = (struct NF9_DATA_FLOWSET_HEADER *)pkt;
 	if (len < sizeof(*dath)) {
 		peer->ninvalid++;
 		logit(LOG_WARNING, "short netflow v.9 data flowset header "
-		    "%d bytes from %s", len, addr_ntop_buf(&peer->from));
+		    "%zd bytes from %s", len, addr_ntop_buf(&peer->from));
 		/* XXX ratelimit */
 		return (-1);
 	}
