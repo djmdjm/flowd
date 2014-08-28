@@ -801,7 +801,7 @@ store_format_flow_flowtools_csv(struct store_flow_complete *flow, char *buf,
 
 	fields = fmt_ntoh32(flow->hdr.fields) & display_mask;
 
-	snprintf(tmp, sizeof(tmp), "%lu,%lu,%lu,%s,%llu,%llu,%lu,%lu,%u,%u,",
+	snprintf(tmp, sizeof(tmp), "%u,%u,%u,%s,%llu,%llu,%u,%u,%u,%u,",
 		fmt_ntoh32(flow->ainfo.time_sec),	// unix_secs
 		fmt_ntoh32(flow->ainfo.time_nanosec),	// unix_nsecs
 		fmt_ntoh32(flow->ainfo.sys_uptime_ms),	// sysuptime
